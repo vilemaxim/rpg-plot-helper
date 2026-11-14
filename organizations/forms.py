@@ -6,4 +6,4 @@ class WorldForm(forms.Form):
 
 
 class InvitationForm(forms.Form):
-    email = forms.EmailField(label="Email address to invite")
+    email = forms.EmailField(label="Email address to invite", max_length=254)

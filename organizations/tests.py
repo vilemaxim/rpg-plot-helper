@@ -335,3 +335,19 @@ class TheSetting(TestCase):
 
     def test_local_development_can_turn_it_off_to_try_a_self_hosted_copy(self):
         self.assertIs(self.read("plothelper.settings.local", {"OPEN_SIGN_UP": "false"}), False)
+
+
+@override_settings(OPEN_SIGN_UP=False)
+class EmptyingTheDatabase(TransactionTestCase):
+    """`manage.py flush` and the like empty tables with TRUNCATE, which removes
+    rows without deleting them one by one. The count of Organizations has to
+    notice, or a closed copy would think its one Organization still exists."""
+
+    def test_the_next_person_can_start_again(self):
+        sign_in("mira@example.com")
+        with connection.cursor() as cursor:
+            cursor.execute("TRUNCATE organizations_organization CASCADE")
+
+        sam = sign_in("sam@example.com")
+
+        self.assertNotContains(sam.get("/", follow=True), INVITATION_NEEDED)

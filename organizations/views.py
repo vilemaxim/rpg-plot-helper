@@ -81,7 +81,7 @@ def world(request, world_id):
 
 # ── The Organization: its Worlds, its people, invitations ───────────────────
 
-def organization_page(request, *, world_form=None, invitation_form=None, status=200):
+def organization_page(request, *, world_form=None, invitation_form=None):
     organization = request.organization
     return render(request, "organizations/organization.html", {
         "worlds": World.objects.filter(organization=organization),
@@ -91,17 +91,17 @@ def organization_page(request, *, world_form=None, invitation_form=None, status=
                                                  accepted_at__isnull=True),
         "world_form": world_form or WorldForm(),
         "invitation_form": invitation_form or InvitationForm(),
-    }, status=status)
+    })
 
 
-@require_GET
 @organization_admin_only
+@require_GET
 def organization(request):
     return organization_page(request)
 
 
-@require_POST
 @organization_admin_only
+@require_POST
 def create_world(request):
     form = WorldForm(request.POST)
     if not form.is_valid():
@@ -127,8 +127,8 @@ def send_invitation(request, invitation):
     )
 
 
-@require_POST
 @organization_admin_only
+@require_POST
 def invite(request):
     """Invite an email address to the Organization. Inviting the same address
     again sends the email again."""
@@ -141,9 +141,11 @@ def invite(request):
     if not form.is_valid():
         return organization_page(request, invitation_form=form)
 
-    invitation, _ = Invitation.objects.get_or_create(
+    # One row per address. Inviting again, including someone who joined and has
+    # since left, puts the invitation back to waiting.
+    invitation, _ = Invitation.objects.update_or_create(
         organization=request.organization, email=email,
-        defaults={"invited_by": request.user})
+        defaults={"invited_by": request.user, "accepted_at": None})
     send_invitation(request, invitation)
     return redirect("organization")
 
@@ -163,8 +165,8 @@ def switch_organization(request):
 
 # ── Roles in one World ──────────────────────────────────────────────────────
 
-@require_GET
 @organization_admin_only
+@require_GET
 def people(request, world_id):
     """Who holds which role in this World."""
     world = world_or_404(request, world_id)
@@ -198,8 +200,8 @@ def role_being_changed(request, world_id):
     return world, user_id, role
 
 
-@require_POST
 @organization_admin_only
+@require_POST
 def give_role(request, world_id):
     world, user_id, role = role_being_changed(request, world_id)
     if user_id is None:
@@ -209,8 +211,8 @@ def give_role(request, world_id):
     return redirect("world-people", world_id=world.pk)
 
 
-@require_POST
 @organization_admin_only
+@require_POST
 def remove_role(request, world_id):
     world, user_id, role = role_being_changed(request, world_id)
     if user_id is None:

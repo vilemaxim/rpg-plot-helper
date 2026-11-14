@@ -62,10 +62,11 @@ def activate(request, user):
     Membership there and `request.organization` to the Organization, or both to
     None if they belong to no Organization.
 
-    This is the only place a request chooses an Organization. The database
-    trusts what it is told here, so the choice is always made from the person's
-    own Memberships: the Organization in the session is only a preference, used
-    only if the person is still a member of it.
+    This is the only place the database is told which Organization a request
+    works in. The database trusts what it is told, so the choice is always made
+    from the person's own Memberships. Other code may put a preference in the
+    session (switching, or joining by invitation), but it is used only if the
+    person is a member of that Organization.
     """
     set_context(user)
     memberships = (Membership.objects.filter(user=user)

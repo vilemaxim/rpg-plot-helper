@@ -74,11 +74,21 @@ def same_organization(table, column, target, target_column="id"):
 
     Postgres does not apply row-level security to its own foreign-key checks,
     so without this a row in one Organization could point at another's.
+
+    Adding the constraint is different: Postgres checks the rows already there
+    with an ordinary query, which row-level security would hide, so every
+    existing row would pass unchecked. Row-level security is lifted from both
+    tables while the constraint is added, so that a row that breaks it stops
+    the migration.
     """
     name = f"{table}_{column}_same_organization"
     return migrations.RunSQL(
-        sql=f"ALTER TABLE {table} ADD CONSTRAINT {name} "
+        sql=f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY; "
+            f"ALTER TABLE {target} NO FORCE ROW LEVEL SECURITY; "
+            f"ALTER TABLE {table} ADD CONSTRAINT {name} "
             f"FOREIGN KEY (organization_id, {column}) "
-            f"REFERENCES {target} (organization_id, {target_column}) ON DELETE CASCADE;",
+            f"REFERENCES {target} (organization_id, {target_column}) ON DELETE CASCADE; "
+            f"ALTER TABLE {target} FORCE ROW LEVEL SECURITY; "
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
         reverse_sql=f"ALTER TABLE {table} DROP CONSTRAINT {name};",
     )

@@ -175,6 +175,12 @@ class Invitations(PeopleTest):
         self.assertContains(response, "already belongs to this Organization")
         self.assertEqual(len(mail.outbox), before)
 
+    def test_an_address_too_long_to_be_real_is_refused(self):
+        response = self.invite("a" * 300 + "@example.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "at most 254 characters")
+
     def test_something_that_is_not_an_email_is_refused(self):
         before = len(mail.outbox)
 
@@ -320,6 +326,14 @@ class OnlyAnOrganizationAdmin(PeopleTest):
 
         self.assert_refused(response)
         self.assertEqual(self.eve.get(self.first_world).status_code, 404)
+
+    def test_the_actions_do_not_reveal_themselves_to_anyone_else(self):
+        """A wrong kind of request gets "not found" too, not a hint that the
+        address is real."""
+        for address in (f"{ORGANIZATION}invitations/", f"{ORGANIZATION}worlds/",
+                        f"{self.first_world}roles/", f"{self.first_world}roles/remove/"):
+            self.assert_refused(self.sam.get(address))
+        self.assert_refused(self.sam.post(ORGANIZATION))
 
     def test_the_actions_cannot_be_reached_with_a_link(self):
         for address in (f"{ORGANIZATION}invitations/", f"{ORGANIZATION}worlds/",

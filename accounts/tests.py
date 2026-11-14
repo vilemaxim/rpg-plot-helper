@@ -72,6 +72,12 @@ class AskingForALink(SignInTest):
         self.assertEqual(mail.outbox, [])
         self.assertEqual(User.objects.count(), 0)
 
+    def test_an_address_too_long_to_be_real_is_refused(self):
+        response = self.ask_for_a_link("a" * 300 + "@example.com")
+
+        self.assertContains(response, "at most 254 characters")
+        self.assertEqual(mail.outbox, [])
+
     def test_a_new_address_gets_an_account(self):
         self.ask_for_a_link("mira@example.com")
 

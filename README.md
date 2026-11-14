@@ -70,11 +70,11 @@ An Organization Admin runs these from the Organization page, reached by clicking
 - **More Worlds.** Create one by name.
 - **Invitations.** Enter an email address. The person is emailed a link to the sign-in page with their address filled in, and they join the Organization when they sign in with it. Inviting the same address again sends the email again.
 - **Roles.** A new member can open nothing until they are given a role. Roles are per World: Plot Master, Mod Writer and Mod Runner, given and removed on each World's people page. A person can open only the Worlds they hold a role in; an Organization Admin can open them all.
-- **Several Organizations.** A person who belongs to more than one sees a switcher at the top of the page. The app remembers which one they last worked in.
+- **Several Organizations.** A person who belongs to more than one sees a switcher at the top of the page. The app remembers which one they are working in until they sign out.
 
 ## How Organizations are kept apart
 
-Each Organization's data is kept apart twice: once by the app's own checks, and once by Postgres row-level security underneath them. Every request tells the database who is asking and which Organization they are working in, and the database returns only that Organization's rows. With nothing set, a query returns no rows at all. The one exception is that a person can always see the Organizations they belong to and their own membership of each, which is how the app finds out where they may work.
+Each Organization's data is kept apart twice: once by the app's own checks, and once by Postgres row-level security underneath them. Every request tells the database who is asking and which Organization they are working in, and the database returns only that Organization's rows. With nothing set, a query returns no rows at all. There are three deliberate exceptions. A person can always see the Organizations they belong to and their own membership of each, which is how the app finds out where they may work. A person can see an invitation sent to their own address, which is how signing in finds it. And the database keeps a bare count of Organizations that any query can read, so that a copy with sign-up closed knows whether its one Organization exists yet.
 
 This guards against a mistake in the app's queries. It is not a guard against the app running arbitrary SQL, because the app's database user owns the tables.
 
