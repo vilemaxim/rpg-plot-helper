@@ -1,5 +1,7 @@
 # Two versions, one schema owned by larp-llm
 
+> Schema ownership was moved to the plotcanon package by [ADR-0004](./0004-the-schema-lives-in-its-own-package-plotcanon.md). The rest of this decision stands.
+
 The system exists as two versions developed side by side: larp-llm, where a git repo per World is the system and Canon changes arrive as pull requests, and this repo, a multi-tenant web app for plot teams who will never open a terminal. larp-llm owns the shared schema (entity types, fields and vocabulary), and the web app follows it: a concept is added to larp-llm's schema before the app may use it. The two versions exchange Worlds only by importing and exporting files in one markdown-with-frontmatter format, and never sync live.
 
 ## Considered Options
