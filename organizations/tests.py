@@ -205,3 +205,99 @@ class TheDatabaseOnItsOwn(TestCase):
             cursor.execute("SELECT rolsuper, rolbypassrls FROM pg_roles "
                            "WHERE rolname = current_user")
             self.assertEqual(cursor.fetchone(), (False, False))
+
+
+INVITATION_NEEDED = "You need an invitation"
+
+
+@override_settings(OPEN_SIGN_UP=False)
+class SignUpClosed(TestCase):
+    """How a self-hosted copy behaves unless it is told otherwise (ADR-0005)."""
+
+    def test_the_first_person_gets_an_organization_and_a_world(self):
+        mira = sign_in("mira@example.com")
+
+        response = mira.get("/", follow=True)
+
+        self.assertRegex(response.redirect_chain[-1][0], r"^/worlds/[0-9a-f-]{36}/$")
+        self.assertContains(response, "Organization Admin")
+
+    def test_a_second_new_person_gets_none_and_is_told_they_need_an_invitation(self):
+        sign_in("mira@example.com")
+        sam = sign_in("sam@example.com")
+
+        response = sam.get("/")
+
+        self.assertContains(response, INVITATION_NEEDED)
+        self.assertNotContains(response, "My Organization")
+
+    def test_a_person_without_an_organization_cannot_open_anyones_world(self):
+        miras_world = world_address(sign_in("mira@example.com"))
+        sam = sign_in("sam@example.com")
+
+        self.assertEqual(sam.get(miras_world).status_code, 404)
+
+    def test_someone_who_already_belongs_signs_in_as_before(self):
+        first = world_address(sign_in("mira@example.com"))
+        sign_in("sam@example.com")
+
+        again = sign_in("mira@example.com")
+
+        self.assertEqual(world_address(again), first)
+
+    def test_asking_for_a_link_and_never_using_it_does_not_take_the_first_place(self):
+        Client().post("/sign-in/", {"email": "stranger@example.com"})
+
+        mira = sign_in("mira@example.com")
+
+        self.assertNotContains(mira.get("/", follow=True), INVITATION_NEEDED)
+
+    def test_signing_in_again_does_not_earn_an_organization(self):
+        sign_in("mira@example.com")
+        sign_in("sam@example.com")
+
+        sam = sign_in("sam@example.com")
+
+        self.assertContains(sam.get("/"), INVITATION_NEEDED)
+
+
+@override_settings(OPEN_SIGN_UP=True)
+class SignUpOpen(TestCase):
+    """How a public host behaves: everyone who signs up gets their own."""
+
+    def test_every_new_person_gets_their_own_organization_and_world(self):
+        mira = world_address(sign_in("mira@example.com"))
+        sam = world_address(sign_in("sam@example.com"))
+
+        self.assertRegex(mira, r"^/worlds/[0-9a-f-]{36}/$")
+        self.assertRegex(sam, r"^/worlds/[0-9a-f-]{36}/$")
+        self.assertNotEqual(mira, sam)
+
+
+class TheSetting(TestCase):
+    def read(self, module, environment):
+        import importlib
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, environment, clear=False):
+            for name in set(os.environ) & {"OPEN_SIGN_UP"} - set(environment):
+                del os.environ[name]
+            return importlib.reload(importlib.import_module(module)).OPEN_SIGN_UP
+
+    def test_it_is_off_unless_turned_on(self):
+        self.assertIs(self.read("plothelper.settings.base", {}), False)
+
+    def test_the_environment_turns_it_on(self):
+        self.assertIs(self.read("plothelper.settings.base", {"OPEN_SIGN_UP": "true"}), True)
+        self.assertIs(self.read("plothelper.settings.base", {"OPEN_SIGN_UP": "1"}), True)
+
+    def test_anything_else_leaves_it_off(self):
+        self.assertIs(self.read("plothelper.settings.base", {"OPEN_SIGN_UP": "false"}), False)
+        self.assertIs(self.read("plothelper.settings.base", {"OPEN_SIGN_UP": ""}), False)
+
+    def test_local_development_has_it_on(self):
+        self.assertIs(self.read("plothelper.settings.local", {}), True)
+
+    def test_local_development_can_turn_it_off_to_try_a_self_hosted_copy(self):
+        self.assertIs(self.read("plothelper.settings.local", {"OPEN_SIGN_UP": "false"}), False)

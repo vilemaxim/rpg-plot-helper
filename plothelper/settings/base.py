@@ -4,6 +4,8 @@ deployed copy will too, when deployment is built."""
 from datetime import timedelta
 from pathlib import Path
 
+from . import env
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 INSTALLED_APPS = [
@@ -60,6 +62,12 @@ SESAME_ONE_TIME = True
 SESAME_MAX_AGE = timedelta(minutes=15)
 
 DEFAULT_FROM_EMAIL = "RPG Plot Helper <no-reply@localhost>"
+
+# ── Organizations ───────────────────────────────────────────────────────────
+# Who may create an Organization (ADR-0005). Off: the first person to sign in
+# creates the one Organization, and everyone after joins only by invitation.
+# On: everyone who signs up gets an Organization of their own.
+OPEN_SIGN_UP = env.flag("OPEN_SIGN_UP", default=False)
 
 # ── Everything else ─────────────────────────────────────────────────────────
 

@@ -18,6 +18,8 @@ def worlds_open_to(request):
 
 def home(request):
     """Send a person to their World."""
+    if request.membership is None:
+        return render(request, "organizations/no_organization.html")
     world = worlds_open_to(request).first()
     if world is None:
         return render(request, "organizations/no_worlds.html")

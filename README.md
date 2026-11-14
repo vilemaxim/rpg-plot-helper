@@ -50,6 +50,19 @@ export PLOTHELPER_DB_PORT=5433
 export DATABASE_URL=postgres://plothelper:plothelper@localhost:5433/plothelper
 ```
 
+## Who may create an Organization
+
+One setting, `OPEN_SIGN_UP`, decides this. It is read from the environment.
+
+| `OPEN_SIGN_UP` | What happens | Who it suits |
+|---|---|---|
+| not set, or `false` | The first person to sign in gets the one Organization and its first World. Anyone who signs in after that is told they need an invitation. | A self-hosted copy for one group. This is the default, so a copy on the internet does not hand an Organization to every stranger. |
+| `true` | Everyone who signs in for the first time gets an Organization and a World of their own. | A public host serving many groups, or a self-hoster who hosts for partner groups. |
+
+Local development turns it on, so you can try the app with several email addresses. To see what a self-hosted copy does, start the app with `OPEN_SIGN_UP=false uv run manage.py runserver`.
+
+The data is stored the same way in both cases. See [ADR-0005](./docs/adr/0005-one-setting-decides-who-may-create-an-organization.md).
+
 ## How Organizations are kept apart
 
 Each Organization's data is kept apart twice: once by the app's own checks, and once by Postgres row-level security underneath them. Every request tells the database who is asking and which Organization they are working in, and the database returns only that Organization's rows. With nothing set, a query returns no rows at all. The one exception is that a person can always see the Organizations they belong to and their own membership of each, which is how the app finds out where they may work.

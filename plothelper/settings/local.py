@@ -8,6 +8,7 @@ import os
 
 import dj_database_url
 
+from . import env
 from .base import *  # noqa: F401,F403
 
 DEBUG = True
@@ -22,3 +23,7 @@ DATABASES = {
 }
 
 EMAIL_BACKEND = "accounts.email.TerminalEmailBackend"
+
+# On locally, so the app can be tried with several email addresses. Set
+# OPEN_SIGN_UP=false to see what a self-hosted copy does.
+OPEN_SIGN_UP = env.flag("OPEN_SIGN_UP", default=True)
