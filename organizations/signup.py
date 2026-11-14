@@ -2,7 +2,10 @@
 
 If they may create one, they get an Organization of one and a first World, so
 they can start without learning about Organizations. Whether they may is decided
-by the open sign-up setting (ADR-0005).
+by the open sign-up setting (ADR-0005). Someone who has been invited to an
+Organization decides on that first.
+
+Also here: accepting and declining an invitation.
 """
 
 import uuid
@@ -36,24 +39,23 @@ def create_first_organization(user):
     return organization
 
 
-def accept_invitations(user):
-    """Join every Organization that has invited this person's address and that
-    they have not joined yet. Signing in is what proves the address is theirs.
-    Returns the Organizations joined, oldest invitation first. If there are
-    none, nothing changes, including which Organization the request works in."""
-    joined = []
-    waiting = Invitation.objects.filter(email=user.email, accepted_at__isnull=True)
-    for invitation in waiting.order_by("created_at"):
-        tenancy.set_context(user, invitation.organization_id)
-        Membership.objects.get_or_create(organization_id=invitation.organization_id, user=user)
-        invitation.accepted_at = timezone.now()
-        invitation.save(update_fields=["accepted_at"])
-        joined.append(invitation.organization_id)
-    if joined:
-        # Joining moved the database's attention from one Organization to the
-        # next. Leave none chosen; the caller picks where the person works now.
-        tenancy.set_context(user)
-    return joined
+def accept(invitation, user):
+    """Join the Organization that sent this invitation. Returns its id."""
+    tenancy.set_context(user, invitation.organization_id)
+    Membership.objects.get_or_create(organization_id=invitation.organization_id, user=user)
+    invitation.accepted_at = timezone.now()
+    invitation.save(update_fields=["accepted_at"])
+    tenancy.set_context(user)
+    return invitation.organization_id
+
+
+def decline(invitation, user):
+    """Turn this invitation down. The Organization can see that, and may
+    invite the address again."""
+    tenancy.set_context(user, invitation.organization_id)
+    invitation.declined_at = timezone.now()
+    invitation.save(update_fields=["declined_at"])
+    tenancy.set_context(user)
 
 
 def may_create_an_organization():
@@ -74,20 +76,25 @@ def may_create_an_organization():
         return cursor.fetchone()[0] == 0
 
 
+def give_an_organization_if_due(user):
+    """Give this person an Organization of their own if they belong to none,
+    may create one, and are not still deciding on an invitation. Someone who
+    has been invited answers that first: joining may be all they wanted."""
+    tenancy.set_context(user)
+    if Membership.objects.filter(user=user).exists():
+        return
+    if Invitation.objects.waiting_for(user).exists():
+        return
+    if may_create_an_organization():
+        create_first_organization(user)
+
+
 @receiver(user_logged_in)
 def set_up_on_sign_in(sender, request, user, **kwargs):
-    """On every sign-in: join any Organization that has invited the person,
-    give them one of their own if they still have none and may create one, and
-    make the rest of this request work in theirs."""
+    """On every sign-in: give the person an Organization of their own if one
+    is due, and make the rest of this request work in theirs."""
     # Usually this runs inside the request's own transaction. `login()` can
     # also be called from outside one, so open one here either way.
     with transaction.atomic():
-        tenancy.set_context(user)
-        joined = accept_invitations(user)
-        if joined:
-            # Start them in the Organization they were just invited to.
-            request.session[tenancy.SESSION_KEY] = str(joined[-1])
-        if (not Membership.objects.filter(user=user).exists()
-                and may_create_an_organization()):
-            create_first_organization(user)
+        give_an_organization_if_due(user)
         tenancy.activate(request, user)

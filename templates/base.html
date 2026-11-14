@@ -19,6 +19,9 @@
     .field { margin-bottom: var(--gap); }
     nav { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
     label.quiet { display: inline; font-weight: normal; margin: 0; }
+    header a.quiet { font-weight: normal; text-decoration: underline; }
+    ul.plain { list-style: none; padding: 0; }
+    ul.plain li { padding: var(--gap) 0; border-bottom: 1px solid var(--line); }
     form.inline { display: inline-flex; gap: .4rem; align-items: center; margin: .15rem 0; }
     table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
     th, td { text-align: left; vertical-align: top; padding: .5rem; border-bottom: 1px solid var(--line); }
@@ -42,7 +45,11 @@
             <button type="submit">Switch</button>
           </form>
         {% endif %}
+        <a href="{% url 'leave-organization' %}" class="quiet">Leave</a>
       </nav>
+    {% endif %}
+    {% if waiting_invitation_count %}
+      <a href="{% url 'invitations' %}">{{ waiting_invitation_count }} invitation{{ waiting_invitation_count|pluralize }} waiting</a>
     {% endif %}
     {% if user.is_authenticated %}
       <form method="post" action="{% url 'sign-out' %}">

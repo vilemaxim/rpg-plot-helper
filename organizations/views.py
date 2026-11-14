@@ -48,17 +48,22 @@ def organization_admin_only(view):
     return wrapper
 
 
+def waiting_invitations(request):
+    """The invitations this person has been sent and has not answered."""
+    return (Invitation.objects.waiting_for(request.user)
+            .select_related("organization", "invited_by").order_by("created_at"))
+
+
 # ── Worlds ──────────────────────────────────────────────────────────────────
 
 @require_GET
 def home(request):
     """Send a person to their World, or let them choose if they have several."""
-    # Someone invited while already signed in joins here, where an invitation
-    # link brings them, without having to sign out and in again.
-    joined = signup.accept_invitations(request.user)
-    if joined:
-        request.session[tenancy.SESSION_KEY] = str(joined[-1])
-        tenancy.activate(request, request.user)
+    # An invitation is shown before anything else. This is also where the link
+    # in an invitation email brings someone who is already signed in. Someone
+    # who would rather answer later can say so; the header keeps reminding them.
+    if "later" not in request.GET and waiting_invitations(request).exists():
+        return redirect("invitations")
     if request.membership is None:
         return render(request, "organizations/no_organization.html")
     worlds = list(worlds_open_to(request))
@@ -113,8 +118,8 @@ def organization_page(request, *, name_form=None, world_form=None, invitation_fo
         "worlds": World.objects.filter(organization=organization),
         "memberships": (Membership.objects.filter(organization=organization)
                         .select_related("user").order_by("user__email")),
-        "invitations": Invitation.objects.filter(organization=organization,
-                                                 accepted_at__isnull=True),
+        "invitations": Invitation.objects.filter(organization=organization).waiting(),
+        "declined": Invitation.objects.filter(organization=organization).declined(),
         "world_form": world_form or WorldForm(),
         "invitation_form": invitation_form or InvitationForm(),
     })
@@ -181,11 +186,11 @@ def invite(request):
     if not form.is_valid():
         return organization_page(request, invitation_form=form)
 
-    # One row per address. Inviting again, including someone who joined and has
-    # since left, puts the invitation back to waiting.
+    # One row per address. Inviting again, including someone who declined, or
+    # who joined and has since left, puts the invitation back to waiting.
     invitation, _ = Invitation.objects.update_or_create(
         organization=request.organization, email=email,
-        defaults={"invited_by": request.user, "accepted_at": None})
+        defaults={"invited_by": request.user, "accepted_at": None, "declined_at": None})
     send_invitation(request, invitation)
     return redirect("organization")
 
@@ -201,6 +206,83 @@ def switch_organization(request):
     if wanted and Membership.objects.filter(user=request.user, organization_id=wanted).exists():
         request.session[tenancy.SESSION_KEY] = str(wanted)
     return redirect("home")
+
+
+# ── Being invited, and leaving ──────────────────────────────────────────────
+
+@require_GET
+def invitations(request):
+    """The invitations waiting for this person, each with Accept and Decline."""
+    return render(request, "organizations/invitations.html",
+                  {"invitations": waiting_invitations(request)})
+
+
+def invitation_or_404(request, invitation_id):
+    """A waiting invitation sent to this person's own address. Anyone else's,
+    or one already answered, is "not found"."""
+    # The row is locked until this request ends, so two answers sent at the
+    # same moment are taken one after the other, and the second finds the
+    # invitation no longer waiting.
+    invitation = (waiting_invitations(request).select_for_update(of=("self",))
+                  .filter(pk=invitation_id).first())
+    if invitation is None:
+        raise Http404("No such invitation")
+    return invitation
+
+
+@require_POST
+def accept_invitation(request, invitation_id):
+    invitation = invitation_or_404(request, invitation_id)
+    joined = signup.accept(invitation, request.user)
+    # Work in the Organization just joined.
+    request.session[tenancy.SESSION_KEY] = str(joined)
+    return redirect("home")
+
+
+@require_POST
+def decline_invitation(request, invitation_id):
+    invitation = invitation_or_404(request, invitation_id)
+    signup.decline(invitation, request.user)
+    # With nothing left to decide, someone who belongs nowhere may now be due
+    # an Organization of their own.
+    signup.give_an_organization_if_due(request.user)
+    return redirect("home")
+
+
+def is_only_admin(membership):
+    """Whether this person is the one Organization Admin their Organization has.
+    An Organization must always keep one, or nobody could run it."""
+    if not membership.is_admin:
+        return False
+    # The Organization Admins' rows are locked until this request ends, so two
+    # of them leaving at the same moment cannot each see the other still there.
+    admins = (Membership.objects.select_for_update()
+              .filter(organization=membership.organization, is_admin=True))
+    return len(admins) == 1
+
+
+@require_http_methods(["GET", "POST"])
+def leave_organization(request):
+    """Leave the Organization this person is working in. Asks first.
+
+    The button names the Organization it was shown for. If the person has
+    since switched to another, nothing is left and they are asked again.
+    """
+    membership = request.membership
+    if membership is None:
+        raise Http404("No such page")
+    only_admin = is_only_admin(membership)
+    named = request.POST.get("organization")
+    switched = bool(named) and named != str(membership.organization_id)
+    if request.method == "POST" and named and not switched and not only_admin:
+        # Their roles in its Worlds go with the Membership (see migration 0004).
+        membership.delete()
+        request.session.pop(tenancy.SESSION_KEY, None)
+        # Someone who now belongs nowhere may be due an Organization of their own.
+        signup.give_an_organization_if_due(request.user)
+        return redirect("home")
+    return render(request, "organizations/leave.html",
+                  {"only_admin": only_admin, "switched": switched})
 
 
 # ── Roles in one World ──────────────────────────────────────────────────────

@@ -14,4 +14,10 @@ urlpatterns = [
     path("organization/worlds/", views.create_world, name="create-world"),
     path("organization/invitations/", views.invite, name="invite"),
     path("organization/switch/", views.switch_organization, name="switch-organization"),
+    path("organization/leave/", views.leave_organization, name="leave-organization"),
+    path("invitations/", views.invitations, name="invitations"),
+    path("invitations/<int:invitation_id>/accept/", views.accept_invitation,
+         name="accept-invitation"),
+    path("invitations/<int:invitation_id>/decline/", views.decline_invitation,
+         name="decline-invitation"),
 ]

@@ -86,9 +86,24 @@ class WorldRole(models.Model):
         ]
 
 
+class InvitationQuerySet(models.QuerySet):
+    def waiting(self):
+        """Neither accepted nor declined yet."""
+        return self.filter(accepted_at__isnull=True, declined_at__isnull=True)
+
+    def declined(self):
+        return self.filter(declined_at__isnull=False)
+
+    def waiting_for(self, user):
+        """The invitations sent to this person's address that they have not
+        answered yet."""
+        return self.filter(email=user.email).waiting()
+
+
 class Invitation(models.Model):
-    """An email address an Organization Admin has asked to join. The person
-    joins the next time they sign in with that address."""
+    """An email address an Organization Admin has asked to join. The person is
+    shown it when they sign in with that address, and accepts or declines.
+    Until they do, it is waiting."""
 
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
                                      related_name="invitations")
@@ -97,6 +112,9 @@ class Invitation(models.Model):
                                    related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+
+    objects = InvitationQuerySet.as_manager()
 
     class Meta:
         ordering = ["email"]

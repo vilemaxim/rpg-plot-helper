@@ -13,4 +13,5 @@ A self-hosted copy normally serves one Organization, while our hosted copy serve
 - Row-level security and the Organization column on every row stay in place for self-hosters too, even with one Organization.
 - A person in one Organization never sees a way to switch. A person in several sees a switcher, and the app remembers their choice until they sign out.
 - With sign-up closed, a stranger who signs in has no Organization and is told they need an invitation.
+- With sign-up open, a person who has been invited to an Organization answers the invitation before being given one of their own. If they accept, they are not given one; if they decline, they are.
 - A self-hoster who wants several Organizations, such as a LARP company hosting for partner groups, turns the setting on.

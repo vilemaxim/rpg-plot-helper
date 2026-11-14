@@ -31,10 +31,22 @@ class PeopleTest(TestCase):
         return (by or self.mira).post(f"{ORGANIZATION}invitations/", {"email": email},
                                       follow=True)
 
+    def decide(self, browser, choice, organization=None):
+        """Press Accept or Decline on an invitation this person has been shown.
+        `organization` picks one by name when they have several."""
+        page = browser.get("/invitations/").content.decode()
+        found = re.findall(r'<li[^>]*>.*?<strong>(.*?)</strong>.*?'
+                           r'action="(/invitations/\d+/)accept/"', page, re.S)
+        assert found, "no invitation is waiting for this person"
+        address = next(a for name, a in found if organization in (None, name))
+        return browser.post(f"{address}{choice}/", follow=True)
+
     def join(self, email):
-        """Invite this address and sign in as it. Returns their browser."""
+        """Invite this address, sign in as it and accept. Returns their browser."""
         self.invite(email)
-        return sign_in(email)
+        browser = sign_in(email)
+        self.decide(browser, "accept")
+        return browser
 
     def user_id(self, email):
         return User.objects.get(email=email).pk
@@ -109,7 +121,7 @@ class Invitations(PeopleTest):
         self.assertContains(response, "Invited, not yet joined")
         self.assertContains(response, "sam@example.com")
 
-    def test_signing_in_with_that_address_joins_the_organization(self):
+    def test_accepting_joins_the_organization(self):
         self.join("sam@example.com")
 
         response = self.mira.get(ORGANIZATION)
@@ -117,14 +129,14 @@ class Invitations(PeopleTest):
         self.assertNotContains(response, "Invited, not yet joined")
         self.assertContains(response, "sam@example.com")
 
-    def test_someone_already_signed_in_joins_by_following_the_link(self):
+    def test_someone_already_signed_in_is_shown_the_invitation_by_following_the_link(self):
         sam = sign_in("sam@example.com")
         self.invite("sam@example.com")
 
         response = sam.get("/sign-in/?email=sam%40example.com", follow=True)
 
-        self.assertContains(response, "you do not have a role in any World")
-        self.assertNotContains(self.mira.get(ORGANIZATION), "Invited, not yet joined")
+        self.assertContains(response, "invited you to join")
+        self.assertContains(self.mira.get(ORGANIZATION), "Invited, not yet joined")
 
     def test_someone_signed_in_with_another_address_is_told_which_one_was_invited(self):
         eve = sign_in("eve@example.com")
@@ -156,7 +168,7 @@ class Invitations(PeopleTest):
 
         sam = sign_in("sam@example.com")
 
-        self.assertContains(sam.get("/"), "you do not have a role in any World")
+        self.assertContains(sam.get("/", follow=True), "invited you to join")
 
     def test_inviting_the_same_address_twice_sends_again_without_a_second_invitation(self):
         self.invite("sam@example.com")

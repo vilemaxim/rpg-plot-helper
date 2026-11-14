@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Leave {{ organization.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>Leave {{ organization.name }}</h1>
+  {% if switched %}
+    <p><strong>You switched Organization after opening this page, so nothing was left.</strong> You are now working in {{ organization.name }}.</p>
+  {% endif %}
+  {% if only_admin %}
+    <p>You are the only Organization Admin of {{ organization.name }}, so you cannot leave it: nobody would be left to run it.</p>
+    <p><a href="{% url 'organization' %}">Back to {{ organization.name }}</a></p>
+  {% else %}
+    <p>You will lose your roles in its Worlds and will not be able to open them. To come back you would need a new invitation.</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="organization" value="{{ organization.pk }}">
+      <button type="submit">Leave {{ organization.name }}</button>
+    </form>
+    <p><a href="{% url 'home' %}">Stay</a></p>
+  {% endif %}
+{% endblock %}

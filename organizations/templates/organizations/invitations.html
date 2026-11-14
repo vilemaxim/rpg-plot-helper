@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Invitations — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>Invitations</h1>
+  {% if invitations %}
+    <p>Nothing changes until you answer. Accepting adds you to the Organization; you can leave again later.</p>
+    <ul class="plain">
+      {% for invitation in invitations %}
+        <li>
+          <p>{{ invitation.invited_by.email }} has invited you to join <strong>{{ invitation.organization.name }}</strong>.</p>
+          <form method="post" action="{% url 'accept-invitation' invitation.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit">Accept</button>
+          </form>
+          <form method="post" action="{% url 'decline-invitation' invitation.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit">Decline</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+    <p>Declining cannot be undone from here; the person who invited you would need to invite you again.</p>
+    <p><a href="{% url 'home' %}?later">Decide later</a></p>
+  {% else %}
+    <p>You have no invitations waiting.</p>
+    <p><a href="{% url 'home' %}">Continue</a></p>
+  {% endif %}
+{% endblock %}

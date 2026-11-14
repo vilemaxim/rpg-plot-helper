@@ -25,7 +25,7 @@ Open http://localhost:8000. `migrate` sets up the database; run it the first tim
 
 ### Sign in
 
-There are no passwords. Enter any email address on the sign-in page. Locally, an address that belongs to no Organization gets one of its own, with a first World, when it signs in. Locally the email is not sent: it is printed in the terminal where `runserver` is running. Copy the link from there into your browser and press **Sign in**. A link works once and expires after 15 minutes.
+There are no passwords. Enter any email address on the sign-in page. Locally, an address that belongs to no Organization and has not been invited to one gets one of its own, with a first World, when it signs in. Locally the email is not sent: it is printed in the terminal where `runserver` is running. Copy the link from there into your browser and press **Sign in**. A link works once and expires after 15 minutes.
 
 ### Run the tests
 
@@ -57,7 +57,7 @@ One setting, `OPEN_SIGN_UP`, decides this. It is read from the environment.
 | `OPEN_SIGN_UP` | What happens | Who it suits |
 |---|---|---|
 | `false` | While this copy has no Organization, the first person to sign in creates the one Organization and its first World. After that, a person who signs in and belongs to no Organization is told they need an invitation. | A self-hosted copy for one Organization. A copy on the internet then does not hand an Organization to every stranger. |
-| `true` | Anyone who signs in and belongs to no Organization gets an Organization and a World of their own. | A public host serving many Organizations, or a self-hoster who hosts for others. |
+| `true` | Anyone who signs in and belongs to no Organization gets an Organization and a World of their own, unless an invitation is waiting for them: then they answer that first, and get their own only if they decline. | A public host serving many Organizations, or a self-hoster who hosts for others. |
 
 The setting is off unless it is turned on, with one exception: **the local development settings turn it on**, so you can try the app with several email addresses. Those are the only settings in the repo so far, which means `uv run manage.py runserver` with nothing set has open sign-up. To see what a self-hosted copy does, start the app with `OPEN_SIGN_UP=false uv run manage.py runserver`.
 
@@ -69,14 +69,15 @@ An Organization Admin runs these from the Organization page, reached by clicking
 
 - **The Organization's name.** A new Organization is called "My Organization". Rename it at the top of the Organization page. Links keep working after a rename.
 - **More Worlds.** Create one by name.
-- **Invitations.** Enter an email address. The person is emailed a link to the sign-in page with their address filled in, and they join the Organization when they sign in with it. Inviting the same address again sends the email again.
+- **Invitations.** Enter an email address. The person is emailed a link to the sign-in page with their address filled in. Once signed in with it they are shown the invitation and accept or decline; nobody is joined to an Organization without accepting. You can see who has not answered and who declined, and inviting an address again sends the email again.
 - **Roles.** A new member can open nothing until they are given a role. Roles are per World: Plot Master, Mod Writer and Mod Runner, given and removed on each World's people page. A person can open only the Worlds they hold a role in; an Organization Admin can open them all.
 - **A World's name.** This one is not the Organization Admin's to change: a World is renamed by one of its Plot Masters, from the link on the World's page. The first World is called "My first World". To rename a World you created later, give yourself Plot Master in it first.
+- **Leaving.** Any member can leave an Organization, from the Leave link at the top of the page. Their roles in its Worlds go with them. The only Organization Admin of an Organization cannot leave it. Someone who leaves their last Organization gets one of their own if sign-up is open, and otherwise needs an invitation.
 - **Several Organizations.** A person who belongs to more than one sees a switcher at the top of the page. The app remembers which one they are working in until they sign out.
 
 ## How Organizations are kept apart
 
-Each Organization's data is kept apart twice: once by the app's own checks, and once by Postgres row-level security underneath them. Every request tells the database who is asking and which Organization they are working in, and the database returns only that Organization's rows. With nothing set, a query returns no rows at all. There are three deliberate exceptions. A person can always see the Organizations they belong to and their own membership of each, which is how the app finds out where they may work. A person can see an invitation sent to their own address, which is how signing in finds it. And the database keeps a bare count of Organizations that any query can read, so that a copy with sign-up closed knows whether its one Organization exists yet.
+Each Organization's data is kept apart twice: once by the app's own checks, and once by Postgres row-level security underneath them. Every request tells the database who is asking and which Organization they are working in, and the database returns only that Organization's rows. With nothing set, a query returns no rows at all. There are four deliberate exceptions. A person can always see the Organizations they belong to and their own membership of each, which is how the app finds out where they may work. A person can see an invitation sent to their own address, and the Organization that sent it for as long as they have not answered, so that they can be shown what they are being asked to join. And the database keeps a bare count of Organizations that any query can read, so that a copy with sign-up closed knows whether its one Organization exists yet.
 
 This guards against a mistake in the app's queries. It is not a guard against the app running arbitrary SQL, because the app's database user owns the tables.
 

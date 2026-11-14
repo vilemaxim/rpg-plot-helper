@@ -44,6 +44,14 @@
     </ul>
   {% endif %}
 
+  {% if declined %}
+    <h3>Declined</h3>
+    <ul>
+      {% for invitation in declined %}<li>{{ invitation.email }}</li>{% endfor %}
+    </ul>
+    <p>You can invite a declined address again.</p>
+  {% endif %}
+
   <form method="post" action="{% url 'invite' %}">
     {% csrf_token %}
     <div class="field">

@@ -4,5 +4,5 @@ To join, sign in with this address ({{ email }}):
 
 {{ link }}
 
-There is no password. You will be emailed a sign-in link, and you join when you use it. If you were not expecting this, you can ignore this email.
+There is no password. You will be emailed a sign-in link. Once signed in you can accept or decline; nothing happens until you do. If you were not expecting this, you can ignore this email.
 {% endautoescape %}
