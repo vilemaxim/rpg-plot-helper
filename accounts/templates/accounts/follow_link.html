@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Sign in — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>Finish signing in</h1>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit">Sign in</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Link expired — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>That link did not work</h1>
+  <p>This sign-in link has expired or already been used.</p>
+  <p><a href="{% url 'sign-in' %}">Send me a new link</a></p>
+{% endblock %}

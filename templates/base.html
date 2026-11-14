@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}RPG Plot Helper{% endblock %}</title>
+  <style>
+    :root { color-scheme: light dark; --gap: 1rem; --line: color-mix(in srgb, currentColor 20%, transparent); }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 1rem/1.5 system-ui, sans-serif; }
+    header, main { max-width: 44rem; margin: 0 auto; padding: var(--gap); }
+    header { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+    header a { font-weight: 600; text-decoration: none; color: inherit; }
+    header form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0; }
+    label { display: block; font-weight: 600; margin-bottom: .25rem; }
+    input[type=email] { width: 100%; max-width: 24rem; padding: .6rem; font: inherit; }
+    button { padding: .6rem 1rem; font: inherit; cursor: pointer; }
+    .errorlist { color: #b00020; padding: 0; list-style: none; }
+    .field { margin-bottom: var(--gap); }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="{% url 'home' %}">RPG Plot Helper</a>
+    {% if user.is_authenticated %}
+      <form method="post" action="{% url 'sign-out' %}">
+        {% csrf_token %}
+        <span>{{ user.email }}</span>
+        <button type="submit">Sign out</button>
+      </form>
+    {% endif %}
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

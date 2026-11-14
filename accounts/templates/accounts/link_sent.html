@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Check your email — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>Check your email</h1>
+  <p>We sent a sign-in link to <strong>{{ email }}</strong>. It works once and expires soon.</p>
+  <p><a href="{% url 'sign-in' %}">Use a different address</a></p>
+{% endblock %}
