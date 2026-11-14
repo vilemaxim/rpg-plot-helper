@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}{{ organization.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>{{ organization.name }}</h1>
+
+  <h2>Worlds</h2>
+  <ul>
+    {% for world in worlds %}<li><a href="{% url 'world' world.pk %}">{{ world.name }}</a></li>{% endfor %}
+  </ul>
+  <form method="post" action="{% url 'create-world' %}">
+    {% csrf_token %}
+    <div class="field">
+      {{ world_form.name.errors }}
+      {{ world_form.name.label_tag }}
+      {{ world_form.name }}
+    </div>
+    <button type="submit">Create World</button>
+  </form>
+
+  <h2>People</h2>
+  <ul>
+    {% for membership in memberships %}
+      <li>{{ membership.user.email }}{% if membership.is_admin %} — Organization Admin{% endif %}</li>
+    {% endfor %}
+  </ul>
+  <p>Roles are given per World, on each World's people page.</p>
+
+  {% if invitations %}
+    <h3>Invited, not yet joined</h3>
+    <ul>
+      {% for invitation in invitations %}<li>{{ invitation.email }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  <form method="post" action="{% url 'invite' %}">
+    {% csrf_token %}
+    <div class="field">
+      {{ invitation_form.email.errors }}
+      {{ invitation_form.email.label_tag }}
+      {{ invitation_form.email }}
+    </div>
+    <button type="submit">Send invitation</button>
+  </form>
+{% endblock %}

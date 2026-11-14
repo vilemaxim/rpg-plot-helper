@@ -1,0 +1,8 @@
+{% autoescape off %}{{ invited_by }} has invited you to join {{ organization }} on RPG Plot Helper.
+
+To join, sign in with this address ({{ email }}):
+
+{{ link }}
+
+There is no password. You will be emailed a sign-in link, and you join when you use it. If you were not expecting this, you can ignore this email.
+{% endautoescape %}

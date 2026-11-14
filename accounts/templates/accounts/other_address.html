@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Signed in with another address — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>This link is for another address</h1>
+  <p>You are signed in as <strong>{{ user.email }}</strong>, but this link is for <strong>{{ wanted }}</strong>.</p>
+  <p>To use it, sign out and then sign in with that address.</p>
+  <form method="post" action="{% url 'sign-out' %}">
+    {% csrf_token %}
+    <button type="submit">Sign out</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}People in {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>People and roles</h1>
+  <p>A person can open this World only if they hold a role in it. Organization Admins can open every World.</p>
+  <table>
+    <thead><tr><th>Person</th><th>Roles in this World</th><th>Give a role</th></tr></thead>
+    <tbody>
+      {% for membership, held in people %}
+        <tr>
+          <td>{{ membership.user.email }}{% if membership.is_admin %}<br><small>Organization Admin</small>{% endif %}</td>
+          <td>
+            {% for role in held %}
+              <form method="post" action="{% url 'remove-role' world.pk %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="user" value="{{ membership.user_id }}">
+                <input type="hidden" name="role" value="{{ role.role }}">
+                {{ role.get_role_display }}
+                <button type="submit" aria-label="Remove {{ role.get_role_display }} from {{ membership.user.email }}">Remove</button>
+              </form>
+            {% empty %}
+              None
+            {% endfor %}
+          </td>
+          <td>
+            <form method="post" action="{% url 'give-role' world.pk %}" class="inline">
+              {% csrf_token %}
+              <input type="hidden" name="user" value="{{ membership.user_id }}">
+              <select name="role" aria-label="Role to give {{ membership.user.email }}">
+                {% for value, label in roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+              <button type="submit">Give</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>To add someone, invite them from the <a href="{% url 'organization' %}">Organization page</a>.</p>
+{% endblock %}

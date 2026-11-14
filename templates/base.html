@@ -17,11 +17,33 @@
     button { padding: .6rem 1rem; font: inherit; cursor: pointer; }
     .errorlist { color: #b00020; padding: 0; list-style: none; }
     .field { margin-bottom: var(--gap); }
+    nav { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+    label.quiet { display: inline; font-weight: normal; margin: 0; }
+    form.inline { display: inline-flex; gap: .4rem; align-items: center; margin: .15rem 0; }
+    table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
+    th, td { text-align: left; vertical-align: top; padding: .5rem; border-bottom: 1px solid var(--line); }
+    input[type=text] { width: 100%; max-width: 24rem; padding: .6rem; font: inherit; }
+    select { padding: .5rem; font: inherit; }
   </style>
 </head>
 <body>
   <header>
     <a href="{% url 'home' %}">RPG Plot Helper</a>
+    {% if organization %}
+      <nav>
+        {% if is_organization_admin %}<a href="{% url 'organization' %}">{{ organization.name }}</a>{% else %}<span>{{ organization.name }}</span>{% endif %}
+        {% if other_organizations %}
+          <form method="post" action="{% url 'switch-organization' %}">
+            {% csrf_token %}
+            <label for="switch-organization" class="quiet">Switch to</label>
+            <select id="switch-organization" name="organization">
+              {% for other in other_organizations %}<option value="{{ other.pk }}">{{ other.name }}</option>{% endfor %}
+            </select>
+            <button type="submit">Switch</button>
+          </form>
+        {% endif %}
+      </nav>
+    {% endif %}
     {% if user.is_authenticated %}
       <form method="post" action="{% url 'sign-out' %}">
         {% csrf_token %}

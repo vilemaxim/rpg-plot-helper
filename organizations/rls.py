@@ -67,9 +67,10 @@ def allow_references_within_organization(table):
     )
 
 
-def same_organization(table, column, target):
+def same_organization(table, column, target, target_column="id"):
     """Require that the row `column` points at belongs to the same Organization
-    as the row itself.
+    as the row itself. `target` needs a unique constraint on
+    `(organization_id, target_column)`.
 
     Postgres does not apply row-level security to its own foreign-key checks,
     so without this a row in one Organization could point at another's.
@@ -78,6 +79,6 @@ def same_organization(table, column, target):
     return migrations.RunSQL(
         sql=f"ALTER TABLE {table} ADD CONSTRAINT {name} "
             f"FOREIGN KEY (organization_id, {column}) "
-            f"REFERENCES {target} (organization_id, id) ON DELETE CASCADE;",
+            f"REFERENCES {target} (organization_id, {target_column}) ON DELETE CASCADE;",
         reverse_sql=f"ALTER TABLE {table} DROP CONSTRAINT {name};",
     )

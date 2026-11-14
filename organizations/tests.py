@@ -29,6 +29,7 @@ def world_address(client):
     return response["Location"]
 
 
+@override_settings(OPEN_SIGN_UP=True)
 class FirstSignIn(TestCase):
     def test_you_land_on_a_world_of_your_own(self):
         mira = sign_in("mira@example.com")
@@ -69,6 +70,7 @@ class FirstSignIn(TestCase):
         self.assertNotEqual(mira, sam)
 
 
+@override_settings(OPEN_SIGN_UP=True)
 class AnotherOrganizationsWorld(TestCase):
     def setUp(self):
         self.mira = sign_in("mira@example.com")
@@ -100,7 +102,7 @@ def make_a_world_then_fail(request):
 urlpatterns = [path("break/", make_a_world_then_fail), path("", include("plothelper.urls"))]
 
 
-@override_settings(ROOT_URLCONF="organizations.tests")
+@override_settings(OPEN_SIGN_UP=True, ROOT_URLCONF="organizations.tests")
 class WhenAPageFails(TestCase):
     def test_nothing_it_wrote_is_kept(self):
         mira = sign_in("mira@example.com")
@@ -116,6 +118,7 @@ class WhenAPageFails(TestCase):
             self.assertEqual([w.name for w in World.objects.all()], ["My first World"])
 
 
+@override_settings(OPEN_SIGN_UP=True)
 class AStaleSession(TestCase):
     def test_a_garbled_organization_in_the_session_is_ignored(self):
         mira = sign_in("mira@example.com")
@@ -126,6 +129,7 @@ class AStaleSession(TestCase):
         self.assertEqual(mira.get("/", follow=True).status_code, 200)
 
 
+@override_settings(OPEN_SIGN_UP=True)
 class SigningInOutsideARequestsTransaction(TransactionTestCase):
     def test_it_still_sets_up_the_organization(self):
         """Django's test client and other callers of `login()` do not run
@@ -138,6 +142,7 @@ class SigningInOutsideARequestsTransaction(TransactionTestCase):
         self.assertEqual(client.get("/", follow=True).status_code, 200)
 
 
+@override_settings(OPEN_SIGN_UP=True)
 class TheDatabaseOnItsOwn(TestCase):
     """Row-level security, checked with no help from the app's own checks."""
 
@@ -251,6 +256,35 @@ class SignUpClosed(TestCase):
         mira = sign_in("mira@example.com")
 
         self.assertNotContains(mira.get("/", follow=True), INVITATION_NEEDED)
+
+    def organization_of(self, email):
+        user = User.objects.get(email=email)
+        with tenancy.acting_as(user=user):
+            return user, Membership.objects.get().organization_id
+
+    def test_if_the_organization_is_deleted_the_next_person_can_start_again(self):
+        """Nobody is locked out for good, however many people have signed in."""
+        sign_in("mira@example.com")
+        sign_in("sam@example.com")
+        mira, organization = self.organization_of("mira@example.com")
+        with tenancy.acting_as(user=mira, organization=organization):
+            Organization.objects.all().delete()
+
+        sam = sign_in("sam@example.com")
+
+        self.assertNotContains(sam.get("/", follow=True), INVITATION_NEEDED)
+
+    def test_the_organization_outlives_the_person_who_created_it(self):
+        """With its first person gone, the Organization is still the one
+        Organization, and a stranger does not get another."""
+        sign_in("mira@example.com")
+        mira, organization = self.organization_of("mira@example.com")
+        with tenancy.acting_as(user=mira, organization=organization):
+            mira.delete()
+
+        sam = sign_in("sam@example.com")
+
+        self.assertContains(sam.get("/"), INVITATION_NEEDED)
 
     def test_signing_in_again_does_not_earn_an_organization(self):
         sign_in("mira@example.com")

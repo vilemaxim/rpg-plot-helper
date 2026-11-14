@@ -73,6 +73,7 @@ class WorldRole(models.Model):
                                      related_name="+")
     # The database also requires the World to be in the same Organization as
     # this row; see `rls.same_organization` in the migrations.
+    # Likewise the person must belong to this Organization.
     world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="roles")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              related_name="world_roles")
@@ -82,4 +83,24 @@ class WorldRole(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["world", "user", "role"],
                                     name="one_of_each_role_per_person"),
+        ]
+
+
+class Invitation(models.Model):
+    """An email address an Organization Admin has asked to join. The person
+    joins the next time they sign in with that address."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="invitations")
+    email = models.EmailField()
+    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                   related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["email"]
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "email"],
+                                    name="one_invitation_per_address"),
         ]

@@ -25,7 +25,7 @@ Open http://localhost:8000. `migrate` sets up the database; run it the first tim
 
 ### Sign in
 
-There are no passwords. Enter any email address on the sign-in page. The first time an address signs in, it gets an Organization and a first World of its own. Locally the email is not sent: it is printed in the terminal where `runserver` is running. Copy the link from there into your browser and press **Sign in**. A link works once and expires after 15 minutes.
+There are no passwords. Enter any email address on the sign-in page. Locally, an address that belongs to no Organization gets one of its own, with a first World, when it signs in. Locally the email is not sent: it is printed in the terminal where `runserver` is running. Copy the link from there into your browser and press **Sign in**. A link works once and expires after 15 minutes.
 
 ### Run the tests
 
@@ -56,12 +56,21 @@ One setting, `OPEN_SIGN_UP`, decides this. It is read from the environment.
 
 | `OPEN_SIGN_UP` | What happens | Who it suits |
 |---|---|---|
-| not set, or `false` | The first person to sign in gets the one Organization and its first World. Anyone who signs in after that is told they need an invitation. | A self-hosted copy for one group. This is the default, so a copy on the internet does not hand an Organization to every stranger. |
-| `true` | Everyone who signs in for the first time gets an Organization and a World of their own. | A public host serving many groups, or a self-hoster who hosts for partner groups. |
+| `false` | While this copy has no Organization, the first person to sign in creates the one Organization and its first World. After that, a person who signs in and belongs to no Organization is told they need an invitation. | A self-hosted copy for one Organization. A copy on the internet then does not hand an Organization to every stranger. |
+| `true` | Anyone who signs in and belongs to no Organization gets an Organization and a World of their own. | A public host serving many Organizations, or a self-hoster who hosts for others. |
 
-Local development turns it on, so you can try the app with several email addresses. To see what a self-hosted copy does, start the app with `OPEN_SIGN_UP=false uv run manage.py runserver`.
+The setting is off unless it is turned on, with one exception: **the local development settings turn it on**, so you can try the app with several email addresses. Those are the only settings in the repo so far, which means `uv run manage.py runserver` with nothing set has open sign-up. To see what a self-hosted copy does, start the app with `OPEN_SIGN_UP=false uv run manage.py runserver`.
 
 The data is stored the same way in both cases. See [ADR-0005](./docs/adr/0005-one-setting-decides-who-may-create-an-organization.md).
+
+## People, Worlds and roles
+
+An Organization Admin runs these from the Organization page, reached by clicking the Organization's name at the top of any page.
+
+- **More Worlds.** Create one by name.
+- **Invitations.** Enter an email address. The person is emailed a link to the sign-in page with their address filled in, and they join the Organization when they sign in with it. Inviting the same address again sends the email again.
+- **Roles.** A new member can open nothing until they are given a role. Roles are per World: Plot Master, Mod Writer and Mod Runner, given and removed on each World's people page. A person can open only the Worlds they hold a role in; an Organization Admin can open them all.
+- **Several Organizations.** A person who belongs to more than one sees a switcher at the top of the page. The app remembers which one they last worked in.
 
 ## How Organizations are kept apart
 

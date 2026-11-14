@@ -45,10 +45,17 @@ def send_sign_in_link(request, user, next_url):
 def sign_in(request):
     """Ask for an email address and send it a sign-in link."""
     if request.user.is_authenticated:
+        # A link that names an address, such as an invitation, is for that
+        # address only. Say so rather than quietly sending them home.
+        wanted = User.objects.tidy(request.GET.get("email", ""))
+        if wanted and wanted != request.user.email:
+            return render(request, "accounts/other_address.html", {"wanted": wanted})
         return redirect(safe_next(request, request.GET.get("next")))
 
     if request.method == "GET":
-        form = SignInForm(initial={"next": request.GET.get("next", "")})
+        # An invitation links here with the invited address filled in.
+        form = SignInForm(initial={"next": request.GET.get("next", ""),
+                                   "email": request.GET.get("email", "")})
         return render(request, "accounts/sign_in.html", {"form": form})
 
     form = SignInForm(request.POST)

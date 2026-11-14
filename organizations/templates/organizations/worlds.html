@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}Worlds — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>Worlds</h1>
+  <ul>
+    {% for world in worlds %}<li><a href="{% url 'world' world.pk %}">{{ world.name }}</a></li>{% endfor %}
+  </ul>
+{% endblock %}
