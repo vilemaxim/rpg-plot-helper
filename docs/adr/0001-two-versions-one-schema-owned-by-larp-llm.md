@@ -12,3 +12,4 @@ The system exists as two versions developed side by side: larp-llm, where a git 
 
 - A schema change is made in larp-llm first, then followed here.
 - Both versions test against one sample World, kept in larp-llm beside the schema, with scripted After-Action Reports and known expected Flags.
+- Accounts and access are outside the schema. The web app's Organization, its roles and its logins exist only in the app; files never mention them, and the unit of import and export is the World.

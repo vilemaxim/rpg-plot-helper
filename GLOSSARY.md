@@ -4,8 +4,16 @@ Tracks the canon and plots of live-action and tabletop role-playing games, for p
 
 ## Language
 
+**Organization**:
+A group that runs one or more Worlds, such as a LARP company or a solo GM. Each Organization's data is kept entirely separate from every other's.
+_Avoid_: Tenant, account, group
+
+**Organization Admin**:
+The role that creates Worlds in an Organization, invites people and assigns their roles. It is the only role held across a whole Organization; all others are held per World.
+_Avoid_: Owner, superuser
+
 **World**:
-A setting whose Canon is shared by everyone who plays in it. A World owns its NPCs, factions, locations, PCs, Plots and history.
+A setting whose Canon is shared by everyone who plays in it. A World belongs to one Organization and owns its NPCs, factions, locations, PCs, Plots and history.
 _Avoid_: Setting, universe
 
 **Campaign**:
