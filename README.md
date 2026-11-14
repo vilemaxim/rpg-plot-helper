@@ -25,7 +25,7 @@ Open http://localhost:8000. `migrate` sets up the database; run it the first tim
 
 ### Sign in
 
-There are no passwords. Enter any email address on the sign-in page. Locally the email is not sent: it is printed in the terminal where `runserver` is running. Copy the link from there into your browser and press **Sign in**. A link works once and expires after 15 minutes.
+There are no passwords. Enter any email address on the sign-in page. The first time an address signs in, it gets an Organization and a first World of its own. Locally the email is not sent: it is printed in the terminal where `runserver` is running. Copy the link from there into your browser and press **Sign in**. A link works once and expires after 15 minutes.
 
 ### Run the tests
 
@@ -49,6 +49,19 @@ If port 5432 is taken, set `PLOTHELPER_DB_PORT` before the first `scripts/db.sh`
 export PLOTHELPER_DB_PORT=5433
 export DATABASE_URL=postgres://plothelper:plothelper@localhost:5433/plothelper
 ```
+
+## How Organizations are kept apart
+
+Each Organization's data is kept apart twice: once by the app's own checks, and once by Postgres row-level security underneath them. Every request tells the database who is asking and which Organization they are working in, and the database returns only that Organization's rows. With nothing set, a query returns no rows at all. The one exception is that a person can always see the Organizations they belong to and their own membership of each, which is how the app finds out where they may work.
+
+This guards against a mistake in the app's queries. It is not a guard against the app running arbitrary SQL, because the app's database user owns the tables.
+
+Two things follow for anyone running or changing the app:
+
+- **The app must not connect as a database superuser**, or as a user marked `BYPASSRLS`. Postgres skips row-level security for both. `scripts/db.sh` creates an ordinary user, `plothelper`, and `uv run manage.py migrate` refuses to run as the wrong kind. `runserver` does not check, so always migrate first.
+- **A new table that holds an Organization's data needs an `organization` column and a policy.** Add `rls.protect("<table name>")` to its migration, and `rls.same_organization(...)` for each column that points at another Organization-owned table; see `organizations/rls.py`.
+
+If your local database was created before this was added, recreate it: `scripts/db.sh destroy && scripts/db.sh`, then `uv run manage.py migrate`.
 
 ## License
 

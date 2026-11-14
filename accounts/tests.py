@@ -116,8 +116,8 @@ class FollowingTheLink(SignInTest):
     def test_pressing_the_button_signs_you_in(self):
         response = self.sign_in("mira@example.com")
 
-        self.assertRedirects(response, "/")
-        self.assertContains(self.client.get("/"), "mira@example.com")
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertContains(self.client.get("/", follow=True), "mira@example.com")
 
     def test_you_land_on_the_page_you_first_asked_for(self):
         self.ask_for_a_link("mira@example.com", next="/worlds/the-moon/")
@@ -131,7 +131,7 @@ class FollowingTheLink(SignInTest):
 
         response = self.client.post(self.link_from_the_email())
 
-        self.assertRedirects(response, "/")
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
 
     def test_a_link_works_once(self):
         self.sign_in("mira@example.com")
@@ -165,8 +165,9 @@ class FollowingTheLink(SignInTest):
 
         self.client.post(self.link_from_the_email())
 
-        self.assertContains(self.client.get("/"), "sam@example.com")
-        self.assertNotContains(self.client.get("/"), "mira@example.com")
+        home = self.client.get("/", follow=True)
+        self.assertContains(home, "sam@example.com")
+        self.assertNotContains(home, "mira@example.com")
 
 
 class SigningOut(SignInTest):
@@ -185,14 +186,14 @@ class SigningOut(SignInTest):
         response = self.client.get("/sign-out/")
 
         self.assertEqual(response.status_code, 405)
-        self.assertEqual(self.client.get("/").status_code, 200)
+        self.assertEqual(self.client.get("/", follow=True).status_code, 200)
 
 
 class SignedIn(SignInTest):
     def test_the_sign_in_page_sends_you_home(self):
         self.sign_in()
 
-        self.assertRedirects(self.client.get(SIGN_IN), "/")
+        self.assertRedirects(self.client.get(SIGN_IN), "/", fetch_redirect_response=False)
 
 
 @override_settings(EMAIL_BACKEND="accounts.email.TerminalEmailBackend")

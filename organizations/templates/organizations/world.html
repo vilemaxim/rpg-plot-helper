@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}{{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p>{{ request.organization.name }}</p>
+  <h1>{{ world.name }}</h1>
+  <h2>Your roles</h2>
+  <ul>
+    {% if request.membership.is_admin %}<li>Organization Admin</li>{% endif %}
+    {% for role in roles %}<li>{{ role }}</li>{% endfor %}
+  </ul>
+  <p>This World has no Canon yet. Importing a World comes next.</p>
+{% endblock %}
