@@ -12,6 +12,10 @@
   </ul>
   {% if is_organization_admin %}
     <p><a href="{% url 'world-people' world.pk %}">People and roles in this World</a></p>
+    <p><a href="{% url 'organization' %}#name">Rename this Organization</a></p>
+  {% endif %}
+  {% if is_plot_master %}
+    <p><a href="{% url 'rename-world' world.pk %}">Rename this World</a></p>
   {% endif %}
   <p>This World has no Canon yet. Importing a World comes next.</p>
 {% endblock %}

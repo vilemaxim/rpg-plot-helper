@@ -7,12 +7,12 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.http import urlencode
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.models import User
 
 from . import signup, tenancy
-from .forms import InvitationForm, WorldForm
+from .forms import InvitationForm, NameForm, WorldForm
 from .models import Invitation, Membership, Role, World, WorldRole
 
 
@@ -69,6 +69,11 @@ def home(request):
     return render(request, "organizations/worlds.html", {"worlds": worlds})
 
 
+def is_plot_master(request, world):
+    return WorldRole.objects.filter(world=world, user=request.user,
+                                    role=Role.PLOT_MASTER).exists()
+
+
 @require_GET
 def world(request, world_id):
     world = world_or_404(request, world_id)
@@ -76,14 +81,35 @@ def world(request, world_id):
     return render(request, "organizations/world.html", {
         "world": world,
         "roles": [role.get_role_display() for role in roles],
+        "is_plot_master": any(role.role == Role.PLOT_MASTER for role in roles),
     })
+
+
+@require_http_methods(["GET", "POST"])
+def rename_world(request, world_id):
+    """Rename a World. For its Plot Masters only; anyone else, an Organization
+    Admin included, gets "not found". The World's address uses its id, so
+    renaming does not change it."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    if request.method == "POST":
+        form = NameForm(request.POST)
+        if form.is_valid():
+            world.name = form.cleaned_data["name"]
+            world.save(update_fields=["name"])
+            return redirect("world", world_id=world.pk)
+    else:
+        form = NameForm(initial={"name": world.name})
+    return render(request, "organizations/rename_world.html", {"world": world, "form": form})
 
 
 # ── The Organization: its Worlds, its people, invitations ───────────────────
 
-def organization_page(request, *, world_form=None, invitation_form=None):
+def organization_page(request, *, name_form=None, world_form=None, invitation_form=None):
     organization = request.organization
     return render(request, "organizations/organization.html", {
+        "name_form": name_form or NameForm(initial={"name": organization.name}),
         "worlds": World.objects.filter(organization=organization),
         "memberships": (Membership.objects.filter(organization=organization)
                         .select_related("user").order_by("user__email")),
@@ -102,6 +128,17 @@ def organization(request):
 
 @organization_admin_only
 @require_POST
+def rename_organization(request):
+    form = NameForm(request.POST)
+    if not form.is_valid():
+        return organization_page(request, name_form=form)
+    request.organization.name = form.cleaned_data["name"]
+    request.organization.save(update_fields=["name"])
+    return redirect("organization")
+
+
+@organization_admin_only
+@require_POST
 def create_world(request):
     form = WorldForm(request.POST)
     if not form.is_valid():
@@ -115,7 +152,10 @@ def send_invitation(request, invitation):
     link = request.build_absolute_uri(
         f"{reverse('sign-in')}?{urlencode({'email': invitation.email})}")
     send_mail(
-        subject=f"You are invited to {invitation.organization.name} on RPG Plot Helper",
+        # An email subject must be one line. Names are stored that way now, but
+        # one saved before that rule would otherwise stop every invitation.
+        subject=" ".join(
+            f"You are invited to {invitation.organization.name} on RPG Plot Helper".split()),
         message=render_to_string("organizations/invitation_email.txt", {
             "invited_by": invitation.invited_by.email,
             "organization": invitation.organization.name,

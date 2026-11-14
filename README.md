@@ -67,9 +67,11 @@ The data is stored the same way in both cases. See [ADR-0005](./docs/adr/0005-on
 
 An Organization Admin runs these from the Organization page, reached by clicking the Organization's name at the top of any page.
 
+- **The Organization's name.** A new Organization is called "My Organization". Rename it at the top of the Organization page. Links keep working after a rename.
 - **More Worlds.** Create one by name.
 - **Invitations.** Enter an email address. The person is emailed a link to the sign-in page with their address filled in, and they join the Organization when they sign in with it. Inviting the same address again sends the email again.
 - **Roles.** A new member can open nothing until they are given a role. Roles are per World: Plot Master, Mod Writer and Mod Runner, given and removed on each World's people page. A person can open only the Worlds they hold a role in; an Organization Admin can open them all.
+- **A World's name.** This one is not the Organization Admin's to change: a World is renamed by one of its Plot Masters, from the link on the World's page. The first World is called "My first World". To rename a World you created later, give yourself Plot Master in it first.
 - **Several Organizations.** A person who belongs to more than one sees a switcher at the top of the page. The app remembers which one they are working in until they sign out.
 
 ## How Organizations are kept apart

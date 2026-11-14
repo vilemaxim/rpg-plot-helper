@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Rename {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>Rename this World</h1>
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      {{ form.name.errors }}
+      <label for="{{ form.name.id_for_label }}">Name of this World</label>
+      {{ form.name }}
+    </div>
+    <button type="submit">Rename</button>
+  </form>
+  <p>Links to this World keep working after it is renamed.</p>
+{% endblock %}

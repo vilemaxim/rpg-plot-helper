@@ -5,6 +5,16 @@
 {% block content %}
   <h1>{{ organization.name }}</h1>
 
+  <form method="post" action="{% url 'rename-organization' %}" id="name">
+    {% csrf_token %}
+    <div class="field">
+      {{ name_form.name.errors }}
+      <label for="{{ name_form.name.id_for_label }}">Name of this Organization</label>
+      {{ name_form.name }}
+    </div>
+    <button type="submit">Rename</button>
+  </form>
+
   <h2>Worlds</h2>
   <ul>
     {% for world in worlds %}<li><a href="{% url 'world' world.pk %}">{{ world.name }}</a></li>{% endfor %}
