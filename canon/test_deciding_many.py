@@ -1,8 +1,6 @@
 """Approving or rejecting several Canon Changes in one step, through web
 requests, with plotcanon's sample World and script."""
 
-import unittest
-
 from canon.models import CanonChange
 from canon.test_decisions import DecisionTest, report_text
 from canon.test_reports import LEDGER_2, STAIR, VIGIL
@@ -74,11 +72,6 @@ class InTheOrderTheyHappened(DecidingManyTest):
         self.assertEqual(self.stored("clerk-pell").fields["factions"], ["drowned-chapel"])
         self.assertEqual(self.stored("clerk-pell").fields["as_of"], "e04-second-lantern")
 
-    # plotcanon's check that approved changes are applied (W10) takes the
-    # first of two changes to one field in one report as the latest, so the
-    # second cannot be approved, one at a time or together, until plotcanon
-    # orders them by their place in the report too.
-    @unittest.expectedFailure
     def test_a_chain_within_one_report_in_its_place_in_the_report(self):
         """Selected last change first; each is decided in its place."""
         self.file("aa-ledger-pell", "e03-storm-moon",
