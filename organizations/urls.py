@@ -11,6 +11,8 @@ urlpatterns = [
     path("worlds/<uuid:world_id>/roles/remove/", views.remove_role, name="remove-role"),
     path("organization/", views.organization, name="organization"),
     path("organization/name/", views.rename_organization, name="rename-organization"),
+    path("organization/dry-run-structure/", views.set_dry_run_structure,
+         name="organization-dry-run-structure"),
     path("organization/worlds/", views.create_world, name="create-world"),
     path("organization/invitations/", views.invite, name="invite"),
     path("organization/invitations/<int:invitation_id>/withdraw/", views.withdraw_invitation,

@@ -29,6 +29,17 @@
     <button type="submit">Create World</button>
   </form>
 
+  <h3 id="dry-run-structure">Dry Run structure for new Worlds</h3>
+  <p>How strictly a new World asks for Dry Run structure in its Mods. Each World is given this when it is created, and its Plot Masters can change it there. Changing it here does not change the Worlds you already have.</p>
+  <form method="post" action="{% url 'organization-dry-run-structure' %}">
+    {% csrf_token %}
+    <div class="field">
+      {{ structure_form.structure.errors }}
+      {{ structure_form.structure }}
+    </div>
+    <button type="submit">Save</button>
+  </form>
+
   <h2>People</h2>
   {% if refused %}<p class="errorlist"><strong>{{ refused }}</strong></p>{% endif %}
   <ul>

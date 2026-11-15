@@ -12,7 +12,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from accounts.models import User
 
 from . import signup, tenancy
-from .forms import InvitationForm, NameForm, WorldForm
+from .forms import DryRunStructureForm, InvitationForm, NameForm, WorldForm
 from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole
 
 
@@ -121,11 +121,13 @@ def rename_world(request, world_id):
 # ── The Organization: its Worlds, its people, invitations ───────────────────
 
 def organization_page(request, *, name_form=None, world_form=None, invitation_form=None,
-                      refused=None):
+                      structure_form=None, refused=None):
     organization = request.organization
     return render(request, "organizations/organization.html", {
         "refused": refused,
         "name_form": name_form or NameForm(initial={"name": organization.name}),
+        "structure_form": structure_form or DryRunStructureForm(
+            initial={"structure": organization.dry_run_structure}),
         "worlds": World.objects.filter(organization=organization),
         "memberships": (Membership.objects.filter(organization=organization)
                         .select_related("user").order_by("user__email")),
@@ -155,12 +157,26 @@ def rename_organization(request):
 
 @organization_admin_only
 @require_POST
+def set_dry_run_structure(request):
+    """Change the Dry Run structure new Worlds are given. Worlds that already
+    exist keep their own."""
+    form = DryRunStructureForm(request.POST)
+    if not form.is_valid():
+        return organization_page(request, structure_form=form)
+    request.organization.dry_run_structure = form.cleaned_data["structure"]
+    request.organization.save(update_fields=["dry_run_structure"])
+    return redirect("organization")
+
+
+@organization_admin_only
+@require_POST
 def create_world(request):
     form = WorldForm(request.POST)
     if not form.is_valid():
         return organization_page(request, world_form=form)
     world = World.objects.create(organization=request.organization,
-                                 name=form.cleaned_data["name"])
+                                 name=form.cleaned_data["name"],
+                                 settings_file=request.organization.new_world_settings_file())
     return redirect("world", world_id=world.pk)
 
 

@@ -8,6 +8,7 @@ Organization, even where it could be worked out from another column.
 
 import uuid
 
+import plotcanon
 from django.conf import settings
 from django.db import models
 
@@ -19,9 +20,18 @@ class Organization(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
+    # The Dry Run structure each new World is given (ADR-0007), which an
+    # Organization Admin may change. It lives only in the app (ADR-0001): a
+    # World's own setting is in its settings file, written when it is created.
+    dry_run_structure = models.CharField(max_length=20, default="encouraged")
 
     def __str__(self):
         return self.name
+
+    def new_world_settings_file(self):
+        """The settings file a World created now is given: this Organization's
+        default Dry Run structure, in plotcanon's format."""
+        return plotcanon.WorldSettings(dry_run_structure=self.dry_run_structure).text()
 
 
 class Membership(models.Model):

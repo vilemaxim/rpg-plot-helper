@@ -8,6 +8,7 @@ import plotcanon
 
 from canon.test_exporting import unzipped
 from canon.test_reports import ReportTest
+from canon.tests import CanonTest
 
 SETTING = "dry-run-structure/"
 
@@ -90,3 +91,68 @@ class WhoMayChangeTheWorldsSetting(DryRunStructureTest):
         second = self.make_world("Second World")
 
         self.assertEqual(self.mira.get(self.setting_page(second)).status_code, 404)
+
+
+class TheOrganizationsDefault(DryRunStructureTest):
+    ORGANIZATION_SETTING = "/organization/dry-run-structure/"
+
+    def default_shown(self):
+        page = self.mira.get("/organization/").content.decode()
+        return re.findall(r'<input[^>]*value="([a-z]+)"[^>]*\bchecked\b', page)
+
+    def new_world(self):
+        second = self.make_world("Second World")
+        self.give("mira@example.com", "plot-master", world=second)
+        return second
+
+    def test_it_starts_at_encouraged_and_new_worlds_are_given_it(self):
+        self.assertEqual(self.default_shown(), ["encouraged"])
+
+        second = self.new_world()
+
+        self.assertEqual(self.stored_files(world=second),
+                         {"world.yml": settings_file("encouraged")})
+
+    def test_an_organization_admin_changes_it_for_worlds_created_after(self):
+        response = self.mira.post(self.ORGANIZATION_SETTING, {"structure": "off"}, follow=True)
+
+        self.assertEqual(response.redirect_chain[-1][0], "/organization/")
+        self.assertEqual(self.default_shown(), ["off"])
+        self.assertEqual(self.chosen(self.new_world()), ["off"])
+        self.assertEqual(self.chosen(), ["encouraged"])
+
+    def test_a_world_given_it_is_not_counted_as_having_canon(self):
+        self.mira.post(self.ORGANIZATION_SETTING, {"structure": "required"})
+        second = self.new_world()
+
+        self.assertContains(self.mira.get(second), f"{second}import/")
+
+    def test_a_world_imported_without_a_settings_file_is_encouraged(self):
+        self.mira.post(self.ORGANIZATION_SETTING, {"structure": "off"})
+        second = self.new_world()
+        files = {path: text for path, text in plotcanon.sample_world().items()
+                 if path != "world.yml"}
+
+        self.import_files(files, world=second)
+
+        self.assertEqual(self.chosen(second), ["encouraged"])
+        self.assertNotIn("world.yml", self.stored_files(world=second))
+
+    def test_an_unknown_setting_is_refused(self):
+        response = self.mira.post(self.ORGANIZATION_SETTING, {"structure": "sometimes"})
+
+        self.assertContains(response, "Select a valid choice")
+        self.assertEqual(self.default_shown(), ["encouraged"])
+
+    def test_someone_who_is_not_an_organization_admin_cannot(self):
+        sam = self.join("sam@example.com")
+
+        self.assertEqual(sam.post(self.ORGANIZATION_SETTING, {"structure": "off"}).status_code,
+                         404)
+        self.assertEqual(self.default_shown(), ["encouraged"])
+
+
+class AFirstWorld(CanonTest):
+    def test_is_given_the_organizations_default_and_still_has_no_canon(self):
+        self.assertEqual(self.stored_files(), {"world.yml": settings_file("encouraged")})
+        self.assertContains(self.mira.get(self.first_world), self.import_page)
