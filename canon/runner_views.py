@@ -12,7 +12,7 @@ from django.shortcuts import render
 from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_GET, require_http_methods
 
-from . import links, submitting
+from . import dry_runs, links, submitting
 from .forms import ReportForm
 from .models import Document, Flag
 from .presenting import Index, render_markdown
@@ -60,6 +60,15 @@ def page(request, link, template, **extra):
 def mod(request, link):
     """The Mod, as its Mod Runner reads it."""
     return page(request, link, "canon/run_mod.html", body=render_markdown(link.mod.body))
+
+
+@through_a_link
+@require_GET
+def dry_run(request, link):
+    """The Mod's Dry Run, for its Mod Runner in the field. Its way back is to
+    the Mod as the link shows it, never into the World."""
+    return page(request, link, "canon/dry_run.html", full_mod="../",
+                **dry_runs.step(link.mod, request))
 
 
 @through_a_link
