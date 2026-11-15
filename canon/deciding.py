@@ -23,10 +23,8 @@ from django.utils import timezone
 from organizations.models import World
 
 from . import editing, resolving
-from .models import CanonChange, Document, Flag, Undo
+from .models import CanonChange, Decision, Document, Flag, Undo
 from .storing import parsed_into
-
-PROPOSED, APPROVED, REJECTED = "proposed", "approved", "rejected"
 
 # The longest note a Plot Master may give with a decision: a line or two.
 NOTE_LENGTH = 500
@@ -280,7 +278,7 @@ def decide(world, change_id, decision, user, note=""):
     note = cleaned_note(note)
     with transaction.atomic():
         change = locked_change(world, change_id)
-        if change.decision != PROPOSED:
+        if change.decision != Decision.PROPOSED:
             raise DecisionRefused(f"This change has already been {change.decision}.")
 
         def report_text(text):
@@ -295,7 +293,7 @@ def decide(world, change_id, decision, user, note=""):
             previous, following = place_in_chain(change, ordering, world)
             return applied(entity, change, field, previous, following, ordering)
 
-        moves = decision == APPROVED and change.kind in transitions()
+        moves = decision == Decision.APPROVED and change.kind in transitions()
         before = rewrite(world, change, report_text, entity_text if moves else None,
                          "Deciding", "Approving",
                          " Reject this change, or correct its report.")
@@ -307,7 +305,7 @@ def decide(world, change_id, decision, user, note=""):
         change.decided_at = timezone.now()
         change.note = note
         change.save(update_fields=["decision", "decided_by", "decided_at", "replaced", "note"])
-        if decision == REJECTED:
+        if decision == Decision.REJECTED:
             # A rejected change did not happen, so nothing it touched is in
             # question any more.
             resolving.resolve(Flag.objects.filter(change=change),
@@ -320,7 +318,7 @@ def undo(world, change_id, user):
     Raises `DecisionRefused`, having changed nothing, if it cannot be done."""
     with transaction.atomic():
         change = locked_change(world, change_id)
-        if change.decision == PROPOSED:
+        if change.decision == Decision.PROPOSED:
             raise DecisionRefused("This change has not been decided, so there is nothing to "
                                   "undo.")
 
@@ -329,7 +327,7 @@ def undo(world, change_id, user):
             # the record of the undoing instead.
             return editing.remove_key(
                 editing.replace(text, ["canon_changes", change.position, "decision"],
-                                PROPOSED),
+                                Decision.PROPOSED),
                 ["canon_changes", change.position], "note")
 
         def entity_text(entity, field, ordering):
@@ -339,10 +337,10 @@ def undo(world, change_id, user):
                              .exclude(pk=change.pk))
             return unapplied(entity, change, field, previous, following, ordering, remaining)
 
-        moves = change.decision == APPROVED and change.kind in transitions()
+        moves = change.decision == Decision.APPROVED and change.kind in transitions()
         rewrite(world, change, report_text, entity_text if moves else None,
                 "Undoing", "Undoing")
-        if change.decision == REJECTED:
+        if change.decision == Decision.REJECTED:
             # The change may have happened after all, so what it touched is
             # in question again. Flags resolved some other way stay resolved.
             resolving.reopen(Flag.objects.filter(change=change),
@@ -351,7 +349,7 @@ def undo(world, change_id, user):
                             decision=change.decision, decided_by=change.decided_by,
                             decided_at=change.decided_at, note=change.note, undone_by=user,
                             undone_at=timezone.now())
-        change.decision, change.decided_by, change.decided_at = PROPOSED, None, None
+        change.decision, change.decided_by, change.decided_at = Decision.PROPOSED, None, None
         change.replaced, change.note = {}, ""
         change.save(update_fields=["decision", "decided_by", "decided_at", "replaced", "note"])
     return change

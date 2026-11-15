@@ -27,7 +27,7 @@ from django.utils.text import slugify
 from organizations.models import World
 
 from . import deciding, editing
-from .models import CanonChange, Document
+from .models import CanonChange, Decision, Document
 from .storing import canon_changes_of, files_of, new_row, parsed_into
 from .submitting import SLUG, Refused, raise_flags, said, unreadable
 
@@ -222,7 +222,7 @@ def saved_and_approved(world, event, text, record_id, user):
     # change to record.
     listed = checked.document.fields.get("canon_changes") or []
     rejected = [i for i, change in enumerate(listed) if isinstance(change, dict)
-                and change.get("decision") == deciding.REJECTED]
+                and change.get("decision") == Decision.REJECTED]
     if rejected:
         raise InterludeRefused(
             f"canon_changes[{rejected[0]}] says it was rejected. Every change recorded here "
@@ -233,7 +233,7 @@ def saved_and_approved(world, event, text, record_id, user):
     for position in range(len(listed)):
         try:
             text = editing.replace(text, ["canon_changes", position, "decision"],
-                                   deciding.PROPOSED)
+                                   Decision.PROPOSED)
         except editing.CannotEdit as error:
             raise InterludeRefused(f"That record could not be read: {error}.") from None
     files[path] = text
@@ -244,6 +244,6 @@ def saved_and_approved(world, event, text, record_id, user):
     changes = CanonChange.objects.bulk_create(canon_changes_of(row))
     raise_flags(world, whole, record_id, changes)
     for change in changes:
-        deciding.decide(world, change.pk, deciding.APPROVED, user)
+        deciding.decide(world, change.pk, Decision.APPROVED, user)
     row.refresh_from_db()
     return row

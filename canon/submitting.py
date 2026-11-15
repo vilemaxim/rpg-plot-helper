@@ -22,11 +22,10 @@ from django.utils import timezone
 from organizations.models import World
 
 from . import editing
-from .models import CanonChange, Document, Flag
+from .models import CanonChange, Decision, Document, Flag
 from .storing import canon_changes_of, files_of, new_row, parsed_into
 
 REPORT = "after-action"
-PROPOSED = "proposed"
 
 # The block of fields at the top of a file. plotcanon reads files; this app
 # reads a submitted report's fields itself only to find where in the World it
@@ -241,7 +240,7 @@ def submit(world, mod, text, user, filed_through=None):
             raise ReportRefused(f"That file is a `{report.type}`. It is not an "
                                 f"After-Action Report.")
         decided = [i for i, change in enumerate(report.fields.get("canon_changes") or [])
-                   if isinstance(change, dict) and change.get("decision") != PROPOSED]
+                   if isinstance(change, dict) and change.get("decision") != Decision.PROPOSED]
         if decided:
             raise ReportRefused(
                 "Every Canon Change in a report is filed as `decision: proposed`: only a Plot "

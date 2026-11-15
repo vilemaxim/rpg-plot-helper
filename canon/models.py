@@ -78,6 +78,15 @@ class Document(models.Model):
         return self.name
 
 
+class Decision(models.TextChoices):
+    """Whether a Canon Change is Canon: only an approved one is. Written as it
+    is here in the report's file, and kept with a decision that was undone."""
+
+    PROPOSED = "proposed", "Proposed"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+
+
 class CanonChangeQuerySet(models.QuerySet):
     def in_world(self, world):
         """A World's Canon Changes. The filter on the Organization repeats what
@@ -86,11 +95,11 @@ class CanonChangeQuerySet(models.QuerySet):
 
     def pending(self, world):
         """The Canon Changes of a World that nobody has decided yet."""
-        return self.in_world(world).filter(decision="proposed")
+        return self.in_world(world).filter(decision=Decision.PROPOSED)
 
     def approved(self, world):
         """The Canon Changes of a World that are Canon."""
-        return self.in_world(world).filter(decision="approved")
+        return self.in_world(world).filter(decision=Decision.APPROVED)
 
 
 class CanonChange(models.Model):
@@ -109,7 +118,7 @@ class CanonChange(models.Model):
     position = models.PositiveIntegerField()
     entity = models.CharField(max_length=200)
     kind = models.CharField(max_length=40)
-    decision = models.CharField(max_length=40)
+    decision = models.CharField(max_length=40, choices=Decision)
     before = models.TextField(blank=True)
     after = models.TextField(blank=True)
     summary = models.TextField(blank=True)
@@ -147,7 +156,7 @@ class Undo(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="+")
     change = models.ForeignKey(CanonChange, on_delete=models.CASCADE, related_name="undos")
-    decision = models.CharField(max_length=40)
+    decision = models.CharField(max_length=40, choices=Decision)
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
     decided_at = models.DateTimeField(null=True, blank=True)

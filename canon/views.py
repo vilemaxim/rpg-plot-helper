@@ -21,7 +21,7 @@ from . import (approving, deciding, exporting, intake, interludes, links, resolv
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
-from .models import CanonChange, Document, Flag, ModLink
+from .models import CanonChange, Decision, Document, Flag, ModLink
 from .presenting import Index, render_markdown, wording
 
 
@@ -366,7 +366,7 @@ def change_row(index, change):
         "entity": index.link(change.entity),
         "kind": wording(change.kind),
         "decision": wording(change.decision),
-        "proposed": change.decision == deciding.PROPOSED,
+        "proposed": change.decision == Decision.PROPOSED,
         "moved": bool(change.before or change.after),
         "before": change.before,
         "after": change.after,
@@ -411,7 +411,7 @@ def pending(request, world_id):
                       key=lambda slug: index.link(slug)["text"].lower())
     decided = {}
     for change in (CanonChange.objects.in_world(world).filter(entity__in=entities)
-                   .exclude(decision=deciding.PROPOSED)
+                   .exclude(decision=Decision.PROPOSED)
                    .select_related("report__submitted_by", "decided_by")):
         decided.setdefault(change.entity, []).append(change)
     groups = []
@@ -434,7 +434,7 @@ def pending(request, world_id):
 
 
 # What a Plot Master's button says, and the decision it makes.
-DECISIONS = {"approve": deciding.APPROVED, "reject": deciding.REJECTED}
+DECISIONS = {"approve": Decision.APPROVED, "reject": Decision.REJECTED}
 
 
 @require_POST
@@ -708,13 +708,13 @@ def approve(request, world_id, slug):
 def history(index, world, document):
     """The approved Canon Changes to one document, in the order they happened,
     each with the report it came from."""
-    return decided_changes(index, world, document, deciding.APPROVED)
+    return decided_changes(index, world, document, Decision.APPROVED)
 
 
 def rejected_changes(index, world, document):
     """The rejected Canon Changes to one document, in the order they happened,
     each with the report it came from."""
-    return decided_changes(index, world, document, deciding.REJECTED)
+    return decided_changes(index, world, document, Decision.REJECTED)
 
 
 def decided_changes(index, world, document, decision):
