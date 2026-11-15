@@ -165,6 +165,9 @@ class AllOrNothing(DecidingManyTest):
         for change in self.ledger + [self.death]:
             self.assertRegex(page, rf'value="{change.pk}"[^>]*checked')
         self.assertNotRegex(page, rf'value="{self.departure.pk}"[^>]*checked')
+        self.assertRegex(page, rf'value="{self.departure.pk}"[^>]*> Select</label> '
+                               rf'<strong class="conflict">Could not be decided')
+        self.assertEqual(page.count("Could not be decided"), 1)
 
     def test_untick_the_refused_one_and_try_again(self):
         self.rule_many(self.ledger + [self.death, self.departure], "approve")

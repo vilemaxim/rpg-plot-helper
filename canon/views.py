@@ -210,7 +210,7 @@ def detail(request, world_id, kind, slug):
                       .select_related("report__submitted_by", "decided_by")
                       .prefetch_related("undos__decided_by", "undos__undone_by")] \
         if doc_type in ("after-action", interludes.RECORD) else []
-    selected, refused = selection(request)
+    selected, refused_change_id = selection(request)
     return render(request, "canon/detail.html", {
         "world": world,
         "kind": kind,
@@ -250,11 +250,11 @@ def detail(request, world_id, kind, slug):
         "report_changes": report_changes,
         "report_waiting": any(c["proposed"] for c in report_changes),
         "selected": selected,
-        "refused": refused,
+        "refused_change_id": refused_change_id,
         "may_record": doc_type == "event" and interludes.is_interlude(document)
         and is_plot_master(request, world),
         "history": history(index, world, document),
-        "rejected": rejected(index, world, document),
+        "rejected": rejected_changes(index, world, document),
         "waiting_for_it": [change_row(index, c) for c in
                            CanonChange.objects.pending(world).filter(entity=document.slug)
                            .select_related("report__submitted_by")],
@@ -424,12 +424,12 @@ def pending(request, world_id):
             "waiting": mark_disagreements([change_row(index, c) for c in mine]),
             "recent": [change_row(index, c) for c in recent[-RECENTLY_DECIDED:]],
         })
-    selected, refused = selection(request)
+    selected, refused_change_id = selection(request)
     return render(request, "canon/pending.html", {
         "world": world, "groups": groups, "count": len(waiting),
         "may_decide": is_plot_master(request, world),
         "note_length": deciding.NOTE_LENGTH,
-        "selected": selected, "refused": refused,
+        "selected": selected, "refused_change_id": refused_change_id,
     })
 
 
@@ -711,7 +711,7 @@ def history(index, world, document):
     return decided_changes(index, world, document, deciding.APPROVED)
 
 
-def rejected(index, world, document):
+def rejected_changes(index, world, document):
     """The rejected Canon Changes to one document, in the order they happened,
     each with the report it came from."""
     return decided_changes(index, world, document, deciding.REJECTED)

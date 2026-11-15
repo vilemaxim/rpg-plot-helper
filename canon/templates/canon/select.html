@@ -1,3 +1,3 @@
 {% if may_decide and change.proposed %}
-  <label class="quiet"><input type="checkbox" name="change" value="{{ change.id }}" form="decide-selected"{% if change.id in selected %} checked{% endif %}> Select</label>{% if change.id == refused %} <strong class="conflict">Could not be decided.</strong>{% endif %}
+  <label class="quiet"><input type="checkbox" name="change" value="{{ change.id }}" form="decide-selected"{% if change.id in selected %} checked{% endif %}> Select</label>{% if change.id == refused_change_id %} <strong class="conflict">Could not be decided.</strong>{% endif %}
 {% endif %}
