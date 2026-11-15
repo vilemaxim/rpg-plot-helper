@@ -8,7 +8,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from organizations.views import is_plot_master, world_or_404
 
-from . import deciding
+from . import deciding, resolving
 
 from . import submitting
 from .forms import ImportForm, ReportForm
@@ -110,6 +110,18 @@ def detail(request, world_id, kind, slug):
         "referred_to_by": index.referred_to_by(document),
         "flags": flags_shown(index, Flag.objects.open_in(world).filter(mod=document))
         if doc_type == "mod" else [],
+        "resolved_flags": flags_shown(index, Flag.objects.filter(
+            organization=world.organization, world=world, mod=document).exclude(resolution=""))
+        if doc_type == "mod" else [],
+        "sent_back": Flag.objects.filter(
+            organization=world.organization, world=world, mod=document,
+            resolution=Flag.Resolution.SENT_BACK).select_related("resolved_by")
+        .order_by("-resolved_at").first()
+        if doc_type == "mod" and document.fields.get("state") == submitting.states().draft
+        else None,
+        "may_send_back": doc_type == "mod"
+        and document.fields.get("state") in submitting.states().reportable
+        and not reported_on(world, document),
         "can_be_reported_on": doc_type == "mod" and submitting.can_be_reported_on(document),
         "report_changes": [change_row(index, c) for c in
                            CanonChange.objects.in_world(world).filter(report=document)
@@ -255,6 +267,11 @@ def flags_shown(index, flags):
     """Flags as rows a page can show: the Mod, the Feature the change touches,
     what the change says, and the report it came from."""
     return [{
+        "id": flag.pk,
+        "resolution": flag.get_resolution_display(),
+        "resolved_by": flag.resolved_by,
+        "resolved_at": flag.resolved_at,
+        "note": flag.note,
         "mod": index.link(flag.mod.slug),
         "entity": index.link(flag.change.entity),
         "kind": wording(flag.change.kind),
@@ -263,7 +280,7 @@ def flags_shown(index, flags):
         "after": flag.change.after,
         "summary": flag.change.summary,
         "report": index.link(flag.change.report.slug),
-    } for flag in flags.select_related("mod", "change__report")
+    } for flag in flags.select_related("mod", "change__report", "resolved_by")
         .order_by("mod__name", "change__report__submitted_at", "change__position")]
 
 
@@ -273,7 +290,49 @@ def flags(request, world_id):
     world = world_or_404(request, world_id)
     index = Index(world, documents_of(world))
     return render(request, "canon/flags.html", {
-        "world": world, "flags": flags_shown(index, Flag.objects.open_in(world))})
+        "world": world, "flags": flags_shown(index, Flag.objects.open_in(world)),
+        "may_decide": is_plot_master(request, world)})
+
+
+def back_to(request, world):
+    """The page to return to after an action: the one the form named, if it
+    is on this site, and the Flags page otherwise."""
+    back = request.POST.get("next", "")
+    if url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
+                                       require_https=request.is_secure()):
+        return back
+    return reverse("canon-flags", args=[world.pk])
+
+
+@require_POST
+def dismiss_flag(request, world_id, flag_id):
+    """Dismiss one Flag. For the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    try:
+        resolving.dismiss(world, flag_id, request.user)
+    except resolving.ResolutionRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, "Flag dismissed.")
+    return redirect(back_to(request, world))
+
+
+@require_POST
+def send_back(request, world_id, slug):
+    """Send a Mod back to its Mod Writer. For the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    mod = mod_or_404(world, slug)
+    try:
+        resolving.send_back(world, mod, request.POST.get("reason", ""), request.user)
+    except resolving.ResolutionRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, f"{mod.name} is a draft again, back with its Mod Writer.")
+    return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
 
 
 def history(index, world, document):
@@ -286,3 +345,8 @@ def history(index, world, document):
     ordering = deciding.Ordering(documents_of(world).filter(kind="event"))
     changes.sort(key=lambda change: (ordering.of(change.report), change.position))
     return [change_row(index, change) for change in changes]
+
+
+def reported_on(world, mod):
+    """Whether any After-Action Report has been filed on this Mod."""
+    return documents_of(world).filter(kind="after-action", fields__mod=mod.slug).exists()

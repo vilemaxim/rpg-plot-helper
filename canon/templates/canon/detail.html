@@ -8,15 +8,40 @@
   {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
   {% if aliases %}<p class="aliases">Also called: {{ aliases|join:", " }}</p>{% endif %}
   {% if submitted_by %}<p>Submitted by {{ submitted_by.email }} on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
+  {% if sent_back %}
+    <div class="sent-back warning">
+      <p><strong>Sent back to its Mod Writer</strong>{% if sent_back.resolved_by %} by {{ sent_back.resolved_by.email }}{% endif %} on {{ sent_back.resolved_at|date:"j F Y" }}.</p>
+      <p>{{ sent_back.note }}</p>
+      <p>It is a draft, and cannot be run or reported on until it is approved again.</p>
+    </div>
+  {% endif %}
   {% if flags %}
     <div class="warning">
       <p><strong>{{ flags|length }} Flag{{ flags|length|pluralize }} on this Mod.</strong> A reported change touches something it relies on. Check before running it.</p>
       <ul>
         {% for flag in flags %}
-          <li>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}, {{ flag.kind|lower }}{% if flag.moved %} {{ flag.before }} → {{ flag.after }}{% endif %}: {{ flag.summary }} ({% with value=flag.report %}{% include "canon/link.html" %}{% endwith %})</li>
+          <li>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}, {{ flag.kind|lower }}{% if flag.moved %} {{ flag.before }} → {{ flag.after }}{% endif %}: {{ flag.summary }} ({% with value=flag.report %}{% include "canon/link.html" %}{% endwith %}) {% include "canon/dismiss.html" %}</li>
         {% endfor %}
       </ul>
+      {% if may_decide and may_send_back %}
+        <form method="post" action="{% url 'canon-send-back' world.pk document.slug %}">
+          {% csrf_token %}
+          <div class="field">
+            <label for="reason">Or send it back to its Mod Writer, saying why</label>
+            <textarea id="reason" name="reason" rows="3"></textarea>
+          </div>
+          <button type="submit">Send back to draft</button>
+        </form>
+      {% endif %}
     </div>
+  {% endif %}
+  {% if resolved_flags %}
+    <h2>Resolved Flags</h2>
+    <ul>
+      {% for flag in resolved_flags %}
+        <li>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}, {{ flag.kind|lower }}: {{ flag.summary }} ({% with value=flag.report %}{% include "canon/link.html" %}{% endwith %}). {{ flag.resolution }}{% if flag.resolved_by %} by {{ flag.resolved_by.email }}{% endif %}{% if flag.resolved_at %} on {{ flag.resolved_at|date:"j F Y" }}{% endif %}{% if flag.note %}: {{ flag.note }}{% endif %}</li>
+      {% endfor %}
+    </ul>
   {% endif %}
   {% if can_be_reported_on %}
     <p><a href="{% url 'canon-report' world.pk document.slug %}">File an After-Action Report on this Mod</a></p>

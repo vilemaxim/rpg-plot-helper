@@ -8,7 +8,7 @@
   {% if flags %}
     <p>A Flag is raised on an unfinished Mod when a reported change touches something it relies on, in any Campaign. A Mod has one Flag for each such change.</p>
     <table>
-      <thead><tr><th>Mod</th><th>Touches</th><th>Change</th><th>Reported in</th></tr></thead>
+      <thead><tr><th>Mod</th><th>Touches</th><th>Change</th><th>Reported in</th>{% if may_decide %}<th></th>{% endif %}</tr></thead>
       <tbody>
         {% for flag in flags %}
           <tr class="flag">
@@ -16,6 +16,7 @@
             <td>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}</td>
             <td>{{ flag.kind }}{% if flag.moved %}: {{ flag.before }} → {{ flag.after }}{% endif %}. {{ flag.summary }}</td>
             <td>{% with value=flag.report %}{% include "canon/link.html" %}{% endwith %}</td>
+            {% if may_decide %}<td>{% include "canon/dismiss.html" %}</td>{% endif %}
           </tr>
         {% endfor %}
       </tbody>

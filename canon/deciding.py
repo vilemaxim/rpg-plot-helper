@@ -21,8 +21,8 @@ from django.utils import timezone
 
 from organizations.models import World
 
-from . import editing
-from .models import CanonChange, Document
+from . import editing, resolving
+from .models import CanonChange, Document, Flag
 from .storing import parsed_into
 
 PROPOSED, APPROVED, REJECTED = "proposed", "approved", "rejected"
@@ -201,4 +201,9 @@ def decide(world, change_id, decision, user):
         change.decided_by = user
         change.decided_at = timezone.now()
         change.save(update_fields=["decision", "decided_by", "decided_at"])
+        if decision == REJECTED:
+            # A rejected change did not happen, so nothing it touched is in
+            # question any more.
+            resolving.resolve(Flag.objects.filter(change=change),
+                              Flag.Resolution.CHANGE_REJECTED, user)
     return change

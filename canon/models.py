@@ -113,7 +113,7 @@ class FlagQuerySet(models.QuerySet):
         import plotcanon
 
         unfinished = plotcanon.vocabularies()["mod_states_unfinished"]
-        return self.filter(organization=world.organization, world=world,
+        return self.filter(organization=world.organization, world=world, resolution="",
                            mod__fields__state__in=unfinished)
 
 
@@ -130,6 +130,19 @@ class Flag(models.Model):
     mod = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="flags")
     change = models.ForeignKey(CanonChange, on_delete=models.CASCADE, related_name="flags")
     raised_at = models.DateTimeField(auto_now_add=True)
+
+    class Resolution(models.TextChoices):
+        DISMISSED = "dismissed", "Dismissed"
+        SENT_BACK = "sent-back", "Sent back to its Mod Writer"
+        CHANGE_REJECTED = "change-rejected", "Cleared when the change was rejected"
+
+    # How the Flag was resolved, by whom and when; empty while it is open.
+    # `note` holds the reason given for sending a Mod back.
+    resolution = models.CharField(max_length=20, choices=Resolution, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name="+")
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    note = models.TextField(blank=True)
 
     objects = FlagQuerySet.as_manager()
 

@@ -97,7 +97,7 @@ def with_state(text, state):
         raise ReportRefused("The Mod's stored file has no state that can be updated.") from None
 
 
-States = namedtuple("States", "finished in_progress reportable")
+States = namedtuple("States", "draft finished in_progress reportable")
 
 
 def states():
@@ -106,11 +106,14 @@ def states():
     vocabulary = plotcanon.vocabularies()
     finished = vocabulary["mod_state_finished"]
     in_progress = next(s for s in vocabulary["mod_states_that_have_run"] if s != finished)
-    # A Mod can be reported on once it is approved to run and until it is
-    # finished: an unfinished state that is not kept in the inbox.
-    reportable = [state for state in vocabulary["mod_states_unfinished"]
-                  if "inbox" not in vocabulary["mod_state_dirs"].get(state, [])]
-    return States(finished, in_progress, reportable)
+    # A draft is the unfinished state kept in the inbox. A Mod can be reported
+    # on once it is approved to run and until it is finished: an unfinished
+    # state that is not a draft.
+    unfinished = vocabulary["mod_states_unfinished"]
+    draft = next(state for state in unfinished
+                 if "inbox" in vocabulary["mod_state_dirs"].get(state, []))
+    reportable = [state for state in unfinished if state != draft]
+    return States(draft, finished, in_progress, reportable)
 
 
 def can_be_reported_on(mod):

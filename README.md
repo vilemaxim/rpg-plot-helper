@@ -102,7 +102,15 @@ A Plot Master decides each Canon Change, one at a time, from the "Canon Changes 
 
 Each decision is recorded in the change's row, in the report's stored file and, where a field moves, in the entity's stored file, and the World is checked by plotcanon before anything is saved: a decision is refused if plotcanon finds an error, or warns that the entity's file disagrees with its approved changes. Only a Plot Master of the World can decide.
 
-Resolving Flags is the next piece to be built.
+### Resolving Flags
+
+A Plot Master resolves each Flag in one of three ways, from the Flags page or the flagged Mod's page:
+
+- **Dismiss it**, from the Flags page or the Mod's page, when the change does not matter to the Mod after all.
+- **Send the Mod back to its Mod Writer**, from the Mod's page, saying why. The Mod becomes a draft again and can no longer be run or reported on, and every open Flag on it is resolved with that reason. A draft is not Canon, so its stored file moves to the inbox and is marked `canon: proposed`. Only a Mod that has not been played yet can be sent back; one already played has reports that say so. There is not yet a way in the app to approve a draft again.
+- **Reject the change** that raised it, from the review screen or the report's page. Every Flag that change raised is cleared, since what it reported did not happen.
+
+A resolved Flag is no longer listed or warned about, and stays on record on the Mod's page, with how it was resolved, by whom and when. Only a Plot Master of the World can resolve a Flag.
 
 ## Who may create an Organization
 
