@@ -119,6 +119,14 @@ A Plot Master decides each Canon Change, one at a time, from the "Canon Changes 
 
 Each decision is recorded in the change's row, in the report's stored file and, where a field moves, in the entity's stored file, and the World is checked by plotcanon before anything is saved: a decision is refused if plotcanon finds an error, or warns that the entity's file disagrees with its approved changes. Only a Plot Master of the World can decide.
 
+A decision can be undone from the report's page, returning the change to proposed in its row and in the report's file, to be decided again:
+
+- **Undoing an approval** takes the change out of Canon. The field goes back to where the approved change before it left it, or to what this one changed it from if there is none, and a list of factions to what it was before the approval. If the approval moved "as of", it goes back to what it was before, or to the Event of the latest approved change that remains if that is later. An approval keeps what it replaced in the entity's file for this; for one approved before that was kept, or imported already approved, the faction it put in is taken back out and the one it took out put back, and "as of" goes back to the latest approved change that remains, or stays where it is if none does.
+- **An approval something follows on from waits.** If a later approved change to the same field follows on from it, that one must be undone first, and the Plot Master is told which. Changes to a list of factions are undone in the reverse of the order they were decided.
+- **Undoing a rejection** never waits for another change to be undone. The Flags that rejecting it cleared are open again; Flags resolved some other way stay resolved. Undoing an approval leaves its Flags as they are.
+
+Each undo is kept on record on the report's page: what the decision had been and who made it, and who undid it and when. Like a decision, it is checked by plotcanon before anything is saved.
+
 ### Interludes
 
 Canon also changes between Events, with no Mod run: backstories, off-screen moves, letters. The time between two Events is an Interlude.

@@ -1,7 +1,8 @@
 """Resolving Flags: dismissing one, or sending its Mod back to its Mod Writer.
 
-Rejecting the Canon Change that raised a Flag also resolves it; that happens
-where the change is decided (`deciding.py`).
+Rejecting the Canon Change that raised a Flag also resolves it, and undoing
+that rejection opens it again; both happen where the change is decided
+(`deciding.py`).
 
 A resolved Flag stays on record with how it was resolved, by whom and when.
 """
@@ -26,6 +27,13 @@ def resolve(flags, how, user, note=""):
     """Mark open Flags resolved. Returns how many were."""
     return flags.filter(resolution="").update(
         resolution=how, resolved_by=user, resolved_at=timezone.now(), note=note)
+
+
+def reopen(flags, how):
+    """Open again the Flags that were resolved in this way. Returns how many
+    were."""
+    return flags.filter(resolution=how).update(resolution="", resolved_by=None,
+                                               resolved_at=None, note="")
 
 
 def dismiss(world, flag_id, user):

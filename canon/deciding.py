@@ -1,4 +1,4 @@
-"""Approving or rejecting one Canon Change.
+"""Approving or rejecting one Canon Change, and undoing either.
 
 A decision is recorded in three places that must agree: the change's own row,
 its `decision` in the report's stored file, and, for an approved change that
@@ -22,7 +22,7 @@ from django.utils import timezone
 from organizations.models import World
 
 from . import editing, resolving
-from .models import CanonChange, Document, Flag
+from .models import CanonChange, Document, Flag, Undo
 from .storing import parsed_into
 
 PROPOSED, APPROVED, REJECTED = "proposed", "approved", "rejected"
@@ -148,6 +148,60 @@ def applied(entity, change, field, previous, following, ordering):
 DISAGREEMENT = ("approved but not applied", "advance `as_of`")
 
 
+def disagreement_in(whole, entity):
+    """plotcanon's first warning that `entity`'s file disagrees with the
+    changes approved to it, or None. None too if there is no entity."""
+    if entity is None:
+        return None
+    return next((w.message for w in whole.warnings if w.path == entity.path
+                 and any(sign in w.message for sign in DISAGREEMENT)), None)
+
+
+def unapplied(entity, change, field, previous, following, ordering, remaining):
+    """The entity's file with an approved change taken out. The field goes
+    back to where the approved change before it left it, or to what this one
+    changed it from if there is none; a list of factions goes back to what
+    the approval replaced. "As of" goes back too, if this change was what put
+    it where it is: to what the approval replaced, or to the latest remaining
+    approved change if that is later. `remaining` are the entity's other
+    approved changes that move a field. Raises `DecisionRefused` if a later
+    approved change follows on from this one."""
+    if following is not None:
+        raise DecisionRefused(
+            f"{described(following)} was approved after this change and follows on from "
+            f"it. Undo that one first.")
+    replaced = change.replaced or {}
+    if field == "factions":
+        # Changes to factions are decided in order, so this is the latest.
+        if field in replaced:
+            listed = replaced[field] if isinstance(replaced[field], list) else []
+        else:
+            # Approved before what it replaced was kept: take back out the
+            # faction it put in, and put back the one it took out.
+            listed = entity.fields.get(field)
+            listed = [faction for faction in (listed if isinstance(listed, list) else [])
+                      if faction != change.after or change.after == change.before]
+            if change.before and change.before not in listed:
+                listed.append(change.before)
+        text = editing.set_field(entity.text, field, editing.flow_list(listed))
+    else:
+        restored = previous.after if previous is not None else change.before
+        text = editing.set_field(entity.text, field, restored or "null")
+
+    event = change.report.fields.get("event")
+    if entity.fields.get("as_of") == event:
+        candidates = [other.report.fields.get("event") for other in remaining]
+        if replaced.get("as_of"):
+            candidates.append(replaced["as_of"])
+        # With neither, it stays: the field held its restored value then too.
+        known = [c for c in candidates if ordering.event_ordinal(c) is not None]
+        if known:
+            latest = max(known, key=ordering.event_ordinal)
+            if latest != event:
+                text = editing.set_field(text, "as_of", latest)
+    return text
+
+
 def decide(world, change_id, decision, user):
     """Approve or reject one proposed Canon Change of `world`. Returns it.
     Raises `DecisionRefused`, having changed nothing, if it cannot be done."""
@@ -185,25 +239,89 @@ def decide(world, change_id, decision, user):
         if not whole.ok:
             raise DecisionRefused("Deciding that would leave the World with errors: "
                                   + " ".join(str(e) for e in whole.errors[:3]))
-        if entity is not None:
-            disagreements = [w.message for w in whole.warnings if w.path == entity.path
-                             and any(sign in w.message for sign in DISAGREEMENT)]
-            if disagreements:
-                raise DecisionRefused(
-                    f"Approving this would leave {entity.name}'s file disagreeing with the "
-                    f"changes approved to it: {disagreements[0]}. Reject this change, or "
-                    f"correct its report.")
+        disagreement = disagreement_in(whole, entity)
+        if disagreement:
+            raise DecisionRefused(
+                f"Approving this would leave {entity.name}'s file disagreeing with the "
+                f"changes approved to it: {disagreement}. Reject this change, or correct "
+                f"its report.")
 
         parsed_into(report, whole.world.get(report.slug), whole.world).save()
-        if entity is not None and files[entity.path] != entity.text:
-            parsed_into(entity, whole.world.get(entity.slug), whole.world).save()
+        if entity is not None:
+            change.replaced = {field: entity.fields.get(field),
+                               "as_of": entity.fields.get("as_of")}
+            if files[entity.path] != entity.text:
+                parsed_into(entity, whole.world.get(entity.slug), whole.world).save()
         change.decision = decision
         change.decided_by = user
         change.decided_at = timezone.now()
-        change.save(update_fields=["decision", "decided_by", "decided_at"])
+        change.save(update_fields=["decision", "decided_by", "decided_at", "replaced"])
         if decision == REJECTED:
             # A rejected change did not happen, so nothing it touched is in
             # question any more.
             resolving.resolve(Flag.objects.filter(change=change),
                               Flag.Resolution.CHANGE_REJECTED, user)
+    return change
+
+
+def undo(world, change_id, user):
+    """Return one decided Canon Change of `world` to proposed. Returns it.
+    Raises `DecisionRefused`, having changed nothing, if it cannot be done."""
+    with transaction.atomic():
+        World.objects.select_for_update().get(pk=world.pk)
+        change = (CanonChange.objects.in_world(world).select_related("report")
+                  .filter(pk=change_id).first())
+        if change is None:
+            raise DecisionRefused("There is no such Canon Change.")
+        if change.decision == PROPOSED:
+            raise DecisionRefused("This change has not been decided, so there is nothing to "
+                                  "undo.")
+
+        documents = list(Document.objects.filter(world=world))
+        files = {d.path: d.text for d in documents}
+        report = change.report
+        try:
+            files[report.path] = editing.replace(
+                report.text, ["canon_changes", change.position, "decision"], PROPOSED)
+        except editing.CannotEdit as error:
+            raise DecisionRefused(f"The report's stored file could not be updated: {error}.")
+
+        entity = None
+        field = transitions().get(change.kind)
+        if change.decision == APPROVED and field:
+            entity = next((d for d in documents if d.slug == change.entity), None)
+            if entity is None:
+                raise DecisionRefused(f"There is no {change.entity} in this World.")
+            ordering = Ordering(documents)
+            previous, following = place_in_chain(change, ordering, world)
+            remaining = list(CanonChange.objects.approved(world).select_related("report")
+                             .filter(entity=change.entity, kind__in=transitions())
+                             .exclude(pk=change.pk))
+            files[entity.path] = unapplied(entity, change, field, previous, following,
+                                           ordering, remaining)
+
+        whole = plotcanon.load_world(files)
+        if not whole.ok:
+            raise DecisionRefused("Undoing that would leave the World with errors: "
+                                  + " ".join(str(e) for e in whole.errors[:3]))
+        disagreement = disagreement_in(whole, entity)
+        if disagreement:
+            raise DecisionRefused(
+                f"Undoing this would leave {entity.name}'s file disagreeing with the changes "
+                f"approved to it: {disagreement}.")
+        parsed_into(report, whole.world.get(report.slug), whole.world).save()
+        if entity is not None and files[entity.path] != entity.text:
+            parsed_into(entity, whole.world.get(entity.slug), whole.world).save()
+        if change.decision == REJECTED:
+            # The change may have happened after all, so what it touched is
+            # in question again. Flags resolved some other way stay resolved.
+            resolving.reopen(Flag.objects.filter(change=change),
+                             Flag.Resolution.CHANGE_REJECTED)
+        Undo.objects.create(organization=world.organization, world=world, change=change,
+                            decision=change.decision, decided_by=change.decided_by,
+                            decided_at=change.decided_at, undone_by=user,
+                            undone_at=timezone.now())
+        change.decision, change.decided_by, change.decided_at = PROPOSED, None, None
+        change.replaced = {}
+        change.save(update_fields=["decision", "decided_by", "decided_at", "replaced"])
     return change

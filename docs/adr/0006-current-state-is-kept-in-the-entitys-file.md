@@ -10,6 +10,6 @@ An approved Canon Change updates the entity's stored file: its status, location 
 ## Consequences
 
 - The change's row, its `decision` in the report's file, and the entity's file are changed together. A decision is refused if plotcanon then finds an error, or warns that the entity's file disagrees with its approved changes. plotcanon only warns about the latest approved change, so the app also checks that each approved change follows on from the one before it and leads into the one after.
-- A decision cannot yet be undone. Undoing would mean recomputing the entity's state from the remaining approved changes, which is where this decision would be revisited.
+- A decision can be undone (#25) without revisiting this decision. Only the latest approved change to a field can be undone, and undoing an earlier one waits until the later ones are. The field goes back to where the approved change before it left it. An approval keeps what it replaced in the entity's file, so a list of factions and "as of" go back to that, "as of" never earlier than the latest approved change that remains. Approvals made before that was kept fall back to reversing the change.
 - Approved changes to one field must follow on from each other in Event order. A change that does not is refused as a contradiction rather than stacked. Changes to a list of factions are decided in the order they happened.
 - How changes are ordered and applied is knowledge of the file format that plotcanon should own (#23).

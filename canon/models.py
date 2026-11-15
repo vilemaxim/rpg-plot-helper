@@ -118,6 +118,11 @@ class CanonChange(models.Model):
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
     decided_at = models.DateTimeField(null=True, blank=True)
+    # What approving this change replaced in the entity's file: the field it
+    # moves and "as of", as they were. Undoing the approval puts them back.
+    # Empty while it is not approved, and for a change approved before this
+    # was kept, or that arrived already approved in an import.
+    replaced = models.JSONField(default=dict, blank=True)
 
     objects = CanonChangeQuerySet.as_manager()
 
@@ -128,6 +133,26 @@ class CanonChange(models.Model):
                                     name="one_canon_change_per_place"),
         ]
         indexes = [models.Index(fields=["world", "decision"])]
+
+
+class Undo(models.Model):
+    """A decision on a Canon Change that a Plot Master undid, returning the
+    change to proposed: what the decision had been, who made it and when, and
+    who undid it and when. A change undone more than once has one for each."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="+")
+    change = models.ForeignKey(CanonChange, on_delete=models.CASCADE, related_name="undos")
+    decision = models.CharField(max_length=40)
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    undone_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,
+                                  on_delete=models.SET_NULL, related_name="+")
+    undone_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["undone_at", "pk"]
 
 
 class FlagQuerySet(models.QuerySet):

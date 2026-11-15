@@ -152,7 +152,7 @@
           <tr>
             <td>{% with value=change.entity %}{% include "canon/link.html" %}{% endwith %}</td>
             <td>{% include "canon/change.html" %}</td>
-            <td>{{ change.decision }}{% if change.decided_by %} by {{ change.decided_by.email }}{% endif %}</td>
+            <td>{{ change.decision }}{% if change.decided_by %} by {{ change.decided_by.email }}{% endif %}{% for undo in change.undos %}<br><small>Earlier {{ undo.decision }}{% if undo.decided_by %} by {{ undo.decided_by.email }}{% endif %}, undone by {{ undo.undone_by.email|default:"someone since removed" }} on {{ undo.undone_at|date:"j M Y" }}</small>{% endfor %}</td>
             <td>{{ change.summary }}</td>
             {% if may_decide %}<td>{% include "canon/decide.html" %}</td>{% endif %}
           </tr>

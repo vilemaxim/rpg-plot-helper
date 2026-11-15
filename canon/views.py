@@ -241,9 +241,10 @@ def detail(request, world_id, kind, slug):
         and document.fields.get("state") in submitting.states().reportable
         and not reported_on(world, document),
         "can_be_reported_on": doc_type == "mod" and submitting.can_be_reported_on(document),
-        "report_changes": [change_row(index, c) for c in
+        "report_changes": [{**change_row(index, c), "undos": c.undos.all()} for c in
                            CanonChange.objects.in_world(world).filter(report=document)
-                           .select_related("report__submitted_by", "decided_by")]
+                           .select_related("report__submitted_by", "decided_by")
+                           .prefetch_related("undos__decided_by", "undos__undone_by")]
         if doc_type in ("after-action", interludes.RECORD) else [],
         "may_record": doc_type == "event" and interludes.is_interlude(document)
         and is_plot_master(request, world),
@@ -423,18 +424,24 @@ def pending(request, world_id):
 
 @require_POST
 def decide(request, world_id, change_id, decision):
-    """Approve or reject one Canon Change, then go back to the page it was
-    decided on. For the World's Plot Masters only."""
+    """Approve or reject one Canon Change, or undo its decision, then go back
+    to the page it was decided on. For the World's Plot Masters only."""
     world = world_or_404(request, world_id)
-    chosen = {"approve": deciding.APPROVED, "reject": deciding.REJECTED}.get(decision)
-    if chosen is None or not is_plot_master(request, world):
+    actions = {
+        "approve": lambda: deciding.decide(world, change_id, deciding.APPROVED, request.user),
+        "reject": lambda: deciding.decide(world, change_id, deciding.REJECTED, request.user),
+        "undo": lambda: deciding.undo(world, change_id, request.user),
+    }
+    if decision not in actions or not is_plot_master(request, world):
         raise Http404("No such page")
     try:
-        change = deciding.decide(world, change_id, chosen, request.user)
+        change = actions[decision]()
     except deciding.DecisionRefused as refused:
         messages.error(request, str(refused))
     else:
-        messages.success(request, f"{wording(change.decision)}: {change.summary}")
+        done = "Undone, and proposed again" if decision == "undo" \
+            else wording(change.decision)
+        messages.success(request, f"{done}: {change.summary}")
     back = request.POST.get("next", "")
     if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
                                            require_https=request.is_secure()):
