@@ -216,62 +216,92 @@ def cleaned_note(note):
     return note
 
 
+def locked_change(world, change_id):
+    """One Canon Change of `world`, with the World locked until the
+    transaction ends: one decision at a time per World, and never while a
+    report is being filed, so each is checked against the World as stored.
+    Raises `DecisionRefused` if there is no such change."""
+    World.objects.select_for_update().get(pk=world.pk)
+    change = (CanonChange.objects.in_world(world).select_related("report")
+              .filter(pk=change_id).first())
+    if change is None:
+        raise DecisionRefused("There is no such Canon Change.")
+    return change
+
+
+def rewrite(world, change, report_text, entity_text, doing, acting, advice=""):
+    """Rewrite the stored files a decision touches, check the World with them
+    in it, and save them. The report's file becomes `report_text(text)`. If
+    `entity_text` is given, the entity the change moves becomes
+    `entity_text(entity, field, ordering)`. `doing` and `acting` begin what a
+    refusal says ("Deciding", "Approving"), and `advice` ends it. Returns the
+    entity's fields as they were before, or None if it was not rewritten. Raises `DecisionRefused`, having saved
+    nothing, if the files cannot be rewritten or plotcanon does not accept the
+    World."""
+    documents = list(Document.objects.filter(world=world))
+    files = {d.path: d.text for d in documents}
+    report = change.report
+    try:
+        files[report.path] = report_text(report.text)
+    except editing.CannotEdit as error:
+        raise DecisionRefused(f"The report's stored file could not be updated: {error}.")
+
+    entity = None
+    if entity_text is not None:
+        entity = next((d for d in documents if d.slug == change.entity), None)
+        if entity is None:
+            raise DecisionRefused(f"There is no {change.entity} in this World.")
+        files[entity.path] = entity_text(entity, transitions()[change.kind],
+                                         Ordering(documents))
+
+    whole = plotcanon.load_world(files)
+    if not whole.ok:
+        raise DecisionRefused(f"{doing} that would leave the World with errors: "
+                              + " ".join(str(e) for e in whole.errors[:3]))
+    disagreement = disagreement_in(whole, entity)
+    if disagreement:
+        raise DecisionRefused(
+            f"{acting} this would leave {entity.name}'s file disagreeing with the changes "
+            f"approved to it: {disagreement}.{advice}")
+
+    parsed_into(report, whole.world.get(report.slug), whole.world).save()
+    if entity is None:
+        return None
+    before = dict(entity.fields)
+    if files[entity.path] != entity.text:
+        parsed_into(entity, whole.world.get(entity.slug), whole.world).save()
+    return before
+
+
 def decide(world, change_id, decision, user, note=""):
     """Approve or reject one proposed Canon Change of `world`, with the Plot
     Master's `note` on why, if any. Returns it. Raises `DecisionRefused`,
     having changed nothing, if it cannot be done."""
     note = cleaned_note(note)
     with transaction.atomic():
-        # One decision at a time per World, and never while a report is being
-        # filed: each is checked against the World as stored.
-        World.objects.select_for_update().get(pk=world.pk)
-        change = (CanonChange.objects.in_world(world).select_related("report")
-                  .filter(pk=change_id).first())
-        if change is None:
-            raise DecisionRefused("There is no such Canon Change.")
+        change = locked_change(world, change_id)
         if change.decision != PROPOSED:
             raise DecisionRefused(f"This change has already been {change.decision}.")
 
-        documents = list(Document.objects.filter(world=world))
-        files = {d.path: d.text for d in documents}
-        report = change.report
-        try:
-            text = editing.replace(
-                report.text, ["canon_changes", change.position, "decision"], decision)
+        def report_text(text):
+            text = editing.replace(text, ["canon_changes", change.position, "decision"],
+                                   decision)
             if note:
                 text = editing.set_key(text, ["canon_changes", change.position], "note",
                                        editing.quoted(note), after="decision")
-            files[report.path] = text
-        except editing.CannotEdit as error:
-            raise DecisionRefused(f"The report's stored file could not be updated: {error}.")
+            return text
 
-        entity = None
-        field = transitions().get(change.kind)
-        if decision == APPROVED and field:
-            entity = next((d for d in documents if d.slug == change.entity), None)
-            if entity is None:
-                raise DecisionRefused(f"There is no {change.entity} in this World.")
-            ordering = Ordering(documents)
+        def entity_text(entity, field, ordering):
             previous, following = place_in_chain(change, ordering, world)
-            files[entity.path] = applied(entity, change, field, previous, following, ordering)
+            return applied(entity, change, field, previous, following, ordering)
 
-        whole = plotcanon.load_world(files)
-        if not whole.ok:
-            raise DecisionRefused("Deciding that would leave the World with errors: "
-                                  + " ".join(str(e) for e in whole.errors[:3]))
-        disagreement = disagreement_in(whole, entity)
-        if disagreement:
-            raise DecisionRefused(
-                f"Approving this would leave {entity.name}'s file disagreeing with the "
-                f"changes approved to it: {disagreement}. Reject this change, or correct "
-                f"its report.")
-
-        parsed_into(report, whole.world.get(report.slug), whole.world).save()
-        if entity is not None:
-            change.replaced = {field: entity.fields.get(field),
-                               "as_of": entity.fields.get("as_of")}
-            if files[entity.path] != entity.text:
-                parsed_into(entity, whole.world.get(entity.slug), whole.world).save()
+        moves = decision == APPROVED and change.kind in transitions()
+        before = rewrite(world, change, report_text, entity_text if moves else None,
+                         "Deciding", "Approving",
+                         " Reject this change, or correct its report.")
+        if before is not None:
+            field = transitions()[change.kind]
+            change.replaced = {field: before.get(field), "as_of": before.get("as_of")}
         change.decision = decision
         change.decided_by = user
         change.decided_at = timezone.now()
@@ -289,54 +319,29 @@ def undo(world, change_id, user):
     """Return one decided Canon Change of `world` to proposed. Returns it.
     Raises `DecisionRefused`, having changed nothing, if it cannot be done."""
     with transaction.atomic():
-        World.objects.select_for_update().get(pk=world.pk)
-        change = (CanonChange.objects.in_world(world).select_related("report")
-                  .filter(pk=change_id).first())
-        if change is None:
-            raise DecisionRefused("There is no such Canon Change.")
+        change = locked_change(world, change_id)
         if change.decision == PROPOSED:
             raise DecisionRefused("This change has not been decided, so there is nothing to "
                                   "undo.")
 
-        documents = list(Document.objects.filter(world=world))
-        files = {d.path: d.text for d in documents}
-        report = change.report
-        try:
+        def report_text(text):
             # The note was on the decision, which is undone; it is kept with
             # the record of the undoing instead.
-            files[report.path] = editing.remove_key(
-                editing.replace(report.text, ["canon_changes", change.position, "decision"],
+            return editing.remove_key(
+                editing.replace(text, ["canon_changes", change.position, "decision"],
                                 PROPOSED),
                 ["canon_changes", change.position], "note")
-        except editing.CannotEdit as error:
-            raise DecisionRefused(f"The report's stored file could not be updated: {error}.")
 
-        entity = None
-        field = transitions().get(change.kind)
-        if change.decision == APPROVED and field:
-            entity = next((d for d in documents if d.slug == change.entity), None)
-            if entity is None:
-                raise DecisionRefused(f"There is no {change.entity} in this World.")
-            ordering = Ordering(documents)
+        def entity_text(entity, field, ordering):
             previous, following = place_in_chain(change, ordering, world)
             remaining = list(CanonChange.objects.approved(world).select_related("report")
                              .filter(entity=change.entity, kind__in=transitions())
                              .exclude(pk=change.pk))
-            files[entity.path] = unapplied(entity, change, field, previous, following,
-                                           ordering, remaining)
+            return unapplied(entity, change, field, previous, following, ordering, remaining)
 
-        whole = plotcanon.load_world(files)
-        if not whole.ok:
-            raise DecisionRefused("Undoing that would leave the World with errors: "
-                                  + " ".join(str(e) for e in whole.errors[:3]))
-        disagreement = disagreement_in(whole, entity)
-        if disagreement:
-            raise DecisionRefused(
-                f"Undoing this would leave {entity.name}'s file disagreeing with the changes "
-                f"approved to it: {disagreement}.")
-        parsed_into(report, whole.world.get(report.slug), whole.world).save()
-        if entity is not None and files[entity.path] != entity.text:
-            parsed_into(entity, whole.world.get(entity.slug), whole.world).save()
+        moves = change.decision == APPROVED and change.kind in transitions()
+        rewrite(world, change, report_text, entity_text if moves else None,
+                "Undoing", "Undoing")
         if change.decision == REJECTED:
             # The change may have happened after all, so what it touched is
             # in question again. Flags resolved some other way stay resolved.
