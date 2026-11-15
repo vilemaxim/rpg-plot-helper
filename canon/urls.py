@@ -32,6 +32,8 @@ urlpatterns = [
          name="canon-revise"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/approve/", views.approve,
          name="canon-approve"),
+    path("worlds/<uuid:world_id>/changes/decide/", views.decide_selected,
+         name="canon-decide-selected"),
     path("worlds/<uuid:world_id>/changes/<int:change_id>/<str:decision>/", views.decide,
          name="canon-decide"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/report/", views.report, name="canon-report"),

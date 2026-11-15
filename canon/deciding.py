@@ -1,4 +1,5 @@
-"""Approving or rejecting one Canon Change, and undoing either.
+"""Approving or rejecting Canon Changes, one or several together, and undoing
+either.
 
 A decision is recorded in three places that must agree: the change's own row,
 its `decision` in the report's stored file, and, for an approved change that
@@ -342,3 +343,39 @@ def undo(world, change_id, user):
         change.replaced, change.note = {}, ""
         change.save(update_fields=["decision", "decided_by", "decided_at", "replaced", "note"])
     return change
+
+
+class SelectionRefused(DecisionRefused):
+    """Nothing of a selection was decided, because of `change`."""
+
+    def __init__(self, message, change):
+        super().__init__(message)
+        self.change = change
+
+
+def decide_all(world, change_ids, decision, user):
+    """Approve or reject several Canon Changes of `world` together, in the
+    order they happened, so a chain of changes to one field can be approved
+    at once. Returns them in that order. All are decided, or none: raises
+    `SelectionRefused`, having changed nothing, naming the change that could
+    not be decided and why."""
+    if not change_ids:
+        raise DecisionRefused("Select the Canon Changes to decide.")
+    with transaction.atomic():
+        # Held for the whole selection, so the World each change is checked
+        # against holds the ones decided before it, and nothing else.
+        World.objects.select_for_update().get(pk=world.pk)
+        changes = list(CanonChange.objects.in_world(world).select_related("report")
+                       .filter(pk__in=change_ids))
+        if len(changes) != len(set(change_ids)):
+            raise DecisionRefused("Nothing was decided. There is no such Canon Change.")
+        ordering = Ordering(Document.objects.filter(world=world, kind="event"))
+        changes.sort(key=lambda c: (ordering.of(c.report), c.position))
+        decided = []
+        for change in changes:
+            try:
+                decided.append(decide(world, change.pk, decision, user))
+            except DecisionRefused as refused:
+                raise SelectionRefused(f"Nothing was decided. {described(change)}: {refused}",
+                                       change)
+    return decided

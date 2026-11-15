@@ -154,11 +154,12 @@
             <td>{% include "canon/change.html" %}</td>
             <td>{{ change.decision }}{% if change.decided_by %} by {{ change.decided_by.email }}{% endif %}{% if change.note %}<br>{% include "canon/note.html" %}{% endif %}{% for undo in change.undos %}<br><small>Earlier {{ undo.decision }}{% if undo.decided_by %} by {{ undo.decided_by.email }}{% endif %}, undone by {{ undo.undone_by.email|default:"someone since removed" }} on {{ undo.undone_at|date:"j M Y" }}{% if undo.note %}. {% include "canon/note.html" with change=undo %}{% endif %}</small>{% endfor %}</td>
             <td>{{ change.summary }}</td>
-            {% if may_decide %}<td>{% include "canon/decide.html" %}</td>{% endif %}
+            {% if may_decide %}<td>{% include "canon/select.html" %} {% include "canon/decide.html" %}</td>{% endif %}
           </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% if report_waiting %}{% with approve_all=document.slug %}{% include "canon/decide_selected.html" %}{% endwith %}{% endif %}
   {% endif %}
 
   {% if waiting_for_it %}

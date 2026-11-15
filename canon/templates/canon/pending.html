@@ -19,7 +19,7 @@
                 <td>{{ change.summary }}</td>
                 <td>{% with value=change.report %}{% include "canon/link.html" %}{% endwith %}</td>
                 <td>{% if change.submitted_by %}{{ change.submitted_by.email }}, {{ change.submitted_at|date:"j M Y H:i" }}{% else %}—{% endif %}</td>
-                {% if may_decide %}<td>{% include "canon/decide.html" %}</td>{% endif %}
+                {% if may_decide %}<td>{% include "canon/select.html" %} {% include "canon/decide.html" %}</td>{% endif %}
               </tr>
             {% endfor %}
           </tbody>
@@ -34,6 +34,7 @@
         {% endif %}
       </section>
     {% endfor %}
+    {% include "canon/decide_selected.html" %}
   {% else %}
     <p>No Canon Changes are waiting. Every change that has been reported has been decided.</p>
   {% endif %}
