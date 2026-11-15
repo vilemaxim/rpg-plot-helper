@@ -2,6 +2,7 @@
 
 import datetime
 import math
+from collections import namedtuple
 
 import plotcanon
 
@@ -33,12 +34,27 @@ def files_of(world):
     """A World's stored files as `{path: text}`, which is what plotcanon checks:
     its documents, and its settings file if it has one. Both are read from the
     database, so a caller that has locked the World sees them as they now are."""
-    files = dict(Document.objects.filter(organization=world.organization, world=world)
-                 .values_list("path", "text"))
-    settings_file = World.objects.filter(pk=world.pk).values_list("settings_file", flat=True)
-    if settings_file and settings_file[0]:
-        files[plotcanon.WORLD_SETTINGS_FILE] = settings_file[0]
-    return files
+    return {**dict(Document.objects.filter(organization=world.organization, world=world)
+                   .values_list("path", "text")),
+            **settings_file_of(world)}
+
+
+def settings_file_of(world):
+    """The World's settings file as `{path: text}`, as it now stands in the
+    database, or nothing if it has none."""
+    text = World.objects.filter(pk=world.pk).values_list("settings_file", flat=True).first()
+    return {plotcanon.WORLD_SETTINGS_FILE: text} if text else {}
+
+
+def one_to_a_line(findings):
+    """plotcanon's findings, or any messages, one to a line: text a person can
+    paste into an LLM."""
+    return "\n".join(str(finding) for finding in findings)
+
+
+# A Mod as it was saved, and what plotcanon warned about it as text, which
+# does not stop it but is worth the Mod Writer's look.
+SavedMod = namedtuple("SavedMod", "mod warnings")
 
 
 def parsed_into(row, document, plot_world):

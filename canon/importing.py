@@ -16,7 +16,7 @@ from django.db import transaction
 from organizations.models import World
 
 from .models import CanonChange, Document
-from .storing import canon_changes_of, new_row
+from .storing import canon_changes_of, new_row, one_to_a_line
 
 MAX_ID = Document._meta.get_field("slug").max_length
 MAX_PATH = Document._meta.get_field("path").max_length
@@ -142,7 +142,7 @@ def import_world(world, upload):
                             "markdown under folders such as canon/ and mods/.")
     if not report.ok:
         raise ImportRefused("That World has errors.",
-                            errors="\n".join(str(error) for error in report.errors))
+                            errors=one_to_a_line(report.errors))
     for document in report.world.documents:
         if len(str(document.id)) > MAX_ID:
             raise ImportRefused(f"The id in {document.path} is longer than {MAX_ID} characters.")

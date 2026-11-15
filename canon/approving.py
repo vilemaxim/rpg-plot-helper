@@ -19,7 +19,7 @@ from organizations.models import World
 
 from . import editing
 from .models import Document
-from .storing import files_of, parsed_into
+from .storing import SavedMod, files_of, one_to_a_line, parsed_into
 from .submitting import Refused, mod_path, said, states
 
 CANON = "approved"
@@ -42,7 +42,7 @@ def needs_campaign(mod):
 
 def approve(world, mod, user, campaign=None):
     """Approve a draft Mod. `campaign` is used only if the Mod names none, and
-    must then be one of the World's. Returns the Mod and plotcanon's warnings
+    must then be one of the World's. Returns a `SavedMod`: the Mod and plotcanon's warnings
     about it as approved, as text: those it already had as a draft, such as
     the Dry Run convention's under `encouraged`. Raises `ApprovalRefused`,
     having saved nothing, if it cannot be approved."""
@@ -81,13 +81,13 @@ def approve(world, mod, user, campaign=None):
         whole = plotcanon.load_world(files)
         if not whole.ok:
             raise ApprovalRefused(f"{mod.name} cannot be approved as it stands.",
-                                  errors="\n".join(str(e) for e in whole.errors))
+                                  errors=one_to_a_line(whole.errors))
         new = [w for w in whole.warnings if w.path == path and w.message not in before]
         if new:
             raise ApprovalRefused(f"{mod.name} cannot be approved as it stands.",
-                                  errors="\n".join(str(w) for w in new))
+                                  errors=one_to_a_line(new))
 
         mod = parsed_into(mod, whole.world.get(mod.slug), whole.world)
         mod.approved_by, mod.approved_at = user, timezone.now()
         mod.save()
-    return mod, "\n".join(str(w) for w in whole.warnings if w.path == path)
+    return SavedMod(mod, one_to_a_line(w for w in whole.warnings if w.path == path))

@@ -14,7 +14,7 @@ from django.db import transaction
 
 from organizations.models import World
 
-from .storing import files_of
+from .storing import files_of, one_to_a_line, settings_file_of
 from .submitting import Refused
 
 
@@ -25,8 +25,7 @@ class SettingRefused(Refused):
 def settings_of(world):
     """The World's settings, as its settings file says. plotcanon's defaults
     apply to a World with no settings file."""
-    stored = World.objects.filter(pk=world.pk).values_list("settings_file", flat=True).first()
-    return plotcanon.world_settings({plotcanon.WORLD_SETTINGS_FILE: stored} if stored else {})
+    return plotcanon.world_settings(settings_file_of(world))
 
 
 def settings_file_for(structure):
@@ -48,5 +47,5 @@ def set_dry_run_structure(world, structure):
             raise SettingRefused(
                 f"{world.name} cannot be set to `{structure}`: plotcanon would then find "
                 f"these errors in its Mods. Revise them first.",
-                errors="\n".join(str(error) for error in report.errors))
+                errors=one_to_a_line(report.errors))
         World.objects.filter(pk=world.pk).update(settings_file=text)

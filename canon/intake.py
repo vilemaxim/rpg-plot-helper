@@ -24,7 +24,7 @@ from organizations.models import World
 
 from . import editing
 from .models import Document
-from .storing import files_of, new_row, parsed_into
+from .storing import SavedMod, files_of, new_row, one_to_a_line, parsed_into
 from .submitting import SLUG, Refused, mod_path, said, states, unreadable
 
 MOD = "mod"
@@ -65,19 +65,19 @@ def checked(files, path, text):
         raise ModRefused(f"That Mod cannot be read: {error}.") from None
     if not report.ok:
         raise ModRefused("That Mod has errors.",
-                         errors="\n".join(str(e) for e in report.errors))
+                         errors=one_to_a_line(report.errors))
     if report.document.type != MOD:
         raise ModRefused(f"That file is a `{report.document.type}`. It is not a Mod.")
     whole = plotcanon.load_world({**files, path: text})
     if not whole.ok:
         raise ModRefused("Saving that Mod would leave the World with errors.",
-                         errors="\n".join(str(e) for e in whole.errors))
-    return whole, "\n".join(str(w) for w in report.warnings)
+                         errors=one_to_a_line(whole.errors))
+    return whole, one_to_a_line(report.warnings)
 
 
 def submit_mod(world, text, user):
-    """Take in a new Mod as a draft. Returns its `Document` and plotcanon's
-    warnings about it, as text to paste into an LLM. Raises
+    """Take in a new Mod as a draft. Returns a `SavedMod`: its `Document`
+    and plotcanon's warnings about it, as text to paste into an LLM. Raises
     `ModRefused`, having saved nothing, if it cannot be."""
     screened(text)
     slug = said(text, "id")
@@ -105,13 +105,13 @@ def submit_mod(world, text, user):
         row = new_row(world, whole.world.get(slug), whole.world,
                       submitted_by=user, submitted_at=timezone.now())
         row.save()
-    return row, warnings
+    return SavedMod(row, warnings)
 
 
 def revise(world, mod, text, user):
     """Replace a draft Mod's file with a revised one with the same id. The
     draft keeps its history: who submitted it, its Flags, and who sent it back
-    and why. Returns the Mod and plotcanon's warnings about it, as text.
+    and why. Returns a `SavedMod`: the Mod and plotcanon's warnings about it.
     Raises `ModRefused`, having saved nothing, if it cannot be."""
     screened(text)
     if said(text, "id") != mod.slug:
@@ -126,4 +126,4 @@ def revise(world, mod, text, user):
         files = files_of(world)
         whole, warnings = checked(files, mod.path, text)
         parsed_into(mod, whole.world.get(mod.slug), whole.world).save()
-    return mod, warnings
+    return SavedMod(mod, warnings)

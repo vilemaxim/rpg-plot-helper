@@ -18,7 +18,7 @@ import zipfile
 import plotcanon
 from django.utils.text import slugify
 
-from .storing import files_of
+from .storing import files_of, one_to_a_line
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def export(world):
         failed = ExportFailed(world, str(error))
     else:
         failed = None if report.ok else \
-            ExportFailed(world, "\n".join(str(error) for error in report.errors))
+            ExportFailed(world, one_to_a_line(report.errors))
     if failed is not None:
         logger.error("%s:\n%s", failed, failed.errors)
         raise failed

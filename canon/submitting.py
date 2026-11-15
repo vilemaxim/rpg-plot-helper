@@ -23,7 +23,7 @@ from organizations.models import World
 
 from . import editing
 from .models import CanonChange, Decision, Document, Flag
-from .storing import canon_changes_of, files_of, new_row, parsed_into
+from .storing import canon_changes_of, files_of, new_row, one_to_a_line, parsed_into
 
 REPORT = "after-action"
 
@@ -234,7 +234,7 @@ def submit(world, mod, text, user, filed_through=None):
             raise ReportRefused(f"That report cannot be read: {error}.") from None
         if not checked.ok:
             raise ReportRefused("That report has errors.",
-                                errors="\n".join(str(e) for e in checked.errors))
+                                errors=one_to_a_line(checked.errors))
         report = checked.document
         if report.type != REPORT:
             raise ReportRefused(f"That file is a `{report.type}`. It is not an "
@@ -258,7 +258,7 @@ def submit(world, mod, text, user, filed_through=None):
         whole = plotcanon.load_world(files)
         if not whole.ok:
             raise ReportRefused("Saving that report would leave the World with errors.",
-                                errors="\n".join(str(e) for e in whole.errors))
+                                errors=one_to_a_line(whole.errors))
 
         row = new_row(world, whole.world.get(report.id), whole.world,
                       submitted_by=user, submitted_at=timezone.now(),

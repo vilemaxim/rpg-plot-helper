@@ -28,7 +28,7 @@ from organizations.models import World
 
 from . import deciding, editing
 from .models import CanonChange, Decision, Document
-from .storing import canon_changes_of, files_of, new_row, parsed_into
+from .storing import canon_changes_of, files_of, new_row, one_to_a_line, parsed_into
 from .submitting import SLUG, Refused, raise_flags, said, unreadable
 
 INTERLUDE = "interlude"
@@ -82,7 +82,7 @@ def quoted(text):
 def checked_world(files, refused):
     whole = plotcanon.load_world(files)
     if not whole.ok:
-        raise InterludeRefused(refused, errors="\n".join(str(e) for e in whole.errors))
+        raise InterludeRefused(refused, errors=one_to_a_line(whole.errors))
     return whole
 
 
@@ -213,7 +213,7 @@ def saved_and_approved(world, event, text, record_id, user):
         raise InterludeRefused(f"That record cannot be read: {error}.") from None
     if not checked.ok:
         raise InterludeRefused("That record has errors.",
-                               errors="\n".join(str(e) for e in checked.errors))
+                               errors=one_to_a_line(checked.errors))
     if checked.document.type != RECORD:
         raise InterludeRefused(f"That file is a `{checked.document.type}`, not a record of "
                                f"an Interlude's changes.")
