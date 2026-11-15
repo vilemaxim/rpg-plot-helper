@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}Export failed — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>{{ world.name }} could not be exported</h1>
+  <p>plotcanon finds errors in {{ world.name }} as it is stored. That should not happen, since every change is checked before it is saved, so it is a fault in this app. Nothing was handed over. Please report it, with these findings:</p>
+  <pre>{{ errors }}</pre>
+{% endblock %}

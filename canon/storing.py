@@ -27,7 +27,8 @@ def storable(value):
 
 def files_of(world):
     """A World's stored files as `{path: text}`, which is what plotcanon checks."""
-    return dict(Document.objects.filter(world=world).values_list("path", "text"))
+    return dict(Document.objects.filter(organization=world.organization, world=world)
+                .values_list("path", "text"))
 
 
 def name_of(document, plot_world):

@@ -1,17 +1,20 @@
+from functools import wraps
+
 from django.conf import settings
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.db import transaction
 from django.template.loader import render_to_string
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.http import content_disposition_header, url_has_allowed_host_and_scheme
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import approving, deciding, intake, links, resolving, submitting, writers
+from . import approving, deciding, exporting, intake, links, resolving, submitting, writers
 from .forms import ImportForm, ModForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
@@ -25,13 +28,23 @@ def documents_of(world):
     return Document.objects.filter(organization=world.organization, world=world)
 
 
+def plot_masters_only(view):
+    """A view of one World for its Plot Masters, given the World. Anyone else
+    is told there is no such page."""
+    @wraps(view)
+    def wrapper(request, world_id, *args, **kwargs):
+        world = world_or_404(request, world_id)
+        if not is_plot_master(request, world):
+            raise Http404("No such page")
+        return view(request, world, *args, **kwargs)
+    return wrapper
+
+
 @require_http_methods(["GET", "POST"])
-def import_page(request, world_id):
+@plot_masters_only
+def import_page(request, world):
     """Import a World from a zip of its files. For the World's Plot Masters,
     and only while the World holds no Canon."""
-    world = world_or_404(request, world_id)
-    if not is_plot_master(request, world):
-        raise Http404("No such page")
     context = {"world": world, "has_canon": documents_of(world).exists()}
     if context["has_canon"] or request.method == "GET":
         return render(request, "canon/import.html", {**context, "form": ImportForm()})
@@ -57,6 +70,33 @@ def import_page(request, world_id):
     count = report.document_count
     messages.success(request, f"Imported {count} document{'' if count == 1 else 's'}.{noted}")
     return redirect("world", world_id=world.pk)
+
+
+@require_GET
+@plot_masters_only
+def export_page(request, world):
+    """What an export holds, and the button to download it. For the World's
+    Plot Masters."""
+    return render(request, "canon/export.html", {
+        "world": world, "has_canon": documents_of(world).exists(),
+        "folder": exporting.folder_for(world)})
+
+
+@never_cache
+@require_GET
+@plot_masters_only
+def export_download(request, world):
+    """The World as a zip of its files. For the World's Plot Masters."""
+    if not documents_of(world).exists():
+        return redirect("canon-export", world_id=world.pk)
+    try:
+        content, name = exporting.export(world)
+    except exporting.ExportFailed as failed:
+        return render(request, "canon/export_failed.html",
+                      {"world": world, "errors": failed.errors}, status=500)
+    response = HttpResponse(content, content_type="application/zip")
+    response["Content-Disposition"] = content_disposition_header(True, name)
+    return response
 
 
 def state_of(document):

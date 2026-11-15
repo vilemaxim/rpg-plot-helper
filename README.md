@@ -69,6 +69,12 @@ Things to know:
 - **A zip is not trusted.** An upload over 20 MB is refused, as is a zip with more than 5,000 files, a single file over 1 MB, or more than 50 MB once unpacked; the limits are settings, and are enforced while unpacking, whatever sizes the zip claims. plotcanon itself refuses files that use YAML aliases, which can expand to exhaust memory. Pictures in a document are not shown, since loading one from another site would tell that site who is reading.
 - **The file format is plotcanon's.** plotcanon decides what is valid; this app stores and shows what it parsed ([ADR-0004](./docs/adr/0004-the-schema-lives-in-its-own-package-plotcanon.md)). To lay a page out, the app does know the names of some fields, such as a Mod's Features and a report's Canon Changes, and which fields hold a person's name and so are never links. That knowledge is in `canon/presenting.py`. The version of plotcanon in use is pinned in `pyproject.toml`.
 
+## Exporting a World
+
+A Plot Master downloads a World as one `.zip` of its files from "Export this World" on the World's page, so nobody is locked in ([ADR-0001](./docs/adr/0001-two-versions-one-schema-owned-by-larp-llm.md)). Each file is written exactly as it is stored now, with every report and decision since the import in it ([ADR-0006](./docs/adr/0006-current-state-is-kept-in-the-entitys-file.md)), inside one folder named after the World. The zip is made in memory, and plotcanon checks the World before it is handed over; a World it finds errors in is reported as a fault, not downloaded.
+
+The zip imports into an empty World here, and unpacked it is a plotcanon World anywhere else: `plotcanon validate --root <folder>`, which is what a larp-llm repo's `scripts/validate.py` runs, passes on it. What lives only in the app is not in the files: who submitted or decided what, Flags and their resolutions, why a Mod was sent back, Mod Writers, private links, and people and their roles. The export page says so.
+
 ## Filing an After-Action Report
 
 Anyone who can open a World (anyone with a role in it, and its Organization Admins) can file a report on one of its Mods, from the link on the Mod's page. They paste the report file their LLM produced, or choose it. A Mod can take a report while it is approved or in progress, and can take several: one each time play stops.
