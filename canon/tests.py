@@ -223,7 +223,7 @@ class RejectedImports(CanonTest):
 
         response = self.import_files(files)
 
-        self.assertContains(response, "canon/npcs/cutter-jass.md")
+        self.assertContains(response, "ERROR  canon/npcs/cutter-jass.md: uses a YAML alias")
         self.assertContains(response, "Nothing was imported")
         self.assert_nothing_imported()
 
@@ -532,7 +532,7 @@ class WhatAPageShows(CanonTest):
     def test_an_odd_but_accepted_document_still_has_a_page(self):
         files = plotcanon.sample_world()
         files["canon/npcs/cutter-jass.md"] = files["canon/npcs/cutter-jass.md"].replace(
-            "type: npc\n", "type: npc\nmods: [[a]]\nentities: 5\nfeatures: nonsense\n")
+            "type: npc\n", "type: npc\nmods: [[a]]\nentities: 5\nweight: {a: [b]}\n")
         self.import_files(files)
 
         self.assertEqual(self.mira.get(f"{self.first_world}npcs/cutter-jass/").status_code, 200)

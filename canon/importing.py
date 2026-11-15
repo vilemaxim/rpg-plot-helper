@@ -8,12 +8,10 @@ whatever goes wrong reading it is reported to the person, not raised.
 import datetime
 import io
 import math
-import re
 import zipfile
 import zlib
 
 import plotcanon
-import yaml
 from django.conf import settings
 from django.db import transaction
 
@@ -23,11 +21,6 @@ from .models import Document
 
 MAX_ID = Document._meta.get_field("slug").max_length
 MAX_PATH = Document._meta.get_field("path").max_length
-
-# The YAML block at the top of a file. Only used to look for the trick guarded
-# against in `refuse_expanding_yaml`; reading the file is plotcanon's job.
-FRONTMATTER = re.compile(r"\A\ufeff?---\r?\n(.*?)\r?\n---", re.S)
-
 
 class ImportRefused(Exception):
     """The upload cannot be imported. `str()` says why, for the person who
@@ -56,23 +49,6 @@ def read_bounded(archive, member, room):
                             f"{megabytes(settings.IMPORT_MAX_FILE_BYTES)}, which is more "
                             "than one document should need.")
     return data
-
-
-def refuse_expanding_yaml(path, text):
-    """YAML lets one value stand in for another (`&name` and `*name`). Nested,
-    a few hundred bytes expand into millions of values and exhaust memory as
-    soon as the file is parsed. A World's files have no use for it, so a file
-    that uses it is refused before plotcanon reads it."""
-    block = FRONTMATTER.match(text)
-    if block is None:
-        return
-    try:
-        aliased = any(isinstance(token, yaml.AliasToken) for token in yaml.scan(block.group(1)))
-    except yaml.YAMLError:
-        return  # Not valid YAML: plotcanon will say so, with the file's name.
-    if aliased:
-        raise ImportRefused(f"{path} uses YAML aliases (`*name`), which are not allowed "
-                            "in a World's files. Write the value out where it is used.")
 
 
 def files_in(upload):
@@ -111,7 +87,6 @@ def files_in(upload):
         if "\x00" in text:
             raise ImportRefused(f"{path} contains a null character, which text files do "
                                 "not have. It may be damaged, or not really text.")
-        refuse_expanding_yaml(path, text)
         files[path] = text
     return files
 
