@@ -1,0 +1,15 @@
+{% if may_decide %}
+  <form method="post" action="{% url 'canon-decide-selected' world.pk %}" id="decide-selected">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <p>Selected changes are decided together, in the order they happened. If any one cannot be, none is.</p>
+    <button type="submit" name="decision" value="approve">Approve selected</button>
+    <button type="submit" name="decision" value="reject">Reject selected</button>
+  </form>
+  {% if approve_all %}
+    <form method="post" action="{% url 'canon-decide-selected' world.pk %}" class="inline">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <input type="hidden" name="report" value="{{ approve_all }}">
+      <button type="submit" name="decision" value="approve">Approve all</button>
+    </form>
+  {% endif %}
+{% endif %}
