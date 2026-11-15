@@ -2,6 +2,7 @@
   <form method="post" action="{% url 'canon-decide-selected' world.pk %}" id="decide-selected">
     {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
     <p>Selected changes are decided together, in the order they happened. If any one cannot be, none is.</p>
+    <input type="text" name="note" maxlength="500" placeholder="Why (optional), given to each" aria-label="Note on why, given to each selected change">
     <button type="submit" name="decision" value="approve">Approve selected</button>
     <button type="submit" name="decision" value="reject">Reject selected</button>
   </form>

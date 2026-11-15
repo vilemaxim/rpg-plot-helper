@@ -206,14 +206,21 @@ def unapplied(entity, change, field, previous, following, ordering, remaining):
     return text
 
 
-def decide(world, change_id, decision, user, note=""):
-    """Approve or reject one proposed Canon Change of `world`, with the Plot
-    Master's `note` on why, if any. Returns it. Raises `DecisionRefused`,
-    having changed nothing, if it cannot be done."""
+def cleaned_note(note):
+    """A Plot Master's note as it is kept: without spaces around it. Raises
+    `DecisionRefused` if it is too long."""
     note = note.strip()
     if len(note) > NOTE_LENGTH:
         raise DecisionRefused(f"A note can be at most {NOTE_LENGTH} characters; this one is "
                               f"{len(note)}. Nothing was decided.")
+    return note
+
+
+def decide(world, change_id, decision, user, note=""):
+    """Approve or reject one proposed Canon Change of `world`, with the Plot
+    Master's `note` on why, if any. Returns it. Raises `DecisionRefused`,
+    having changed nothing, if it cannot be done."""
+    note = cleaned_note(note)
     with transaction.atomic():
         # One decision at a time per World, and never while a report is being
         # filed: each is checked against the World as stored.
@@ -353,14 +360,15 @@ class SelectionRefused(DecisionRefused):
         self.change = change
 
 
-def decide_all(world, change_ids, decision, user):
+def decide_all(world, change_ids, decision, user, note=""):
     """Approve or reject several Canon Changes of `world` together, in the
     order they happened, so a chain of changes to one field can be approved
-    at once. Returns them in that order. All are decided, or none: raises
-    `SelectionRefused`, having changed nothing, naming the change that could
-    not be decided and why."""
+    at once, each with the same `note` on why, if any. Returns them in that
+    order. All are decided, or none: raises `SelectionRefused`, having changed
+    nothing, naming the change that could not be decided and why."""
     if not change_ids:
         raise DecisionRefused("Select the Canon Changes to decide.")
+    note = cleaned_note(note)
     with transaction.atomic():
         # Held for the whole selection, so the World each change is checked
         # against holds the ones decided before it, and nothing else.
@@ -374,7 +382,7 @@ def decide_all(world, change_ids, decision, user):
         decided = []
         for change in changes:
             try:
-                decided.append(decide(world, change.pk, decision, user))
+                decided.append(decide(world, change.pk, decision, user, note=note))
             except DecisionRefused as refused:
                 raise SelectionRefused(f"Nothing was decided. {described(change)}: {refused}",
                                        change)

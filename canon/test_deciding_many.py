@@ -14,11 +14,12 @@ class DecidingManyTest(DecisionTest):
     def decisions_of(self, report):
         return [c.decision for c in self.changes_of(report)]
 
-    def rule_many(self, changes, decision, by=None, back=None):
-        return (by or self.mira).post(
-            f"{self.first_world}changes/decide/",
-            {"change": [c.pk for c in changes], "decision": decision,
-             "next": back or self.pending}, follow=True)
+    def rule_many(self, changes, decision, by=None, back=None, note=None):
+        data = {"change": [c.pk for c in changes], "decision": decision,
+                "next": back or self.pending}
+        if note is not None:
+            data["note"] = note
+        return (by or self.mira).post(f"{self.first_world}changes/decide/", data, follow=True)
 
 
 class ApprovingSeveral(DecidingManyTest):
@@ -45,6 +46,37 @@ class ApprovingSeveral(DecidingManyTest):
                          ["rejected", "rejected"])
         self.assertEqual(self.stored("clerk-pell").text, before)
         self.assertContains(response, "Rejected 2 Canon Changes")
+
+    def test_one_note_is_given_to_each_change_decided(self):
+        why = "Pell never left the city; both stories are wrong."
+
+        self.rule_many(self.ledger, "reject", note=f"  {why} ")
+
+        self.assertEqual([c.note for c in self.changes_of("aa-the-tax-collectors-ledger-2")],
+                         [why, why])
+        stored = self.stored("aa-the-tax-collectors-ledger-2").fields["canon_changes"]
+        self.assertEqual([(c["decision"], c["note"]) for c in stored],
+                         [("rejected", why), ("rejected", why)])
+
+    def test_without_a_note_none_is_written(self):
+        self.rule_many(self.ledger, "approve", note="")
+
+        self.assertEqual([c.note for c in self.changes_of("aa-the-tax-collectors-ledger-2")],
+                         ["", ""])
+        stored = self.stored("aa-the-tax-collectors-ledger-2").fields["canon_changes"]
+        self.assertFalse(any("note" in c for c in stored))
+
+    def test_a_long_note_is_refused_and_nothing_is_decided(self):
+        response = self.rule_many(self.ledger, "approve", note="Too long. " * 60)
+
+        self.assertContains(response, "500 characters")
+        self.assertEqual(self.decisions_of("aa-the-tax-collectors-ledger-2"),
+                         ["proposed", "proposed"])
+
+    def test_the_selection_form_offers_a_note_box(self):
+        page = self.mira.get(self.pending).content.decode()
+        form = page.split('id="decide-selected"', 1)[1].split("</form>", 1)[0]
+        self.assertIn('name="note"', form)
 
 
 class InTheOrderTheyHappened(DecidingManyTest):

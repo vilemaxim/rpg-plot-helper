@@ -482,7 +482,8 @@ def decide_selected(request, world_id):
                                            require_https=request.is_secure()):
         back = reverse("canon-pending", args=[world.pk])
     try:
-        decided = deciding.decide_all(world, chosen, decisions[decision], request.user)
+        decided = deciding.decide_all(world, chosen, decisions[decision], request.user,
+                                     note=request.POST.get("note", ""))
     except deciding.SelectionRefused as refused:
         messages.error(request, str(refused))
         return redirect(with_selected(back, [i for i in chosen if i != refused.change.pk],
