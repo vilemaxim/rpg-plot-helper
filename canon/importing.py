@@ -50,8 +50,17 @@ def read_bounded(archive, member, room):
     return data
 
 
+def is_world_file(path):
+    """Whether a member of the zip may be one of the World's files: markdown,
+    or the World's settings file at its root, which may be one folder down
+    if the World was zipped as a folder (see `unwrapped`)."""
+    settings_file = plotcanon.WORLD_SETTINGS_FILE
+    return path.endswith(".md") or path == settings_file or (
+        path.endswith(f"/{settings_file}") and path.count("/") == 1)
+
+
 def files_in(upload):
-    """The markdown files in an uploaded zip, as `{path: text}`."""
+    """The World's files in an uploaded zip, as `{path: text}`."""
     try:
         archive = zipfile.ZipFile(io.BytesIO(upload.read()))
         members = [m for m in archive.infolist() if not m.is_dir()]
@@ -68,7 +77,7 @@ def files_in(upload):
     room = settings.IMPORT_MAX_UNPACKED_BYTES
     for member in members:
         path = member.filename
-        if not path.endswith(".md"):
+        if not is_world_file(path):
             continue
         try:
             data = read_bounded(archive, member, room)
@@ -119,7 +128,8 @@ def validated(files):
 
 def import_world(world, upload):
     """Import the World in an uploaded zip into `world`, which must hold no
-    Canon yet. Returns the plotcanon report. Raises `ImportRefused`, having
+    Canon yet, replacing its settings file with the zip's. Returns the
+    plotcanon report. Raises `ImportRefused`, having
     imported nothing, if the zip cannot be read, the World in it is not valid,
     or `world` has gained Canon in the meantime.
     """
@@ -144,6 +154,11 @@ def import_world(world, upload):
         if Document.objects.filter(world=world).exists():
             raise ImportRefused(f"{world.name} already has Canon. Someone may have "
                                 "imported into it a moment ago.")
+        # A World imported without a settings file has none, whatever the
+        # Organization's default, so plotcanon's defaults apply to it as they
+        # would anywhere else its files are taken.
+        world.settings_file = report.world.files.get(plotcanon.WORLD_SETTINGS_FILE, "")
+        world.save(update_fields=["settings_file"])
         rows = Document.objects.bulk_create([
             new_row(world, document, report.world) for document in report.world.documents])
         # The reports that came in already carry decisions; each of their

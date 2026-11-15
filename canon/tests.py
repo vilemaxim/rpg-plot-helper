@@ -10,9 +10,10 @@ from django.test import TestCase, override_settings
 
 from accounts.models import User
 from canon.models import Document
+from canon.storing import files_of
 from organizations import tenancy
-from organizations.models import Membership
-from organizations.test_people import ORGANIZATION, PeopleTest
+from organizations.models import Membership, World
+from organizations.test_people import ORGANIZATION, PeopleTest, world_id
 from organizations.tests import sign_in
 
 NOT_A_WORLD = "/worlds/00000000-0000-4000-8000-000000000000/"
@@ -48,6 +49,15 @@ class CanonTest(PeopleTest):
 
     def import_sample(self, **options):
         return self.import_files(plotcanon.sample_world(), **options)
+
+    def stored_files(self, world=None):
+        """Every file of one of Mira's Worlds as stored, as `{path: text}`.
+        `world` is its address, and her first World if not given."""
+        user = User.objects.get(email="mira@example.com")
+        with tenancy.acting_as(user=user):
+            organization = Membership.objects.get().organization_id
+        with tenancy.acting_as(user=user, organization=organization):
+            return files_of(World.objects.get(pk=world_id(world or self.first_world)))
 
     def documents(self):
         user = User.objects.get(email="mira@example.com")
@@ -110,9 +120,21 @@ class Importing(CanonTest):
         files = plotcanon.sample_world()
         self.import_files(files)
 
-        stored = {d.path: d.text for d in self.documents()}
+        self.assertIn("world.yml", files)
+        self.assertEqual(self.stored_files(), files)
 
-        self.assertEqual(stored, files)
+    def test_the_settings_file_is_kept_from_a_zip_made_by_zipping_the_folder(self):
+        self.import_sample(inside="brackwater/")
+
+        self.assertEqual(self.stored_files()["world.yml"], plotcanon.sample_world()["world.yml"])
+
+    def test_a_settings_file_anywhere_but_the_worlds_root_is_ignored(self):
+        files = plotcanon.sample_world()
+        files["canon/world.yml"] = "not: settings\n"
+
+        self.import_files(files)
+
+        self.assertNotIn("canon/world.yml", self.stored_files())
 
     def test_nothing_is_written_to_the_apps_disk(self):
         from django.conf import settings

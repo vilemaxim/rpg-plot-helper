@@ -5,6 +5,8 @@ import math
 
 import plotcanon
 
+from organizations.models import World
+
 from .models import CanonChange, Document
 
 
@@ -28,9 +30,15 @@ def storable(value):
 
 
 def files_of(world):
-    """A World's stored files as `{path: text}`, which is what plotcanon checks."""
-    return dict(Document.objects.filter(organization=world.organization, world=world)
-                .values_list("path", "text"))
+    """A World's stored files as `{path: text}`, which is what plotcanon checks:
+    its documents, and its settings file if it has one. Both are read from the
+    database, so a caller that has locked the World sees them as they now are."""
+    files = dict(Document.objects.filter(organization=world.organization, world=world)
+                 .values_list("path", "text"))
+    settings_file = World.objects.filter(pk=world.pk).values_list("settings_file", flat=True)
+    if settings_file and settings_file[0]:
+        files[plotcanon.WORLD_SETTINGS_FILE] = settings_file[0]
+    return files
 
 
 def parsed_into(row, document, plot_world):

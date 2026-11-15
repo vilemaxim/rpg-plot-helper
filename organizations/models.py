@@ -50,6 +50,15 @@ class World(models.Model):
                                      related_name="worlds")
     name = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
+    # The World's settings file, `world.yml`, exactly as it stands, or empty
+    # for a World that has none (plotcanon then uses its defaults). It is one
+    # of the World's files, and `canon.storing.files_of` gives it with the
+    # rest, so plotcanon checks every change against it and an export writes
+    # it out. It is kept here rather than as a `canon.Document` row because it
+    # is not a document: it has no id, type or name, and the app takes "the
+    # World has Canon" to mean "the World has a document", which a new
+    # World's settings file must not make true.
+    settings_file = models.TextField(blank=True)
 
     class Meta:
         ordering = ["created_at"]

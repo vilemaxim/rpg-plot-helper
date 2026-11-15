@@ -35,13 +35,6 @@ class ExportTest(DecisionTest):
         self.export_page = f"{self.first_world}export/"
         self.download = f"{self.export_page}download/"
 
-    def stored_files(self, world=None):
-        with self.in_world():
-            documents = Document.objects.all()
-            if world:
-                documents = documents.filter(world_id=world)
-            return dict(documents.values_list("path", "text"))
-
 
 class Exporting(ExportTest):
     def test_the_world_page_offers_a_plot_master_the_export(self):
@@ -73,6 +66,12 @@ class Exporting(ExportTest):
                       "aa-the-tax-collectors-ledger-2.md", files)
         self.assertIn("status: alive", files["my-first-world/canon/npcs/clerk-pell.md"])
 
+    def test_it_includes_the_worlds_settings_file(self):
+        files = unzipped(self.mira.get(self.download).content)
+
+        self.assertEqual(files["my-first-world/world.yml"],
+                         plotcanon.sample_world()["world.yml"])
+
     def test_plotcanon_finds_no_errors_in_it(self):
         files = unzipped(self.mira.get(self.download).content)
 
@@ -101,9 +100,7 @@ class Exporting(ExportTest):
 
         self.mira.post(f"{second}import/", {"archive": upload(content)}, follow=True)
 
-        second_id = second.strip("/").rsplit("/", 1)[-1]
-        self.assertEqual(self.stored_files(world=second_id),
-                         self.stored_files(world=self.first_world.strip("/").rsplit("/", 1)[-1]))
+        self.assertEqual(self.stored_files(world=second), self.stored_files())
 
     def test_nothing_is_written_to_the_apps_disk(self):
         with mock.patch("builtins.open", side_effect=AssertionError("opened a file")), \
