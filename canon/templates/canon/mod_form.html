@@ -13,7 +13,7 @@
         <pre>{{ errors }}</pre>
       {% endif %}
       {% if twine_warnings %}
-        <p>Converting it from Twine also warned:</p>
+        <p>{{ twine_warned }}</p>
         <pre>{{ twine_warnings }}</pre>
       {% endif %}
     </div>

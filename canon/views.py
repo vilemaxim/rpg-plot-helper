@@ -24,6 +24,7 @@ from .importing import ImportRefused, import_world
 from .kinds import KINDS
 from .models import CanonChange, Decision, Document, Flag, ModLink
 from .presenting import Index, render_markdown, wording
+from .storing import one_to_a_line
 
 
 def documents_of(world):
@@ -370,6 +371,11 @@ def may_revise(request, world, mod):
     return writers.is_writer_of(mod, request.user) and may_write_mods(request, world)
 
 
+# What a Twine file's conversion warned about is shown under these words,
+# whether the Mod it became was saved or refused.
+TWINE_WARNED = "Converting it from Twine warned about these:"
+
+
 def show_warnings(request, warnings):
     """plotcanon's warnings about a Mod that was saved anyway, one to a line,
     to copy for the Mod Writer's LLM."""
@@ -381,27 +387,29 @@ def show_warnings(request, warnings):
 
 def mod_form(request, context, save):
     """Show the form for a Mod file, or take one in with `save(text)`, which
-    returns the stored Mod and plotcanon's warnings about it. What was sent is
-    given back if it is refused."""
+    returns a `SavedMod`. What was sent is given back if it is refused."""
     if request.method == "GET":
         return render(request, "canon/mod_form.html", {**context, "form": ModForm()})
     form = ModForm(request.POST, request.FILES)
     if not form.is_valid():
         return render(request, "canon/mod_form.html", {**context, "form": form})
-    twine_warnings = "\n".join(form.cleaned_data["twine_warnings"])
+    twine_warnings = one_to_a_line(form.cleaned_data["twine_warnings"])
     try:
-        saved, warnings = save(form.cleaned_data["contents"])
+        saved = save(form.cleaned_data["contents"])
     except intake.ModRefused as refused:
         again = ModForm(initial={"text": form.cleaned_data["contents"]})
         return render(request, "canon/mod_form.html",
                       {**context, "form": again, "refused": str(refused),
-                       "errors": refused.errors, "twine_warnings": twine_warnings})
-    messages.success(request, f"{saved.name} is saved as a draft. A Plot Master approves it "
+                       "errors": refused.errors, "twine_warnings": twine_warnings,
+                       "twine_warned": TWINE_WARNED})
+    mod = saved.mod
+    messages.success(request, f"{mod.name} is saved as a draft. A Plot Master approves it "
                               f"before it can be run.")
-    show_warnings(request, warnings)
+    show_warnings(request, saved.warnings)
     if twine_warnings:
+        messages.warning(request, TWINE_WARNED)
         messages.warning(request, twine_warnings, extra_tags="findings")
-    return redirect("canon-detail", world_id=saved.world_id, kind="mods", slug=saved.slug)
+    return redirect("canon-detail", world_id=mod.world_id, kind="mods", slug=mod.slug)
 
 
 @require_http_methods(["GET", "POST"])
@@ -765,8 +773,8 @@ def approve(request, world_id, slug):
         raise Http404("No such page")
     mod = mod_or_404(world, slug)
     try:
-        _, warnings = approving.approve(world, mod, request.user,
-                                        campaign=request.POST.get("campaign"))
+        warnings = approving.approve(world, mod, request.user,
+                                     campaign=request.POST.get("campaign")).warnings
     except approving.ApprovalRefused as refused:
         messages.error(request, str(refused))
         if refused.errors:

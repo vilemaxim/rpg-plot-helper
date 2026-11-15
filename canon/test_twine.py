@@ -8,6 +8,7 @@ from html import escape
 
 import plotcanon
 
+from canon.test_approving import DAUGHTER
 from canon.test_mod_submissions import NEW, SubmissionTest, a_mod
 from canon.test_runner_links import VIGIL_MOD, LinkTest
 
@@ -78,6 +79,17 @@ class SubmittingFromTwine(SubmissionTest):
 
         self.assertEqual(response.redirect_chain[-1][0], self.mod_page(NEW))
         self.assertEqual(self.stored(NEW).text, macro)
+        self.assertContains(response, "Twine: passage `The message` has a Twine macro")
+        self.assertContains(response, "Converting it from Twine warned about these:")
+
+    def test_a_refused_twine_file_shows_its_warnings_under_the_same_words(self):
+        macro = a_mod(slug=DAUGHTER, **{"**Find:** a letter": "(set: $trust to 1) **Find:** a letter"})
+
+        response = self.sam.post(
+            self.form, {"file": uploaded(plotcanon.to_twee(macro), f"{DAUGHTER}.twee")})
+
+        self.assertContains(response, "Nothing was saved.")
+        self.assertContains(response, "Converting it from Twine warned about these:")
         self.assertContains(response, "Twine: passage `The message` has a Twine macro")
 
     def test_a_story_with_no_frontmatter_is_refused_showing_why_beside_the_errors(self):
