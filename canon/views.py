@@ -16,7 +16,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import (approving, deciding, exporting, intake, interludes, links, resolving,
+from . import (approving, deciding, dry_runs, exporting, intake, interludes, links, resolving,
                submitting, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
@@ -287,6 +287,16 @@ def twee(request, world_id, slug):
     """Download a Mod for Twine. For anyone who can read the Mod."""
     world = world_or_404(request, world_id)
     return twee_download(mod_or_404(world, slug))
+
+
+@require_GET
+def dry_run(request, world_id, slug):
+    """Play a Mod's Dry Run. For anyone who can read the Mod, in any state."""
+    world = world_or_404(request, world_id)
+    mod = mod_or_404(world, slug)
+    return render(request, "canon/dry_run.html", {
+        "world": world, "mod": mod, **dry_runs.step(mod, request),
+        "full_mod": reverse("canon-detail", args=[world.pk, "mods", mod.slug])})
 
 
 @require_http_methods(["GET", "POST"])

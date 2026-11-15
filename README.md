@@ -94,7 +94,7 @@ uv run plotcanon sample --write demo --script demo-script
 
 ### Private links for Mod Runners
 
-A Mod Runner does not need an account. A Plot Master creates a private link for a Mod from its page, saying who it is for if they like, and sends it on. Anyone with the link can read that Mod, download its file to read with no signal or to edit in Twine, see its open Flags, and file an After-Action Report on it, pasted or uploaded, and nothing else in the World. A report filed that way says which link it came through.
+A Mod Runner does not need an account. A Plot Master creates a private link for a Mod from its page, saying who it is for if they like, and sends it on. Anyone with the link can read that Mod, download its file to read with no signal or to edit in Twine, play its [Dry Run](#playing-a-dry-run), see its open Flags, and file an After-Action Report on it, pasted or uploaded, and nothing else in the World. A report filed that way says which link it came through.
 
 - **Shown once.** The link holds a long random secret, and only its hash is kept, so it is shown once, when it is created. A lost link is replaced by creating another.
 - **It works while the Mod can be run**: while it is approved or in progress, and until a Plot Master turns it off from the Mod's page. A finished or shelved Mod's links open nothing.
@@ -154,6 +154,15 @@ Mods are written in the Mod Writer's own LLM and submitted as a file ([ADR-0002]
 - **Its id is its own.** A Mod whose id the World already uses is refused. To change a draft, revise it from its page with a file that keeps its id; its Mod Writer, and the World's Plot Masters, can. A revision keeps the draft's history: who submitted it, its Flags, and who sent it back and why.
 
 A Plot Master approves a draft from its page, which makes it Canon and ready to be run. Its file moves to its Campaign's folder and says `state: approved` and `canon: approved`. A Mod that names no Campaign has one chosen as it is approved, and that is written into its file. The whole World is checked by plotcanon first, and nothing is saved if it finds an error, or a new warning on the Mod: a draft that names something the World does not have cannot be approved until it is revised. A Mod's open Flags stay open when it is approved. Its page says who approved it and when.
+
+### Playing a Dry Run
+
+"Play Dry Run" on a Mod's page walks through what could happen in it, with no players, one step at a time ([ADR-0007](./docs/adr/0007-a-dry-run-is-built-from-the-mods-markdown.md)). It starts at the Premise, with the Hooks as the first choices. Each scene shows its text and where it leads as choices, and a Contest shows each of its results, such as "win" and "lose", as a choice: the Dry Run does not play the Contest out, you pick. An outcome is an ending, with ways to start over or go back a step. Only the story is shown, with a link back to the full Mod.
+
+- **It is read from the Mod's file.** The Mod's body says where each Hook, scene and Contest result leads, as `→ [[Name of a scene or outcome]]`; plotcanon reads the story from that, and the app reads nothing itself. The convention is in plotcanon's `schema/mod.md`.
+- **When there is none, it says why.** A Mod written without the convention, or with a link to a heading that does not exist, has no Dry Run, and the page says why in text to paste back into the LLM that wrote it. A scene or outcome nothing leads to is named too, but the rest can still be played.
+- **Anyone who can read the Mod can play it**, in any state, from draft on: its Mod Writer, the World's Plot Masters and Mod Runners, and a Mod Runner with a private link, on a phone in the field. Players never can.
+- **Nothing is recorded.** Where you are is kept in the page's address, so going back is the browser's back button too, and a step can be bookmarked. Playing a Dry Run never touches Canon or After-Action Reports.
 
 ### Mod Writers
 

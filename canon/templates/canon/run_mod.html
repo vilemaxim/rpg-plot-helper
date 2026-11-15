@@ -6,6 +6,7 @@
   <h1>{{ mod.name }}</h1>
   {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
   {% include "canon/run_flags.html" %}
-  <p><a href="file/" download>Download this Mod</a> to read it with no signal, or <a href="twee/" download>download it for Twine (.twee)</a>. <a href="report/">File an After-Action Report</a> each time play stops.</p>
+  <p><a href="file/" download>Download this Mod</a> to read it with no signal. <a href="report/">File an After-Action Report</a> each time play stops.</p>
+  <p><a href="dry-run/">Play Dry Run</a>: walk through what could happen, with no players. Or <a href="twee/" download>download it for Twine (.twee)</a>.</p>
   <div class="body">{{ body }}</div>
 {% endblock %}
