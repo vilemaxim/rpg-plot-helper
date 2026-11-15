@@ -1,5 +1,6 @@
 import re
 
+import plotcanon
 from django import forms
 from django.conf import settings
 
@@ -22,11 +23,26 @@ class ImportForm(forms.Form):
     archive = forms.FileField(label="The World's .zip file")
 
 
+TWINE_SUFFIXES = (".twee", ".tw", ".html", ".htm")
+
+
+def is_twine(name):
+    """Whether an uploaded file's name says it is a Twine file: Twee, or a
+    Twine 2 story saved or published as HTML."""
+    return (name or "").lower().endswith(TWINE_SUFFIXES)
+
+
 class FileForm(forms.Form):
     """One file, pasted or uploaded: one or the other. `cleaned_data["contents"]`
-    is its text. `noun` is what the file is, for the labels and messages."""
+    is its text. `noun` is what the file is, for the labels and messages.
+
+    A form that `takes_twine` also takes an uploaded Twine file, converted to
+    markdown by plotcanon (ADR-0007); its `cleaned_data["twine_warnings"]`
+    are what the conversion warned about, to show beside the validator's
+    messages."""
 
     noun = "file"
+    takes_twine = False
 
     text = forms.CharField(
         required=False, strip=False,
@@ -39,16 +55,28 @@ class FileForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
+        cleaned["twine_warnings"] = ()
         pasted = (cleaned.get("text") or "").strip()
         uploaded = cleaned.get("file")
         if pasted and uploaded:
             raise forms.ValidationError(f"Paste the {self.noun} or choose its file, not both.")
         if not pasted and not uploaded:
             raise forms.ValidationError(f"Paste the {self.noun} or choose its file.")
-        if uploaded and uploaded.size > settings.IMPORT_MAX_FILE_BYTES:
-            megabytes = settings.IMPORT_MAX_FILE_BYTES / (1024 * 1024)
+        twine = uploaded and self.takes_twine and is_twine(uploaded.name)
+        limit = settings.TWINE_MAX_FILE_BYTES if twine else settings.IMPORT_MAX_FILE_BYTES
+        if uploaded and uploaded.size > limit:
+            megabytes = limit / (1024 * 1024)
             raise forms.ValidationError(
                 f"{uploaded.name} is too large. The limit is {megabytes:g} MB.")
+        if twine:
+            converted = plotcanon.from_twine(uploaded.read())
+            if not converted.ok:
+                raise forms.ValidationError(
+                    f"{uploaded.name} cannot be read as a Twine file. "
+                    + " ".join(converted.problems))
+            cleaned["contents"] = converted.markdown
+            cleaned["twine_warnings"] = converted.warnings
+            return cleaned
         if uploaded:
             try:
                 text = uploaded.read().decode("utf-8")
@@ -69,6 +97,7 @@ class ReportForm(FileForm):
 
 class ModForm(FileForm):
     noun = "Mod"
+    takes_twine = True
 
 
 class RecordForm(FileForm):

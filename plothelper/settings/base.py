@@ -92,6 +92,12 @@ IMPORT_MAX_FILES = 5000
 IMPORT_MAX_FILE_BYTES = 1024 * 1024
 IMPORT_MAX_UNPACKED_BYTES = 50 * 1024 * 1024
 
+# A Twine file submitted as a Mod. A published Twine story carries its story
+# format's code, several hundred KB of it, so it is allowed more than a Mod
+# file. plotcanon refuses, unread, anything over 5,000,000 bytes, and the Mod
+# a Twine file converts to is still held to IMPORT_MAX_FILE_BYTES.
+TWINE_MAX_FILE_BYTES = 5 * 1024 * 1024
+
 # Private links to a Mod for Mod Runners (canon/links.py): how many links
 # that open nothing one address may present, and for how many seconds those
 # failures count, before it is refused; and how many reports may be sent

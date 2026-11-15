@@ -12,11 +12,11 @@ from django.shortcuts import render
 from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_GET, require_http_methods
 
-from . import links, submitting
+from . import dry_runs, links, submitting
 from .forms import ReportForm
 from .models import Document, Flag
 from .presenting import Index, render_markdown
-from .views import flags_shown, state_of
+from .views import flags_shown, state_of, twee_download
 
 
 def refused_for_now(reason):
@@ -64,11 +64,27 @@ def mod(request, link):
 
 @through_a_link
 @require_GET
+def dry_run(request, link):
+    """The Mod's Dry Run, for its Mod Runner in the field. Its way back is to
+    the Mod as the link shows it, never into the World."""
+    return page(request, link, "canon/dry_run.html", full_mod="../",
+                **dry_runs.step(link.mod, request))
+
+
+@through_a_link
+@require_GET
 def mod_file(request, link):
     """The Mod's file, to read with no signal."""
     response = HttpResponse(link.mod.text, content_type="text/markdown; charset=utf-8")
     response["Content-Disposition"] = content_disposition_header(True, f"{link.mod.slug}.md")
     return response
+
+
+@through_a_link
+@require_GET
+def mod_twee(request, link):
+    """The Mod as a Twee file, to open in Twine."""
+    return twee_download(link.mod)
 
 
 def own_findings(world, errors, text):

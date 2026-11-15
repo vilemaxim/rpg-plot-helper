@@ -12,6 +12,10 @@
         <p>Fix these and send it again. You can paste them into the LLM that wrote the Mod.</p>
         <pre>{{ errors }}</pre>
       {% endif %}
+      {% if twine_warnings %}
+        <p>Converting it from Twine also warned:</p>
+        <pre>{{ twine_warnings }}</pre>
+      {% endif %}
     </div>
   {% endif %}
   {% if mod %}
@@ -19,6 +23,7 @@
   {% else %}
     <p>Paste the Mod file your LLM produced, or choose it. It is checked against {{ world.name }} and saved as a draft. It may name people, places and factions {{ world.name }} does not have yet. A Plot Master approves it before it can be run.</p>
   {% endif %}
+  <p>Edited in Twine? Choose the <code>.twee</code> file, or the <code>.html</code> file Twine saves or publishes. It is turned back into a Mod file and checked the same way.</p>
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {{ form.non_field_errors }}

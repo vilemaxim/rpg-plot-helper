@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Dry Run — {{ mod.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p class="dry-run-nav"><a href="{{ full_mod }}">Back to the full Mod</a>{% if passage and not at_start %} · <a href="{{ back }}">Back a step</a> · <a href="./">Start over</a>{% endif %}</p>
+  <h1>Dry Run: {{ mod.name }}</h1>
+  {% if problems %}
+    <div class="warning">
+      <p><strong>This Mod has no Dry Run yet.</strong> To have one, its body must say where each Hook, scene and Contest result leads. Paste this to the LLM that wrote it, and submit the revised Mod:</p>
+      <pre>{{ problems }}</pre>
+    </div>
+  {% else %}
+    <p>A walk through what could happen, with no players. Nothing here is recorded or changes Canon.</p>
+    {% if gaps %}
+      <div class="warning">
+        <p>It can be played, but some of it cannot be reached or leads nowhere:</p>
+        <pre>{{ gaps }}</pre>
+      </div>
+    {% endif %}
+    <section class="passage">
+      <h2>{{ passage.name }}{% if passage.kind == "ending" %} <span class="state">Ending</span>{% endif %}</h2>
+      {{ prose }}
+    </section>
+    {% if choices %}
+      <h3>{% if at_start %}Hooks{% else %}What happens next{% endif %}</h3>
+      <ul class="choices">
+        {% for choice in choices %}<li><a href="{{ choice.url }}">{{ choice.label }}</a></li>{% endfor %}
+      </ul>
+    {% elif passage.kind == "ending" %}
+      <p>This is how it ends.</p>
+      <p class="choices"><a href="./">Start over</a> <a href="{{ back }}">Back a step</a></p>
+    {% else %}
+      <p>Nothing leads on from here.</p>
+    {% endif %}
+  {% endif %}
+{% endblock %}

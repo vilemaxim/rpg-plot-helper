@@ -46,6 +46,10 @@
       {% endfor %}
     </ul>
   {% endif %}
+  {% if kind == "mods" %}
+    <p><a href="{% url 'canon-dry-run' world.pk document.slug %}">Play Dry Run</a>: walk through what could happen, with no players.</p>
+    <p><a href="{% url 'canon-twee' world.pk document.slug %}" download>Download for Twine (.twee)</a> to edit it in Twine, then submit or revise it from the file Twine saves.</p>
+  {% endif %}
   {% if may_revise %}
     <p><a href="{% url 'canon-revise' world.pk document.slug %}">Revise this draft</a></p>
   {% endif %}
