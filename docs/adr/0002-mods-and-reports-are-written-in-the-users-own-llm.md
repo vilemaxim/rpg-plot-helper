@@ -1,5 +1,7 @@
 # Mods and After-Action Reports are written in the user's own LLM
 
+> Amended for Mods by [ADR-0008](./0008-mods-are-written-in-an-interview-with-an-llm-the-deployment-configures.md): Mods are now written in an Interview inside the app. After-Action Reports are still written as below.
+
 Mod Writers and Mod Runners do not fill in forms, and the web app's first version makes no LLM calls. Instead the system generates a prompt for each Mod, containing the Mod's text and its Features, which the person runs in whatever LLM they already use. That LLM interviews them and produces a file in the shared format, which they submit. The system checks the file and returns any errors as text they can paste back into their LLM.
 
 We chose this because it works identically in both versions (see ADR-0001), costs nothing to host, needs no API keys or usage limits, and lets a tired Mod Runner answer questions instead of learning a format. The Flag check needs no LLM, since it works from each Mod's listed Features.

@@ -71,12 +71,16 @@ _Avoid_: Session, game
 A Mod Runner's account of what happened during one continuous stretch of playing a Mod, listing the changes to Canon it proposes. One is filed every time play stops, so a Mod can have several.
 _Avoid_: Mod report, AAR
 
+**Interview**:
+A conversation in which the app's LLM asks a Mod Writer or Mod Runner questions and writes their Mod or After-Action Report from the answers. The person reads what it wrote and submits it themselves.
+_Avoid_: Chat, assistant, wizard
+
 **Plot Master**:
 The role that approves Mods and proposed changes into a World's Canon. Several people can hold it, and it exists at the World level only.
 _Avoid_: Plot lead, canon keeper
 
 **Private link**:
-A link to one Mod that lets whoever holds it read the Mod, download it as its file or for Twine, play its Dry Run and file After-Action Reports on it, with no account. A Plot Master creates one for a Mod Runner.
+A link to one Mod that lets whoever holds it read the Mod, download it as its file or for Twine and play its Dry Run, with no account. Filing an After-Action Report needs an account with the Mod Runner role in the Mod's World. A Plot Master creates one for a Mod Runner.
 _Avoid_: Share link, guest link
 
 **Interlude**:
