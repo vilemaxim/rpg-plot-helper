@@ -556,3 +556,184 @@ class TheDatabaseOnItsOwn(ReportTest):
 
         with tenancy.acting_as(user=eve, organization=organization):
             self.assertEqual(CanonChange.objects.count(), 0)
+
+
+class AnotherEventTest(ReportTest):
+    """Reports on a Mod at an Event it does not list."""
+
+    MOD = "storm-moon-vigil"            # lists e03-storm-moon, in Tideward
+
+    def at(self, event, text=None):
+        return (text or VIGIL.text).replace("event: e03-storm-moon\n", f"event: {event}\n")
+
+
+class AtAnEventTheModDoesNotList(AnotherEventTest):
+    """A Mod can be interrupted and go on at another Event. Filing a report at
+    an Event of the Mod's Campaign that it does not list yet adds that Event."""
+
+    def test_the_report_is_saved_and_the_mod_then_lists_that_event(self):
+        response = self.submit(VIGIL, text=self.at("e01-low-tide"))
+
+        self.assertNotContains(response, "Nothing was saved")
+        self.assertEqual(response.redirect_chain[-1][0],
+                         f"{self.first_world}reports/aa-storm-moon-vigil/")
+        self.assertEqual(self.stored(self.MOD).fields["events"],
+                         ["e03-storm-moon", "e01-low-tide"])
+        self.assertContains(self.mira.get(self.mod_page(self.MOD)),
+                            f'href="{self.first_world}events/e01-low-tide/"')
+
+    def test_nothing_else_in_the_mods_file_changes(self):
+        before = self.stored(self.MOD).text
+
+        self.submit(VIGIL, text=self.at("e01-low-tide"))
+
+        self.assertEqual(self.stored(self.MOD).text,
+                         before.replace("events: [e03-storm-moon]\n",
+                                        "events: [e03-storm-moon, e01-low-tide]\n")
+                               .replace("state: approved", "state: in-progress"))
+
+    def test_the_mods_state_follows_the_report(self):
+        self.submit(VIGIL, text=self.at("e01-low-tide"))
+
+        self.assertEqual(self.state_shown(self.MOD), "In progress")
+
+    def test_a_report_that_says_the_mod_was_not_played_still_adds_the_event(self):
+        before = self.stored(self.MOD).text
+
+        response = self.submit(VIGIL, text=self.at("e01-low-tide").replace("ran: true",
+                                                                            "ran: false"))
+
+        self.assertNotContains(response, "Nothing was saved")
+        self.assertEqual(self.state_shown(self.MOD), "Approved")
+        self.assertEqual(self.stored(self.MOD).text,
+                         before.replace("[e03-storm-moon]", "[e03-storm-moon, e01-low-tide]"))
+
+    def test_a_report_at_an_event_the_mod_already_lists_leaves_its_events_alone(self):
+        before = self.stored(self.MOD).text
+
+        self.submit(VIGIL)
+
+        self.assertEqual(self.stored(self.MOD).text,
+                         before.replace("state: approved", "state: in-progress"))
+
+    def test_what_is_stored_is_still_a_world_plotcanon_accepts(self):
+        self.submit(VIGIL, text=self.at("e01-low-tide"))
+
+        with self.in_world():
+            files = {d.path: d.text for d in Document.objects.all()}
+        self.assertIn("after-actions/e01-low-tide/aa-storm-moon-vigil.md", files)
+        self.assertEqual(plotcanon.load_world(files).text(), "")
+
+
+class RefusedAtAnEventTheModCannotRunAt(AnotherEventTest):
+    def assert_refused_saying(self, event, *words):
+        before = self.stored(self.MOD).text
+
+        response = self.submit(VIGIL, text=self.at(event))
+
+        self.assertContains(response, "Nothing was saved")
+        for said in words:
+            self.assertContains(response, said)
+        self.assertEqual(self.stored(self.MOD).text, before)
+        self.assertEqual(self.state_shown(self.MOD), "Approved")
+        with self.in_world():
+            self.assertFalse(Document.objects.filter(slug="aa-storm-moon-vigil").exists())
+            self.assertEqual(CanonChange.objects.filter(decision="proposed").count(), 0)
+
+    def test_an_event_in_another_campaign(self):
+        self.assert_refused_saying("e04-second-lantern", "e04-second-lantern",
+                                   "Second Lantern", "tideward", "the report&#x27;s `event`")
+
+    def test_an_event_that_does_not_exist(self):
+        self.assert_refused_saying("e09-nowhere", "There is no Event `e09-nowhere`",
+                                   "the report&#x27;s `event`")
+
+    def test_the_name_of_some_other_kind_of_document(self):
+        self.assert_refused_saying("tideward", "There is no Event `tideward`")
+
+
+class AddingTheEventToTheModsFile(AnotherEventTest):
+    """Only the Mod's `events` and state change, however its file is laid out."""
+
+    lay_out = ChangingTheModsFile.lay_out
+
+    def file_at_low_tide(self, events=("e03-storm-moon", "e01-low-tide")):
+        """The Mod's file once a report at Low Tide is filed, with its state
+        put back, so that what is left to compare is its events."""
+        response = self.submit(VIGIL, text=self.at("e01-low-tide"))
+        self.assertNotContains(response, "Nothing was saved")
+        self.assertEqual(self.stored(self.MOD).fields["events"], list(events))
+        return self.stored(self.MOD).text.replace("state: in-progress", "state: approved")
+
+    def test_a_list_down_the_page(self):
+        before = self.lay_out(lambda t: t.replace("events: [e03-storm-moon]\n",
+                                                  "events:\n  - e03-storm-moon\n"))
+
+        self.assertEqual(self.file_at_low_tide(),
+                         before.replace("  - e03-storm-moon\n",
+                                        "  - e03-storm-moon\n  - e01-low-tide\n"))
+
+    def test_a_list_down_the_page_not_indented(self):
+        before = self.lay_out(lambda t: t.replace("events: [e03-storm-moon]\n",
+                                                  "events:\n- e03-storm-moon\n"))
+
+        self.assertEqual(self.file_at_low_tide(),
+                         before.replace("- e03-storm-moon\n",
+                                        "- e03-storm-moon\n- e01-low-tide\n"))
+
+    def test_a_list_down_the_page_with_comments(self):
+        before = self.lay_out(lambda t: t.replace(
+            "events: [e03-storm-moon]\n",
+            "events:  # where it runs\n    - e03-storm-moon  # the first night\n"
+            "    # more to come\n"))
+
+        self.assertEqual(self.file_at_low_tide(),
+                         before.replace("    - e03-storm-moon  # the first night\n",
+                                        "    - e03-storm-moon  # the first night\n"
+                                        "    - e01-low-tide\n"))
+
+    def test_a_list_on_one_line_with_a_comment_and_spacing(self):
+        before = self.lay_out(lambda t: t.replace("events: [e03-storm-moon]\n",
+                                                  "events: [ e03-storm-moon ]  # so far\n"))
+
+        self.assertEqual(self.file_at_low_tide(),
+                         before.replace("[ e03-storm-moon ]",
+                                        "[ e03-storm-moon, e01-low-tide ]"))
+
+    def test_quoted_items(self):
+        before = self.lay_out(lambda t: t.replace("events: [e03-storm-moon]\n",
+                                                  "events: ['e03-storm-moon']\n"))
+
+        self.assertEqual(self.file_at_low_tide(),
+                         before.replace("['e03-storm-moon']",
+                                        "['e03-storm-moon', e01-low-tide]"))
+
+    def test_an_empty_list(self):
+        before = self.lay_out(lambda t: t.replace("events: [e03-storm-moon]\n",
+                                                  "events: []\n"))
+
+        self.assertEqual(self.file_at_low_tide(events=["e01-low-tide"]),
+                         before.replace("events: []", "events: [e01-low-tide]"))
+
+    def test_no_events_at_all(self):
+        before = self.lay_out(lambda t: t.replace("events: [e03-storm-moon]\n", ""))
+
+        self.assertEqual(self.file_at_low_tide(events=["e01-low-tide"]), before.replace("supersedes: []\n",
+                                              "supersedes: []\nevents: [e01-low-tide]\n"))
+
+    def test_windows_line_endings_down_the_page(self):
+        before = self.lay_out(lambda t: t.replace("events: [e03-storm-moon]\n",
+                                                  "events:\n  - e03-storm-moon\n")
+                                         .replace("\n", "\r\n"))
+
+        after = self.file_at_low_tide()
+
+        self.assertNotIn("\n", after.replace("\r\n", ""))
+        self.assertEqual(after, before.replace("  - e03-storm-moon\r\n",
+                                               "  - e03-storm-moon\r\n  - e01-low-tide\r\n"))
+
+    def test_windows_line_endings_on_one_line(self):
+        before = self.lay_out(lambda t: t.replace("\n", "\r\n"))
+
+        self.assertEqual(self.file_at_low_tide(),
+                         before.replace("[e03-storm-moon]", "[e03-storm-moon, e01-low-tide]"))
