@@ -431,33 +431,30 @@ def pending(request, world_id):
     })
 
 
+# What a Plot Master's button says, and the decision it makes.
+DECISIONS = {"approve": deciding.APPROVED, "reject": deciding.REJECTED}
+
+
 @require_POST
 def decide(request, world_id, change_id, decision):
     """Approve or reject one Canon Change, or undo its decision, then go back
     to the page it was decided on. For the World's Plot Masters only."""
     world = world_or_404(request, world_id)
-    note = request.POST.get("note", "")
-    actions = {
-        "approve": lambda: deciding.decide(world, change_id, deciding.APPROVED, request.user,
-                                           note=note),
-        "reject": lambda: deciding.decide(world, change_id, deciding.REJECTED, request.user,
-                                          note=note),
-        "undo": lambda: deciding.undo(world, change_id, request.user),
-    }
-    if decision not in actions or not is_plot_master(request, world):
+    undoing = decision == "undo"
+    if not (undoing or decision in DECISIONS) or not is_plot_master(request, world):
         raise Http404("No such page")
     try:
-        change = actions[decision]()
+        if undoing:
+            change = deciding.undo(world, change_id, request.user)
+        else:
+            change = deciding.decide(world, change_id, DECISIONS[decision], request.user,
+                                     note=request.POST.get("note", ""))
     except deciding.DecisionRefused as refused:
         messages.error(request, str(refused))
     else:
-        done = "Undone, and proposed again" if decision == "undo" \
-            else wording(change.decision)
+        done = "Undone, and proposed again" if undoing else wording(change.decision)
         messages.success(request, f"{done}: {change.summary}")
-    back = request.POST.get("next", "")
-    if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
-                                           require_https=request.is_secure()):
-        back = reverse("canon-pending", args=[world.pk])
+    back = back_to(request, reverse("canon-pending", args=[world.pk]))
     return redirect(without_selected(back))
 
 
@@ -468,21 +465,17 @@ def decide_selected(request, world_id):
     are decided or none; if none, the page says which could not be and why,
     with the rest still selected. For the World's Plot Masters only."""
     world = world_or_404(request, world_id)
-    decisions = {"approve": deciding.APPROVED, "reject": deciding.REJECTED}
-    decision = request.POST.get("decision")
-    if decision not in decisions or not is_plot_master(request, world):
+    decision = DECISIONS.get(request.POST.get("decision"))
+    if decision is None or not is_plot_master(request, world):
         raise Http404("No such page")
     chosen = [int(i) for i in request.POST.getlist("change") if i.isdigit()]
     report = request.POST.get("report")
     if report:
         chosen = list(CanonChange.objects.pending(world).filter(report__slug=report)
                       .values_list("pk", flat=True))
-    back = request.POST.get("next", "")
-    if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
-                                           require_https=request.is_secure()):
-        back = reverse("canon-pending", args=[world.pk])
+    back = back_to(request, reverse("canon-pending", args=[world.pk]))
     try:
-        decided = deciding.decide_all(world, chosen, decisions[decision], request.user,
+        decided = deciding.decide_all(world, chosen, decision, request.user,
                                      note=request.POST.get("note", ""))
     except deciding.SelectionRefused as refused:
         messages.error(request, str(refused))
@@ -492,7 +485,7 @@ def decide_selected(request, world_id):
         messages.error(request, str(refused))
     else:
         count = len(decided)
-        messages.success(request, f"{wording(decisions[decision])} {count} Canon "
+        messages.success(request, f"{wording(decision)} {count} Canon "
                                   f"Change{'' if count == 1 else 's'}.")
     return redirect(without_selected(back))
 
@@ -550,14 +543,14 @@ def flags(request, world_id):
         "may_decide": is_plot_master(request, world)})
 
 
-def back_to(request, world):
+def back_to(request, otherwise):
     """The page to return to after an action: the one the form named, if it
-    is on this site, and the Flags page otherwise."""
+    is on this site, and `otherwise` if not."""
     back = request.POST.get("next", "")
     if url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
                                        require_https=request.is_secure()):
         return back
-    return reverse("canon-flags", args=[world.pk])
+    return otherwise
 
 
 @require_POST
@@ -572,7 +565,7 @@ def dismiss_flag(request, world_id, flag_id):
         messages.error(request, str(refused))
     else:
         messages.success(request, "Flag dismissed.")
-    return redirect(back_to(request, world))
+    return redirect(back_to(request, reverse("canon-flags", args=[world.pk])))
 
 
 @require_POST
