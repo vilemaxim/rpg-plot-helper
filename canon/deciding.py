@@ -27,6 +27,9 @@ from .storing import parsed_into
 
 PROPOSED, APPROVED, REJECTED = "proposed", "approved", "rejected"
 
+# The longest note a Plot Master may give with a decision: a line or two.
+NOTE_LENGTH = 500
+
 
 class DecisionRefused(Exception):
     """Nothing was decided. `str()` says why, for the Plot Master."""
@@ -202,9 +205,14 @@ def unapplied(entity, change, field, previous, following, ordering, remaining):
     return text
 
 
-def decide(world, change_id, decision, user):
-    """Approve or reject one proposed Canon Change of `world`. Returns it.
-    Raises `DecisionRefused`, having changed nothing, if it cannot be done."""
+def decide(world, change_id, decision, user, note=""):
+    """Approve or reject one proposed Canon Change of `world`, with the Plot
+    Master's `note` on why, if any. Returns it. Raises `DecisionRefused`,
+    having changed nothing, if it cannot be done."""
+    note = note.strip()
+    if len(note) > NOTE_LENGTH:
+        raise DecisionRefused(f"A note can be at most {NOTE_LENGTH} characters; this one is "
+                              f"{len(note)}. Nothing was decided.")
     with transaction.atomic():
         # One decision at a time per World, and never while a report is being
         # filed: each is checked against the World as stored.
@@ -220,8 +228,12 @@ def decide(world, change_id, decision, user):
         files = {d.path: d.text for d in documents}
         report = change.report
         try:
-            files[report.path] = editing.replace(
+            text = editing.replace(
                 report.text, ["canon_changes", change.position, "decision"], decision)
+            if note:
+                text = editing.set_key(text, ["canon_changes", change.position], "note",
+                                       editing.quoted(note), after="decision")
+            files[report.path] = text
         except editing.CannotEdit as error:
             raise DecisionRefused(f"The report's stored file could not be updated: {error}.")
 
@@ -255,7 +267,8 @@ def decide(world, change_id, decision, user):
         change.decision = decision
         change.decided_by = user
         change.decided_at = timezone.now()
-        change.save(update_fields=["decision", "decided_by", "decided_at", "replaced"])
+        change.note = note
+        change.save(update_fields=["decision", "decided_by", "decided_at", "replaced", "note"])
         if decision == REJECTED:
             # A rejected change did not happen, so nothing it touched is in
             # question any more.
@@ -281,8 +294,12 @@ def undo(world, change_id, user):
         files = {d.path: d.text for d in documents}
         report = change.report
         try:
-            files[report.path] = editing.replace(
-                report.text, ["canon_changes", change.position, "decision"], PROPOSED)
+            # The note was on the decision, which is undone; it is kept with
+            # the record of the undoing instead.
+            files[report.path] = editing.remove_key(
+                editing.replace(report.text, ["canon_changes", change.position, "decision"],
+                                PROPOSED),
+                ["canon_changes", change.position], "note")
         except editing.CannotEdit as error:
             raise DecisionRefused(f"The report's stored file could not be updated: {error}.")
 
@@ -319,9 +336,9 @@ def undo(world, change_id, user):
                              Flag.Resolution.CHANGE_REJECTED)
         Undo.objects.create(organization=world.organization, world=world, change=change,
                             decision=change.decision, decided_by=change.decided_by,
-                            decided_at=change.decided_at, undone_by=user,
+                            decided_at=change.decided_at, note=change.note, undone_by=user,
                             undone_at=timezone.now())
         change.decision, change.decided_by, change.decided_at = PROPOSED, None, None
-        change.replaced = {}
-        change.save(update_fields=["decision", "decided_by", "decided_at", "replaced"])
+        change.replaced, change.note = {}, ""
+        change.save(update_fields=["decision", "decided_by", "decided_at", "replaced", "note"])
     return change

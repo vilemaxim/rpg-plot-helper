@@ -1,11 +1,9 @@
 {% if may_decide and change.proposed %}
   <form method="post" action="{% url 'canon-decide' world.pk change.id 'approve' %}" class="inline">
     {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <input type="text" name="note" maxlength="500" placeholder="Why (optional)" aria-label="Note on why">
     <button type="submit">Approve</button>
-  </form>
-  <form method="post" action="{% url 'canon-decide' world.pk change.id 'reject' %}" class="inline">
-    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-    <button type="submit">Reject</button>
+    <button type="submit" formaction="{% url 'canon-decide' world.pk change.id 'reject' %}">Reject</button>
   </form>
 {% endif %}
 {% if may_decide and not change.proposed %}

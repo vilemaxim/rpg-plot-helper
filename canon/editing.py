@@ -90,6 +90,75 @@ def set_field(text, field, new):
         return text[:block.end(1)] + f"{ending}{field}: {new}" + text[block.end(1):]
 
 
+def set_key(text, path, key, new, after):
+    """The file with `key` in the mapping at `path` set to `new`, which must
+    already be YAML. A key that is not there is added just after the key
+    `after`, written the way the mapping already is: on one line, or down the
+    page. Raises `CannotEdit` if `path` is not a mapping holding `after`."""
+    try:
+        return replace(text, [*path, key], new)
+    except CannotEdit:
+        pass
+    node, offset = find(text, path)
+    entries = {k.value: (k, v) for k, v in node.value if isinstance(k, yaml.ScalarNode)} \
+        if isinstance(node, yaml.MappingNode) else {}
+    if after not in entries:
+        raise CannotEdit(f"there is no `{'.'.join(map(str, [*path, after]))}`")
+    name, value = entries[after]
+    end = offset + value.end_mark.index
+    if node.flow_style:
+        return text[:end] + f", {key}: {new}" + text[end:]
+    # Down the page: a new line after the line `after` ends on, so that a
+    # comment on that line stays with it, indented as `after` is.
+    newline = text.find("\n", end)
+    if newline == -1:
+        newline = len(text)
+    ending = "\r\n" if text[newline - 1:newline] == "\r" else "\n"
+    at = newline - 1 if ending == "\r\n" else newline
+    indent = " " * name.start_mark.column
+    return text[:at] + f"{ending}{indent}{key}: {new}" + text[at:]
+
+
+def remove_key(text, path, key):
+    """The file without `key` in the mapping at `path`, or as it was if the
+    key is not there."""
+    node, offset = find(text, path)
+    if not isinstance(node, yaml.MappingNode):
+        raise CannotEdit(f"`{'.'.join(map(str, path))}` is not a mapping")
+    pairs = [(k, v) for k, v in node.value if isinstance(k, yaml.ScalarNode)]
+    at = next((i for i, (k, _v) in enumerate(pairs) if k.value == key), None)
+    if at is None:
+        return text
+    name, value = pairs[at]
+    end = offset + value.end_mark.index
+    if node.flow_style:
+        # Take the comma before it, or after it if it is first.
+        if at > 0:
+            start = offset + pairs[at - 1][1].end_mark.index
+        else:
+            start = offset + name.start_mark.index
+            if at + 1 < len(pairs):
+                end = offset + pairs[at + 1][0].start_mark.index
+        return text[:start] + text[end:]
+    if at == 0:
+        raise CannotEdit(f"`{key}` begins its mapping and cannot be taken out")
+    # Down the page: its whole line or lines, from the end of the line before.
+    start = text.rfind("\n", 0, offset + name.start_mark.index)
+    newline = text.find("\n", offset + value.end_mark.index - 1)
+    if newline == -1:
+        newline = len(text)
+    if text[newline - 1:newline] == "\r":
+        newline -= 1
+    start -= 1 if text[start - 1:start] == "\r" else 0
+    return text[:start] + text[newline:]
+
+
+def quoted(words):
+    """Text written as one YAML scalar, in double quotes, on one line."""
+    return yaml.safe_dump(words, default_style='"', allow_unicode=True,
+                          width=float("inf")).rstrip("\n").removesuffix("\n...")
+
+
 def add_to_list(text, field, item):
     """The file with `item`, which must already be YAML, added at the end of
     the list in a top-level field, written the way the list already is: on one

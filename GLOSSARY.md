@@ -75,7 +75,7 @@ An NPC, faction, location, PC or Plot that a Mod relies on. A Mod lists its Feat
 _Avoid_: Dependency, cast
 
 **Canon Change**:
-One alteration to Canon, proposed by an After-Action Report or made during an Interlude, and approved or rejected by the Plot Master. Its kind is one of: status, location, affiliation, relationship, knowledge, narrative or created.
+One alteration to Canon, proposed by an After-Action Report or made during an Interlude, and approved or rejected by the Plot Master. Its kind is one of: status, location, affiliation, relationship, knowledge, narrative or created. The Plot Master may give a note with the decision, saying why; it is kept in the report's file beside the decision.
 _Avoid_: Delta, update
 
 **Flag**:

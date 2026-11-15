@@ -248,6 +248,7 @@ def detail(request, world_id, kind, slug):
         "may_record": doc_type == "event" and interludes.is_interlude(document)
         and is_plot_master(request, world),
         "history": history(index, world, document),
+        "rejected": rejected(index, world, document),
         "waiting_for_it": [change_row(index, c) for c in
                            CanonChange.objects.pending(world).filter(entity=document.slug)
                            .select_related("report__submitted_by")],
@@ -368,6 +369,7 @@ def change_row(index, change):
         "submitted_at": change.report.submitted_at,
         "decided_by": change.decided_by,
         "decided_at": change.decided_at,
+        "note": change.note,
     }
 
 
@@ -426,9 +428,12 @@ def decide(request, world_id, change_id, decision):
     """Approve or reject one Canon Change, or undo its decision, then go back
     to the page it was decided on. For the World's Plot Masters only."""
     world = world_or_404(request, world_id)
+    note = request.POST.get("note", "")
     actions = {
-        "approve": lambda: deciding.decide(world, change_id, deciding.APPROVED, request.user),
-        "reject": lambda: deciding.decide(world, change_id, deciding.REJECTED, request.user),
+        "approve": lambda: deciding.decide(world, change_id, deciding.APPROVED, request.user,
+                                           note=note),
+        "reject": lambda: deciding.decide(world, change_id, deciding.REJECTED, request.user,
+                                          note=note),
         "undo": lambda: deciding.undo(world, change_id, request.user),
     }
     if decision not in actions or not is_plot_master(request, world):
@@ -642,7 +647,18 @@ def approve(request, world_id, slug):
 def history(index, world, document):
     """The approved Canon Changes to one document, in the order they happened,
     each with the report it came from."""
-    changes = list(CanonChange.objects.approved(world).filter(entity=document.slug)
+    return decided_changes(index, world, document, deciding.APPROVED)
+
+
+def rejected(index, world, document):
+    """The rejected Canon Changes to one document, in the order they happened,
+    each with the report it came from."""
+    return decided_changes(index, world, document, deciding.REJECTED)
+
+
+def decided_changes(index, world, document, decision):
+    changes = list(CanonChange.objects.in_world(world)
+                   .filter(entity=document.slug, decision=decision)
                    .select_related("report__submitted_by", "decided_by"))
     if not changes:
         return []

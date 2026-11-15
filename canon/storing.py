@@ -70,5 +70,6 @@ def canon_changes_of(row):
             before="" if change.get("from") is None else str(change["from"]),
             after="" if change.get("to") is None else str(change["to"]),
             summary=str(change.get("summary") or ""),
+            note=str(change.get("note") or ""),
         ))
     return rows

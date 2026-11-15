@@ -152,7 +152,7 @@
           <tr>
             <td>{% with value=change.entity %}{% include "canon/link.html" %}{% endwith %}</td>
             <td>{% include "canon/change.html" %}</td>
-            <td>{{ change.decision }}{% if change.decided_by %} by {{ change.decided_by.email }}{% endif %}{% for undo in change.undos %}<br><small>Earlier {{ undo.decision }}{% if undo.decided_by %} by {{ undo.decided_by.email }}{% endif %}, undone by {{ undo.undone_by.email|default:"someone since removed" }} on {{ undo.undone_at|date:"j M Y" }}</small>{% endfor %}</td>
+            <td>{{ change.decision }}{% if change.decided_by %} by {{ change.decided_by.email }}{% endif %}{% if change.note %}<br>{% include "canon/note.html" %}{% endif %}{% for undo in change.undos %}<br><small>Earlier {{ undo.decision }}{% if undo.decided_by %} by {{ undo.decided_by.email }}{% endif %}, undone by {{ undo.undone_by.email|default:"someone since removed" }} on {{ undo.undone_at|date:"j M Y" }}{% if undo.note %}. {% include "canon/note.html" with change=undo %}{% endif %}</small>{% endfor %}</td>
             <td>{{ change.summary }}</td>
             {% if may_decide %}<td>{% include "canon/decide.html" %}</td>{% endif %}
           </tr>
@@ -175,9 +175,19 @@
     <h2>History</h2>
     <ol>
       {% for change in history %}
-        <li>{% include "canon/change.html" %}. {{ change.summary }} ({% with value=change.report %}{% include "canon/link.html" %}{% endwith %}{% if change.decided_by %}, approved by {{ change.decided_by.email }}{% endif %})</li>
+        <li>{% include "canon/change.html" %}. {{ change.summary }} ({% with value=change.report %}{% include "canon/link.html" %}{% endwith %}{% if change.decided_by %}, approved by {{ change.decided_by.email }}{% endif %}) {% include "canon/note.html" %}</li>
       {% endfor %}
     </ol>
+  {% endif %}
+
+  {% if rejected %}
+    <h2>Rejected changes</h2>
+    <p>Reported, and turned down. None of these is Canon.</p>
+    <ul>
+      {% for change in rejected %}
+        <li>{% include "canon/change.html" %}. {{ change.summary }} ({% with value=change.report %}{% include "canon/link.html" %}{% endwith %}{% if change.decided_by %}, rejected by {{ change.decided_by.email }}{% endif %}) {% include "canon/note.html" %}</li>
+      {% endfor %}
+    </ul>
   {% endif %}
 
   {% if referred_to_by %}

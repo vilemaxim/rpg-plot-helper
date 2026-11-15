@@ -218,6 +218,8 @@ class TheChainOfChanges(DecisionTest):
         self.rule(first, "approve")
         self.rule(second, "approve")
 
+        self.assertEqual(self.change_at("aa-ledger-pell", 1).decision, "approved")
+        self.assertEqual(self.status_shown("clerk-pell"), "Dead")
         self.assert_world_agrees()
 
     def test_a_later_faction_change_already_approved(self):
@@ -277,7 +279,8 @@ class Rejecting(DecisionTest):
     def test_it_is_not_in_the_entitys_history(self):
         self.rule(self.death, "reject")
 
-        history = self.npc("harrow-dunmore").content.decode().split("<h2>History</h2>", 1)[-1]
+        history = (self.npc("harrow-dunmore").content.decode()
+                   .split("<h2>History</h2>", 1)[-1].split("</ol>", 1)[0])
         self.assertNotIn("Went over the edge", history)
 
 

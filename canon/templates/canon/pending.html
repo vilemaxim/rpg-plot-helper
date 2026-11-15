@@ -28,7 +28,7 @@
           <h3>Recently decided</h3>
           <ul>
             {% for change in group.recent %}
-              <li><strong>{{ change.decision }}</strong>: {% include "canon/change.html" %}. {{ change.summary }} ({% with value=change.report %}{% include "canon/link.html" %}{% endwith %})</li>
+              <li><strong>{{ change.decision }}</strong>: {% include "canon/change.html" %}. {{ change.summary }} ({% with value=change.report %}{% include "canon/link.html" %}{% endwith %}) {% include "canon/note.html" %}</li>
             {% endfor %}
           </ul>
         {% endif %}
