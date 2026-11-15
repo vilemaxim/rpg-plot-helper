@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Dry Run structure — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>Dry Run structure</h1>
+  {% if refused %}
+    <div class="refused">
+      <p><strong>Nothing was changed.</strong> {{ refused }}</p>
+      {% if errors %}
+        <p>A Mod Writer can paste these into the LLM that wrote the Mod.</p>
+        <pre>{{ errors }}</pre>
+      {% endif %}
+    </div>
+  {% endif %}
+  <p>A Dry Run is built from the links a Mod's Hooks, scenes and Contests name. This setting is how strictly {{ world.name }} asks for them when a Mod is submitted, revised or approved. It is kept in the World's settings file, <code>world.yml</code>, so an export carries it.</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="field">
+      {{ form.structure.errors }}
+      {{ form.structure }}
+    </div>
+    <button type="submit">Save</button>
+  </form>
+  <p>Requiring it checks every Mod in {{ world.name }}, finished ones too, so it can only be chosen once each of them has the structure.</p>
+{% endblock %}

@@ -1,5 +1,6 @@
 import unicodedata
 
+import plotcanon
 from django import forms
 
 # Characters that turn the text after them back to front, or embed or isolate
@@ -45,3 +46,18 @@ class NameForm(forms.Form):
 
 class InvitationForm(forms.Form):
     email = forms.EmailField(label="Email address to invite", max_length=254)
+
+
+def dry_run_structures():
+    """The settings a World's Dry Run structure may have, each with what it
+    means, in plotcanon's words: the setting is plotcanon's (ADR-0004)."""
+    meanings = plotcanon.vocabularies()["vocabularies"]["dry_run_structure"]
+    return [(value, f"{value.capitalize()}: {meaning}") for value, meaning in meanings.items()]
+
+
+class DryRunStructureForm(forms.Form):
+    """How strictly Mods must be written so that a Dry Run can be built from
+    them: for one World, or the default an Organization gives its new Worlds."""
+
+    structure = forms.ChoiceField(label="Dry Run structure", choices=dry_run_structures,
+                                  widget=forms.RadioSelect)

@@ -8,6 +8,8 @@ urlpatterns = [
          name="canon-add-interlude"),
     path("worlds/<uuid:world_id>/events/<slug:slug>/record/", views.record_changes,
          name="canon-record-changes"),
+    path("worlds/<uuid:world_id>/dry-run-structure/", views.dry_run_structure,
+         name="canon-dry-run-structure"),
     path("worlds/<uuid:world_id>/export/", views.export_page, name="canon-export"),
     path("worlds/<uuid:world_id>/export/download/", views.export_download,
          name="canon-export-download"),

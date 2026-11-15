@@ -14,10 +14,11 @@ from django.utils.http import content_disposition_header, url_has_allowed_host_a
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from organizations.forms import DryRunStructureForm
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
 from . import (approving, deciding, exporting, intake, interludes, links, resolving,
-               submitting, writers)
+               submitting, world_settings, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
@@ -73,6 +74,27 @@ def import_page(request, world):
     count = report.document_count
     messages.success(request, f"Imported {count} document{'' if count == 1 else 's'}.{noted}")
     return redirect("world", world_id=world.pk)
+
+
+@require_http_methods(["GET", "POST"])
+@plot_masters_only
+def dry_run_structure(request, world):
+    """Change how strictly the World asks for Dry Run structure in its Mods.
+    For its Plot Masters only."""
+    current = world_settings.settings_of(world).dry_run_structure
+    form = DryRunStructureForm(request.POST or None, initial={"structure": current})
+    context = {"world": world, "form": form}
+    if request.method == "POST" and form.is_valid():
+        try:
+            world_settings.set_dry_run_structure(world, form.cleaned_data["structure"])
+        except world_settings.SettingRefused as refused:
+            return render(request, "canon/dry_run_structure.html", {
+                **context, "form": DryRunStructureForm(initial={"structure": current}),
+                "refused": str(refused), "errors": refused.errors})
+        messages.success(request, f"{world.name}'s Dry Run structure is now "
+                                  f"`{form.cleaned_data['structure']}`.")
+        return redirect("world", world_id=world.pk)
+    return render(request, "canon/dry_run_structure.html", context)
 
 
 @require_GET
