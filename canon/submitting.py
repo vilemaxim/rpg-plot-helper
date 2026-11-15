@@ -168,9 +168,11 @@ def unreadable(text, noun, doc_type, called):
     return None
 
 
-def submit(world, mod, text, user):
+def submit(world, mod, text, user, filed_through=None):
     """File a report on `mod`, a stored Mod of `world`. Returns the report's
-    `Document`. Raises `ReportRefused`, having saved nothing, if it cannot be."""
+    `Document`. Raises `ReportRefused`, having saved nothing, if it cannot be.
+    `user` is who filed it, or None for a report filed through a private link,
+    which is then `filed_through`."""
     reason = unreadable(text, "report", REPORT, "an After-Action Report")
     if reason:
         raise ReportRefused(reason)
@@ -224,7 +226,8 @@ def submit(world, mod, text, user):
                                 errors="\n".join(str(e) for e in whole.errors))
 
         row = new_row(world, whole.world.get(report.id), whole.world,
-                      submitted_by=user, submitted_at=timezone.now())
+                      submitted_by=user, submitted_at=timezone.now(),
+                      filed_through=filed_through)
         row.save()
         changes = CanonChange.objects.bulk_create(canon_changes_of(row))
         if files[mod.path] != mod.text:

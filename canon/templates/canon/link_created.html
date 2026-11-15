@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Private link — {{ mod.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a></p>
+  <h1>Private link created</h1>
+  <p>Copy this link now and send it{% if link.label %} to {{ link.label }}{% endif %}. It is not kept, so it cannot be shown again; if it is lost, turn it off and create another.</p>
+  <p><input class="secret-link" readonly value="{{ address }}" aria-label="The private link" onclick="this.select()"></p>
+  <p>Anyone who has it can read {{ mod.name }}, download it and file reports on it, while it is approved or in progress.</p>
+  <p><a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">Back to {{ mod.name }}</a></p>
+{% endblock %}

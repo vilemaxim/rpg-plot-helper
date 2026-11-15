@@ -5,6 +5,8 @@ one row. The file format belongs to the plotcanon package, which decides
 what is valid. This app stores what plotcanon parsed and shows it (ADR-0004).
 """
 
+import hashlib
+
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
@@ -59,6 +61,10 @@ class Document(models.Model):
                                      on_delete=models.SET_NULL, related_name="+")
     sent_back_at = models.DateTimeField(null=True, blank=True)
     sent_back_reason = models.TextField(blank=True)
+    # For an After-Action Report filed through a Mod Runner's private link,
+    # with no account: the link it came through.
+    filed_through = models.ForeignKey("ModLink", null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name="reports")
 
     class Meta:
         ordering = ["name", "slug"]
@@ -192,3 +198,39 @@ class WriterHandle(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["world", "handle"], name="one_person_per_handle"),
         ]
+
+
+class ModLink(models.Model):
+    """A private link to one Mod, for a Mod Runner with no account. Anyone with
+    it can read the Mod, download its file and file a report on it, and
+    nothing else in the World.
+
+    Only a hash of the link's secret is kept, so the secret cannot be read
+    back out of the database: it is shown once, when the link is created. The
+    database lets a request that presents a secret's hash see that one link,
+    with no Organization set (see migration 0013), which is how a visitor
+    with no account is told which Organization they are in.
+    """
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="mod_links")
+    mod = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="links")
+    token_hash = models.CharField(max_length=64, unique=True)
+    # Who the link is for, in the Plot Master's words; it may be empty.
+    label = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    turned_off_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name="+")
+    turned_off_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+    @staticmethod
+    def hash_of(secret):
+        return hashlib.sha256(secret.encode()).hexdigest()
+
+    def __str__(self):
+        return self.label or f"link {self.pk}"

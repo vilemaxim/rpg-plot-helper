@@ -67,7 +67,7 @@ def allow_references_within_organization(table):
     )
 
 
-def same_organization(table, column, target, target_column="id"):
+def same_organization(table, column, target, target_column="id", on_delete="CASCADE"):
     """Require that the row `column` points at belongs to the same Organization
     as the row itself. `target` needs a unique constraint on
     `(organization_id, target_column)`.
@@ -80,6 +80,10 @@ def same_organization(table, column, target, target_column="id"):
     existing row would pass unchecked. Row-level security is lifted from both
     tables while the constraint is added, so that a row that breaks it stops
     the migration.
+
+    `on_delete` is what happens to this row when the row it points at goes.
+    To keep the row and empty the reference, it is `SET NULL ({column})`: the
+    Organization column stays, as it is part of the row's own identity.
     """
     name = f"{table}_{column}_same_organization"
     return migrations.RunSQL(
@@ -87,7 +91,7 @@ def same_organization(table, column, target, target_column="id"):
             f"ALTER TABLE {target} NO FORCE ROW LEVEL SECURITY; "
             f"ALTER TABLE {table} ADD CONSTRAINT {name} "
             f"FOREIGN KEY (organization_id, {column}) "
-            f"REFERENCES {target} (organization_id, {target_column}) ON DELETE CASCADE; "
+            f"REFERENCES {target} (organization_id, {target_column}) ON DELETE {on_delete}; "
             f"ALTER TABLE {target} FORCE ROW LEVEL SECURITY; "
             f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
         reverse_sql=f"ALTER TABLE {table} DROP CONSTRAINT {name};",

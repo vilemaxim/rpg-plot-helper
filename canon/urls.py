@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import runner_views, views
 
 urlpatterns = [
     path("worlds/<uuid:world_id>/import/", views.import_page, name="canon-import"),
@@ -10,6 +10,13 @@ urlpatterns = [
          name="canon-dismiss-flag"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/send-back/", views.send_back,
          name="canon-send-back"),
+    path("run/<str:secret>/", runner_views.mod, name="run-mod"),
+    path("run/<str:secret>/file/", runner_views.mod_file, name="run-mod-file"),
+    path("run/<str:secret>/report/", runner_views.report, name="run-report"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/links/", views.create_link,
+         name="canon-create-link"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/links/<int:link_id>/off/",
+         views.turn_off_link, name="canon-turn-off-link"),
     path("worlds/<uuid:world_id>/mod-writers/", views.mod_writers, name="canon-mod-writers"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/reassign/", views.reassign,
          name="canon-reassign"),

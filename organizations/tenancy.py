@@ -29,6 +29,27 @@ def set_context(user=None, organization=None):
         )
 
 
+def present_link(token_hash):
+    """Let this transaction see the one private link whose secret hashes to
+    this, with no Organization set, until `""` is presented or the transaction
+    ends. See canon's migration 0013. Use `link_presented` to be sure it is
+    taken back."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("a link can only be presented inside a transaction")
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT set_config('app.mod_link', %s, true)", [token_hash])
+
+
+@contextmanager
+def link_presented(token_hash):
+    """Present a link's hash for the length of a block only."""
+    present_link(token_hash)
+    try:
+        yield
+    finally:
+        present_link("")
+
+
 def _id(thing):
     if thing is None:
         return ""

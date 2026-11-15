@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Report filed — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>Report filed</h1>
+  <p>Thank you. Your report on {{ mod.name }} is saved, and its Canon Changes are waiting for a Plot Master to decide.</p>
+  {% if more_to_come %}<p><a href="../">Back to {{ mod.name }}</a></p>{% endif %}
+{% endblock %}

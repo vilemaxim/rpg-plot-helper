@@ -11,11 +11,11 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import approving, deciding, intake, resolving, submitting, writers
+from . import approving, deciding, intake, links, resolving, submitting, writers
 from .forms import ImportForm, ModForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
-from .models import CanonChange, Document, Flag
+from .models import CanonChange, Document, Flag, ModLink
 from .presenting import Index, render_markdown, wording
 
 
@@ -124,6 +124,11 @@ def detail(request, world_id, kind, slug):
         "may_revise": draft and may_revise(request, world, document),
         "writer": writers.writer_of(document) if doc_type == "mod" else None,
         "may_reassign": draft and is_plot_master(request, world),
+        "mod_links": ModLink.objects.filter(organization=world.organization, world=world,
+                                            mod=document).select_related("created_by")
+        if doc_type == "mod" and is_plot_master(request, world) else None,
+        "may_link": doc_type == "mod" and submitting.can_be_reported_on(document),
+        "filed_through": document.filed_through,
         "mod_writers": writers.may_write_mods_in(world) if draft else [],
         "may_send_back": doc_type == "mod"
         and document.fields.get("state") in submitting.states().reportable
@@ -424,6 +429,40 @@ def tell_sent_back(request, world, mod, writer, reason):
     subject = " ".join(f"{mod.name} has been sent back to you".split())
     transaction.on_commit(lambda: send_mail(subject=subject, message=message, from_email=None,
                                             recipient_list=[writer.email]))
+
+
+@require_POST
+def create_link(request, world_id, slug):
+    """Create a private link to a Mod for a Mod Runner, and show it once. For
+    the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    mod = mod_or_404(world, slug)
+    try:
+        link, secret = links.create(world, mod, request.POST.get("label", ""), request.user)
+    except links.LinkRefused as refused:
+        messages.error(request, str(refused))
+        return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+    # Shown on this page alone, never put in a message, which would keep it
+    # in a cookie or the session.
+    response = render(request, "canon/link_created.html", {
+        "world": world, "mod": mod, "link": link,
+        "address": request.build_absolute_uri(reverse("run-mod", args=[secret]))})
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@require_POST
+def turn_off_link(request, world_id, slug, link_id):
+    """Turn a private link off. For the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    mod = mod_or_404(world, slug)
+    if links.turn_off(world, mod, link_id, request.user):
+        messages.success(request, "The link is turned off, and opens nothing now.")
+    return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
 
 
 @require_POST

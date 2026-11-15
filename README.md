@@ -86,6 +86,17 @@ To try it, write the sample World's scripted reports to disk alongside the World
 uv run plotcanon sample --write demo --script demo-script
 ```
 
+### Private links for Mod Runners
+
+A Mod Runner does not need an account. A Plot Master creates a private link for a Mod from its page, saying who it is for if they like, and sends it on. Anyone with the link can read that Mod, download its file to read with no signal, see its open Flags, and file an After-Action Report on it, pasted or uploaded, and nothing else in the World. A report filed that way says which link it came through.
+
+- **Shown once.** The link holds a long random secret, and only its hash is kept, so it is shown once, when it is created. A lost link is replaced by creating another.
+- **It works while the Mod can be run**: while it is approved or in progress, and until a Plot Master turns it off from the Mod's page. A finished or shelved Mod's links open nothing.
+- **Guessing is limited.** An address that presents 20 secrets no link has in 15 minutes is refused for the rest of that time (`MOD_LINK_FAILURES_ALLOWED`, `MOD_LINK_FAILURE_WINDOW`); reloading a link that has stopped working does not count. Each link takes at most 10 reports an hour, saved or not (`MOD_LINK_REPORTS_ALLOWED`, `MOD_LINK_REPORT_WINDOW`). The counts are kept in Django's cache, which is per process unless a shared cache is configured, and behind a proxy the address is the proxy's until #16 settles how to read the visitor's.
+- **Only the Mod.** A refused report shows only plotcanon's findings about the report itself, with any other document's path taken out. A finding can still say whether an id it names exists, which is why reports through a link are limited.
+- **The secret is in the address.** It is never put in a message, cookie or session, but a web server's access log records addresses; keep those logs as private as the data.
+- **The database opens one link.** A visitor has no Organization, so the table of links lets a request see the single link whose secret's hash it presents, and nothing else; the request then works in that link's Organization ([migration 0013](./canon/migrations/0013_mod_links_kept_apart.py)).
+
 ### Flags
 
 Filing a report also raises Flags. Every Mod that is not finished or shelved, and that features something one of the report's changes touches, gets a Flag for that change, in any Campaign of the World. A report that finishes its own Mod does not flag that Mod. Which Mods are flagged is plotcanon's rule (`plotcanon.flags`); the app records the result.

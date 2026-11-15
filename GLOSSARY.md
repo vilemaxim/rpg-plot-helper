@@ -55,6 +55,10 @@ _Avoid_: Mod report, AAR
 The role that approves Mods and proposed changes into a World's Canon. Several people can hold it, and it exists at the World level only.
 _Avoid_: Plot lead, canon keeper
 
+**Private link**:
+A link to one Mod that lets whoever holds it read the Mod, download it and file After-Action Reports on it, with no account. A Plot Master creates one for a Mod Runner.
+_Avoid_: Share link, guest link
+
 **Interlude**:
 The period between two Events, in which Canon can change without any Mod being run.
 _Avoid_: Downtime, between-game

@@ -8,6 +8,7 @@
   {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
   {% if aliases %}<p class="aliases">Also called: {{ aliases|join:", " }}</p>{% endif %}
   {% if writer %}<p class="writer">Mod Writer: {{ writer.email }}{% if document.reassigned_by and document.writer_id == writer.pk %}, reassigned by {{ document.reassigned_by.email }} on {{ document.reassigned_at|date:"j F Y" }}{% endif %}</p>{% endif %}
+  {% if filed_through %}<p>Filed through the private link for {{ filed_through.label|default:"a Mod Runner" }}, on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
   {% if submitted_by %}<p>Submitted by {{ submitted_by.email }} on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
   {% if approved_by and not may_approve %}<p>Approved by {{ approved_by.email }} on {{ approved_at|date:"j F Y" }}.</p>{% endif %}
   {% if sent_back %}
@@ -47,6 +48,33 @@
   {% endif %}
   {% if may_revise %}
     <p><a href="{% url 'canon-revise' world.pk document.slug %}">Revise this draft</a></p>
+  {% endif %}
+  {% if mod_links is not None %}
+    <section class="mod-links">
+      <h2>Private links</h2>
+      <p>A private link lets a Mod Runner with no account read this Mod, download it and file a report on it, and nothing else. It works while the Mod is approved or in progress.</p>
+      {% if mod_links %}
+        <ul>
+          {% for link in mod_links %}
+            <li>{{ link.label|default:"(for nobody named)" }}, created{% if link.created_by %} by {{ link.created_by.email }}{% endif %} on {{ link.created_at|date:"j F Y" }}.
+              {% if link.turned_off_at %}Turned off on {{ link.turned_off_at|date:"j F Y" }}.{% else %}
+                <form method="post" action="{% url 'canon-turn-off-link' world.pk document.slug link.pk %}" class="inline">
+                  {% csrf_token %}<button type="submit">Turn off</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if may_link %}
+        <form method="post" action="{% url 'canon-create-link' world.pk document.slug %}">
+          {% csrf_token %}
+          <label for="link-label">Who it is for (optional)</label>
+          <input id="link-label" name="label" maxlength="200">
+          <button type="submit">Create a private link</button>
+        </form>
+      {% endif %}
+    </section>
   {% endif %}
   {% if may_reassign %}
     <form method="post" action="{% url 'canon-reassign' world.pk document.slug %}" class="reassign">

@@ -91,3 +91,12 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 IMPORT_MAX_FILES = 5000
 IMPORT_MAX_FILE_BYTES = 1024 * 1024
 IMPORT_MAX_UNPACKED_BYTES = 50 * 1024 * 1024
+
+# Private links to a Mod for Mod Runners (canon/links.py): how many links
+# that open nothing one address may present, and for how many seconds those
+# failures count, before it is refused; and how many reports may be sent
+# through one link in a window, whether or not they are saved.
+MOD_LINK_FAILURES_ALLOWED = 20
+MOD_LINK_FAILURE_WINDOW = 15 * 60
+MOD_LINK_REPORTS_ALLOWED = 10
+MOD_LINK_REPORT_WINDOW = 60 * 60

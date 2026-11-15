@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}{{ mod.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <h1>{{ mod.name }}</h1>
+  {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
+  {% include "canon/run_flags.html" %}
+  <p><a href="file/" download>Download this Mod</a> to read it with no signal. <a href="report/">File an After-Action Report</a> each time play stops.</p>
+  <div class="body">{{ body }}</div>
+{% endblock %}
