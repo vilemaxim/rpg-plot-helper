@@ -12,11 +12,11 @@ from django.shortcuts import render
 from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_GET, require_http_methods
 
-from . import dry_runs, links, submitting
+from . import links, submitting
 from .forms import ReportForm
 from .models import Document, Flag
 from .presenting import Index, render_markdown
-from .views import flags_shown, state_of, twee_download
+from .views import dry_run_page_or_404, flags_shown, state_of, twee_download
 
 
 def refused_for_now(reason):
@@ -68,7 +68,7 @@ def dry_run(request, link):
     """The Mod's Dry Run, for its Mod Runner in the field. Its way back is to
     the Mod as the link shows it, never into the World."""
     return page(request, link, "canon/dry_run.html", full_mod="../",
-                **dry_runs.step(link.mod, request))
+                **dry_run_page_or_404(link.mod, request))
 
 
 @through_a_link

@@ -311,13 +311,22 @@ def twee(request, world_id, slug):
     return twee_download(mod_or_404(world, slug))
 
 
+def dry_run_page_or_404(mod, request):
+    """What the Dry Run page at this address shows, or no page for a step
+    that cannot be reached."""
+    try:
+        return dry_runs.page_for(mod, request.GET.getlist(dry_runs.TRAIL_PARAMETER))
+    except dry_runs.NoSuchStep:
+        raise Http404("No such step") from None
+
+
 @require_GET
 def dry_run(request, world_id, slug):
     """Play a Mod's Dry Run. For anyone who can read the Mod, in any state."""
     world = world_or_404(request, world_id)
     mod = mod_or_404(world, slug)
     return render(request, "canon/dry_run.html", {
-        "world": world, "mod": mod, **dry_runs.step(mod, request),
+        "world": world, "mod": mod, **dry_run_page_or_404(mod, request),
         "full_mod": reverse("canon-detail", args=[world.pk, "mods", mod.slug])})
 
 
