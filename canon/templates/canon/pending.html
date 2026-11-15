@@ -5,22 +5,35 @@
 {% block content %}
   <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
   <h1>Canon Changes waiting to be decided</h1>
-  {% if changes %}
-    <p>{{ changes|length }} Canon Change{{ changes|length|pluralize }} waiting. These have been reported and are not Canon: nothing they say has changed until a Plot Master approves it.</p>
-    <table>
-      <thead><tr><th>What</th><th>Change</th><th>What happened</th><th>Reported in</th><th>Submitted</th></tr></thead>
-      <tbody>
-        {% for change in changes %}
-          <tr>
-            <td>{% with value=change.entity %}{% include "canon/link.html" %}{% endwith %}</td>
-            <td>{{ change.kind }}{% if change.moved %}: {{ change.before }} → {{ change.after }}{% endif %}</td>
-            <td>{{ change.summary }}</td>
-            <td>{% with value=change.report %}{% include "canon/link.html" %}{% endwith %}</td>
-            <td>{% if change.submitted_by %}{{ change.submitted_by.email }}, {{ change.submitted_at|date:"j M Y H:i" }}{% else %}—{% endif %}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  {% if groups %}
+    <p>{{ count }} Canon Change{{ count|pluralize }} waiting. These have been reported and are not Canon: nothing they say has changed until a Plot Master approves it. Each entity's waiting changes are shown together with the changes to it already approved, so reports that disagree can be compared.</p>
+    {% for group in groups %}
+      <section class="entity">
+        <h2>{% with value=group.entity %}{% include "canon/link.html" %}{% endwith %}</h2>
+        <table>
+          <thead><tr><th>Change</th><th>What happened</th><th>Reported in</th><th>Submitted</th>{% if may_decide %}<th>Decide</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for change in group.waiting %}
+              <tr>
+                <td>{% include "canon/change.html" %}{% if change.disagrees_with %}<br><strong class="conflict">Disagrees with {% for other in change.disagrees_with %}{% with value=other %}{% include "canon/link.html" %}{% endwith %}{% if not forloop.last %}, {% endif %}{% endfor %}.</strong> Only one can be approved.{% endif %}</td>
+                <td>{{ change.summary }}</td>
+                <td>{% with value=change.report %}{% include "canon/link.html" %}{% endwith %}</td>
+                <td>{% if change.submitted_by %}{{ change.submitted_by.email }}, {{ change.submitted_at|date:"j M Y H:i" }}{% else %}—{% endif %}</td>
+                {% if may_decide %}<td>{% include "canon/decide.html" %}</td>{% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if group.recent %}
+          <h3>Recently decided</h3>
+          <ul>
+            {% for change in group.recent %}
+              <li><strong>{{ change.decision }}</strong>: {% include "canon/change.html" %}. {{ change.summary }} ({% with value=change.report %}{% include "canon/link.html" %}{% endwith %})</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </section>
+    {% endfor %}
   {% else %}
     <p>No Canon Changes are waiting. Every change that has been reported has been decided.</p>
   {% endif %}

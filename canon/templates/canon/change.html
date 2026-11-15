@@ -1,0 +1,1 @@
+{{ change.kind }}{% if change.moved %}: {{ change.before|default:"nothing" }} → {{ change.after|default:"nothing" }}{% endif %}

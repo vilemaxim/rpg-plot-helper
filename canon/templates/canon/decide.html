@@ -1,0 +1,10 @@
+{% if may_decide and change.proposed %}
+  <form method="post" action="{% url 'canon-decide' world.pk change.id 'approve' %}" class="inline">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit">Approve</button>
+  </form>
+  <form method="post" action="{% url 'canon-decide' world.pk change.id 'reject' %}" class="inline">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit">Reject</button>
+  </form>
+{% endif %}

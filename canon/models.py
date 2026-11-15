@@ -53,10 +53,18 @@ class Document(models.Model):
 
 
 class CanonChangeQuerySet(models.QuerySet):
+    def in_world(self, world):
+        """A World's Canon Changes. The filter on the Organization repeats what
+        the database already enforces."""
+        return self.filter(organization=world.organization, world=world)
+
     def pending(self, world):
-        """The Canon Changes of a World that nobody has decided yet. The filter
-        on the Organization repeats what the database already enforces."""
-        return self.filter(organization=world.organization, world=world, decision="proposed")
+        """The Canon Changes of a World that nobody has decided yet."""
+        return self.in_world(world).filter(decision="proposed")
+
+    def approved(self, world):
+        """The Canon Changes of a World that are Canon."""
+        return self.in_world(world).filter(decision="approved")
 
 
 class CanonChange(models.Model):
@@ -79,6 +87,11 @@ class CanonChange(models.Model):
     before = models.TextField(blank=True)
     after = models.TextField(blank=True)
     summary = models.TextField(blank=True)
+    # Who approved or rejected this change, and when. Empty while it is
+    # proposed, and for a change that arrived already decided in an import.
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
 
     objects = CanonChangeQuerySet.as_manager()
 

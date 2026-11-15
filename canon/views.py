@@ -2,9 +2,13 @@ from django.conf import settings
 from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_GET, require_http_methods
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from organizations.views import is_plot_master, world_or_404
+
+from . import deciding
 
 from . import submitting
 from .forms import ImportForm, ReportForm
@@ -103,11 +107,19 @@ def detail(request, world_id, kind, slug):
                                   or document.fields.get("involves")),
         "plot_mods": index.mods_of(document),
         "plot_entities": index.links(entities) if isinstance(entities, list) else [],
-        "canon_changes": index.canon_changes(document),
         "referred_to_by": index.referred_to_by(document),
         "flags": flags_shown(index, Flag.objects.open_in(world).filter(mod=document))
         if doc_type == "mod" else [],
         "can_be_reported_on": doc_type == "mod" and submitting.can_be_reported_on(document),
+        "report_changes": [change_row(index, c) for c in
+                           CanonChange.objects.in_world(world).filter(report=document)
+                           .select_related("report__submitted_by", "decided_by")]
+        if doc_type == "after-action" else [],
+        "history": history(index, world, document),
+        "waiting_for_it": [change_row(index, c) for c in
+                           CanonChange.objects.pending(world).filter(entity=document.slug)
+                           .select_related("report__submitted_by")],
+        "may_decide": is_plot_master(request, world),
         "submitted_by": document.submitted_by,
         "submitted_at": document.submitted_at,
         "body": render_markdown(document.body),
@@ -144,19 +156,18 @@ def report(request, world_id, slug):
         return render(request, "canon/report.html",
                       {**context, "form": again, "refused": str(refused),
                        "errors": refused.errors})
+    messages.success(request, "Report filed. Its Canon Changes are waiting to be decided.")
     return redirect("canon-detail", world_id=world.pk, kind="reports", slug=filed.slug)
 
 
-@require_GET
-def pending(request, world_id):
-    """Every Canon Change in the World that is still only proposed."""
-    world = world_or_404(request, world_id)
-    index = Index(world, documents_of(world))
-    changes = list(CanonChange.objects.pending(world).select_related("report__submitted_by")
-                   .order_by("report__submitted_at", "report_id", "position"))
-    rows = [{
+def change_row(index, change):
+    """A Canon Change as a row a page can show."""
+    return {
+        "id": change.pk,
         "entity": index.link(change.entity),
         "kind": wording(change.kind),
+        "decision": wording(change.decision),
+        "proposed": change.decision == deciding.PROPOSED,
         "moved": bool(change.before or change.after),
         "before": change.before,
         "after": change.after,
@@ -164,8 +175,80 @@ def pending(request, world_id):
         "report": index.link(change.report.slug),
         "submitted_by": change.report.submitted_by,
         "submitted_at": change.report.submitted_at,
-    } for change in changes]
-    return render(request, "canon/pending.html", {"world": world, "changes": rows})
+        "decided_by": change.decided_by,
+        "decided_at": change.decided_at,
+    }
+
+
+# How many decided changes to show beside each entity's pending ones.
+RECENTLY_DECIDED = 5
+
+
+def mark_disagreements(rows):
+    """Mark the waiting changes in one group that cannot all be approved:
+    two that move the same field from the same value to different ones."""
+    for row in rows:
+        row["disagrees_with"] = [
+            other["report"] for other in rows
+            if other is not row and other["moved"] and row["moved"]
+            and other["kind"] == row["kind"] and other["before"] == row["before"]
+            and other["after"] != row["after"]]
+    return rows
+
+
+@require_GET
+def pending(request, world_id):
+    """The review screen: every Canon Change still to be decided, grouped by
+    what it changes, with the changes to it already approved alongside, so two
+    reports that disagree sit side by side."""
+    world = world_or_404(request, world_id)
+    documents = list(documents_of(world))
+    index = Index(world, documents)
+    ordering = deciding.Ordering(documents)
+    waiting = list(CanonChange.objects.pending(world)
+                   .select_related("report__submitted_by"))
+    entities = sorted({c.entity for c in waiting},
+                      key=lambda slug: index.link(slug)["text"].lower())
+    decided = {}
+    for change in (CanonChange.objects.in_world(world).filter(entity__in=entities)
+                   .exclude(decision=deciding.PROPOSED)
+                   .select_related("report__submitted_by", "decided_by")):
+        decided.setdefault(change.entity, []).append(change)
+    groups = []
+    for slug in entities:
+        mine = sorted((c for c in waiting if c.entity == slug),
+                      key=lambda c: (ordering.of(c.report), c.position))
+        recent = sorted(decided.get(slug, []), key=lambda c: ordering.of(c.report))
+        groups.append({
+            "entity": index.link(slug),
+            "waiting": mark_disagreements([change_row(index, c) for c in mine]),
+            "recent": [change_row(index, c) for c in recent[-RECENTLY_DECIDED:]],
+        })
+    return render(request, "canon/pending.html", {
+        "world": world, "groups": groups, "count": len(waiting),
+        "may_decide": is_plot_master(request, world),
+    })
+
+
+@require_POST
+def decide(request, world_id, change_id, decision):
+    """Approve or reject one Canon Change, then go back to the page it was
+    decided on. For the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    chosen = {"approve": deciding.APPROVED, "reject": deciding.REJECTED}.get(decision)
+    if chosen is None or not is_plot_master(request, world):
+        raise Http404("No such page")
+    try:
+        change = deciding.decide(world, change_id, chosen, request.user)
+    except deciding.DecisionRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, f"{wording(change.decision)}: {change.summary}")
+    back = request.POST.get("next", "")
+    if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
+        back = reverse("canon-pending", args=[world.pk])
+    return redirect(back)
 
 
 def flags_shown(index, flags):
@@ -191,3 +274,15 @@ def flags(request, world_id):
     index = Index(world, documents_of(world))
     return render(request, "canon/flags.html", {
         "world": world, "flags": flags_shown(index, Flag.objects.open_in(world))})
+
+
+def history(index, world, document):
+    """The approved Canon Changes to one document, in the order they happened,
+    each with the report it came from."""
+    changes = list(CanonChange.objects.approved(world).filter(entity=document.slug)
+                   .select_related("report__submitted_by", "decided_by"))
+    if not changes:
+        return []
+    ordering = deciding.Ordering(documents_of(world).filter(kind="event"))
+    changes.sort(key=lambda change: (ordering.of(change.report), change.position))
+    return [change_row(index, change) for change in changes]

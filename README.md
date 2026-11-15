@@ -92,7 +92,17 @@ Filing a report also raises Flags. Every Mod that is not finished or shelved, an
 
 The World page links to a list of open Flags, each naming the Mod, the Feature the change touches, the change, and the report it came from. A flagged Mod's page shows a warning listing its Flags, so a Mod Runner sees it before running the Mod. A Flag is open while its Mod is still to be played; once the Mod is finished or shelved the Flag stays on record but is no longer listed or warned about.
 
-Approving and rejecting Canon Changes, and resolving Flags, are the next pieces to be built.
+### Approving and rejecting Canon Changes
+
+A Plot Master decides each Canon Change, one at a time, from the "Canon Changes waiting to be decided" page or from the report's own page. The waiting page groups changes by what they change, with the changes to it already decided alongside. Two waiting changes that move the same field from the same value to different ones are marked as disagreeing, before anyone tries to approve either.
+
+- **Approving** makes the change Canon. If it moves a field (a status, a location, a faction), the entity's own file is updated, and its "as of" moves to the Event the change happened at. The entity's page shows the change in its History, with the report it came from and who approved it.
+- **Rejecting** leaves Canon as it was. The change stays on record as rejected on the report's page.
+- **A contradiction is refused.** Approved changes to one field follow on from each other in Event order. Approving a change that does not, such as "left alive" once "died" is approved, is turned down with the other change named, so that one of the two is rejected instead of both standing. Changes to a list of factions are decided in the order they happened.
+
+Each decision is recorded in the change's row, in the report's stored file and, where a field moves, in the entity's stored file, and the World is checked by plotcanon before anything is saved: a decision is refused if plotcanon finds an error, or warns that the entity's file disagrees with its approved changes. Only a Plot Master of the World can decide.
+
+Resolving Flags is the next piece to be built.
 
 ## Who may create an Organization
 

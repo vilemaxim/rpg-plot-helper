@@ -19,6 +19,7 @@ from django.utils import timezone
 
 from organizations.models import World
 
+from . import editing
 from .models import CanonChange, Document, Flag
 from .storing import canon_changes_of, new_row, parsed_into
 
@@ -90,12 +91,10 @@ def path_for(text):
 def with_state(text, state):
     """A Mod's file with the value of its `state` field replaced, and every
     other character, line endings included, left as it was."""
-    fields, offset = top_level(text)
-    node = fields.get("state")
-    if not isinstance(node, yaml.ScalarNode) or offset is None:
-        raise ReportRefused("The Mod's stored file has no state that can be updated.")
-    start, end = offset + node.start_mark.index, offset + node.end_mark.index
-    return text[:start] + state + text[end:]
+    try:
+        return editing.replace(text, ["state"], state)
+    except editing.CannotEdit:
+        raise ReportRefused("The Mod's stored file has no state that can be updated.") from None
 
 
 States = namedtuple("States", "finished in_progress reportable")
