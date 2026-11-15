@@ -39,6 +39,11 @@ class Document(models.Model):
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name="+")
     submitted_at = models.DateTimeField(null=True, blank=True)
+    # Who last approved this Mod to be run, and when, for a Mod approved here.
+    # Empty for any other document, and for a Mod approved before it arrived.
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name="+")
+    approved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["name", "slug"]

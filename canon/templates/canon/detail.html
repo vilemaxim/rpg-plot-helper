@@ -8,6 +8,7 @@
   {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
   {% if aliases %}<p class="aliases">Also called: {{ aliases|join:", " }}</p>{% endif %}
   {% if submitted_by %}<p>Submitted by {{ submitted_by.email }} on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
+  {% if approved_by and not may_approve %}<p>Approved by {{ approved_by.email }} on {{ approved_at|date:"j F Y" }}.</p>{% endif %}
   {% if sent_back %}
     <div class="sent-back warning">
       <p><strong>Sent back to its Mod Writer</strong>{% if sent_back.resolved_by %} by {{ sent_back.resolved_by.email }}{% endif %} on {{ sent_back.resolved_at|date:"j F Y" }}.</p>
@@ -42,6 +43,25 @@
         <li>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}, {{ flag.kind|lower }}: {{ flag.summary }} ({% with value=flag.report %}{% include "canon/link.html" %}{% endwith %}). {{ flag.resolution }}{% if flag.resolved_by %} by {{ flag.resolved_by.email }}{% endif %}{% if flag.resolved_at %} on {{ flag.resolved_at|date:"j F Y" }}{% endif %}{% if flag.note %}: {{ flag.note }}{% endif %}</li>
       {% endfor %}
     </ul>
+  {% endif %}
+  {% if may_revise %}
+    <p><a href="{% url 'canon-revise' world.pk document.slug %}">Revise this draft</a></p>
+  {% endif %}
+  {% if may_decide and may_approve %}
+    <form method="post" action="{% url 'canon-approve' world.pk document.slug %}" class="approve">
+      {% csrf_token %}
+      {% if needs_campaign %}
+        <div class="field">
+          <label for="campaign">It names no Campaign. The Campaign it will be run in</label>
+          <select id="campaign" name="campaign" required>
+            <option value="">Choose one</option>
+            {% for slug, name in campaigns.items %}<option value="{{ slug }}">{{ name }}</option>{% endfor %}
+          </select>
+        </div>
+      {% endif %}
+      <p>Approving it makes it Canon, ready to be run{% if flags %}. Its Flags stay open{% endif %}.</p>
+      <button type="submit">Approve this Mod</button>
+    </form>
   {% endif %}
   {% if can_be_reported_on %}
     <p><a href="{% url 'canon-report' world.pk document.slug %}">File an After-Action Report on this Mod</a></p>

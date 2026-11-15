@@ -75,8 +75,21 @@ def home(request):
 
 
 def is_plot_master(request, world):
-    return WorldRole.objects.filter(world=world, user=request.user,
-                                    role=Role.PLOT_MASTER).exists()
+    return holds_role(request, world, Role.PLOT_MASTER)
+
+
+def holds_role(request, world, *roles):
+    """Whether the person holds any of these roles in this World."""
+    return WorldRole.objects.filter(world=world, user=request.user, role__in=roles).exists()
+
+
+# Who may submit Mods to a World: its Mod Writers, and its Plot Masters, who
+# may do anything a Mod Writer may.
+WRITES_MODS = (Role.MOD_WRITER, Role.PLOT_MASTER)
+
+
+def may_write_mods(request, world):
+    return holds_role(request, world, *WRITES_MODS)
 
 
 @require_GET
@@ -87,6 +100,7 @@ def world(request, world_id):
         "world": world,
         "roles": [role.get_role_display() for role in roles],
         "is_plot_master": any(role.role == Role.PLOT_MASTER for role in roles),
+        "may_write_mods": any(role.role in WRITES_MODS for role in roles),
     })
 
 

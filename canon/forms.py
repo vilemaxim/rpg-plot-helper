@@ -1,6 +1,7 @@
 import re
 
 from django import forms
+from django.conf import settings
 
 # An LLM asked for a file often answers with the file inside a code fence, and
 # sometimes a line of its own before it. A person pasting the answer should not
@@ -21,22 +22,33 @@ class ImportForm(forms.Form):
     archive = forms.FileField(label="The World's .zip file")
 
 
-class ReportForm(forms.Form):
-    """An After-Action Report, pasted or uploaded: one or the other."""
+class FileForm(forms.Form):
+    """One file, pasted or uploaded: one or the other. `cleaned_data["contents"]`
+    is its text. `noun` is what the file is, for the labels and messages."""
+
+    noun = "file"
 
     text = forms.CharField(
-        label="Paste the report", required=False, strip=False,
+        required=False, strip=False,
         widget=forms.Textarea(attrs={"rows": 18, "spellcheck": "false"}))
     file = forms.FileField(label="Or choose its file", required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["text"].label = f"Paste the {self.noun}"
 
     def clean(self):
         cleaned = super().clean()
         pasted = (cleaned.get("text") or "").strip()
         uploaded = cleaned.get("file")
         if pasted and uploaded:
-            raise forms.ValidationError("Paste the report or choose its file, not both.")
+            raise forms.ValidationError(f"Paste the {self.noun} or choose its file, not both.")
         if not pasted and not uploaded:
-            raise forms.ValidationError("Paste the report or choose its file.")
+            raise forms.ValidationError(f"Paste the {self.noun} or choose its file.")
+        if uploaded and uploaded.size > settings.IMPORT_MAX_FILE_BYTES:
+            megabytes = settings.IMPORT_MAX_FILE_BYTES / (1024 * 1024)
+            raise forms.ValidationError(
+                f"{uploaded.name} is too large. The limit is {megabytes:g} MB.")
         if uploaded:
             try:
                 text = uploaded.read().decode("utf-8")
@@ -46,6 +58,14 @@ class ReportForm(forms.Form):
         else:
             text = cleaned["text"]
         # A browser sends a pasted line break as two characters, and a file
-        # saved on Windows has them too. A report is stored with one.
-        cleaned["report"] = unfenced(text.replace("\r\n", "\n"))
+        # saved on Windows has them too. A file is stored with one.
+        cleaned["contents"] = unfenced(text.replace("\r\n", "\n"))
         return cleaned
+
+
+class ReportForm(FileForm):
+    noun = "report"
+
+
+class ModForm(FileForm):
+    noun = "Mod"

@@ -14,8 +14,8 @@ from organizations.models import World
 
 from . import editing
 from .models import Document, Flag
-from .storing import parsed_into
-from .submitting import states
+from .storing import files_of, parsed_into
+from .submitting import mod_path, states
 
 
 class ResolutionRefused(Exception):
@@ -42,9 +42,8 @@ def dismiss(world, flag_id, user):
 
 
 def draft_path(mod):
-    """Where a draft lives in the World: its inbox. plotcanon's rule."""
-    folder = plotcanon.vocabularies()["mod_state_dirs"][states().draft][0]
-    return f"{folder}/{mod.slug}.md"
+    """Where a draft lives in the World: its inbox."""
+    return mod_path(states().draft, mod.slug)
 
 
 # A reason is a line or two for the Mod Writer, not a rewrite of the Mod.
@@ -75,7 +74,7 @@ def send_back(world, mod, reason, user):
             text = editing.replace(text, ["canon"], "proposed")
         except editing.CannotEdit as error:
             raise ResolutionRefused(f"The Mod's stored file could not be updated: {error}.")
-        files = dict(Document.objects.filter(world=world).values_list("path", "text"))
+        files = files_of(world)
         del files[mod.path]
         files[draft_path(mod)] = text
         whole = plotcanon.load_world(files)

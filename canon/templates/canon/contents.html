@@ -8,6 +8,9 @@
   {% if flags %}
     <p class="warning"><a href="{% url 'canon-flags' world.pk %}">{{ flags }} open Flag{{ flags|pluralize }}</a> on Mods that a reported change may affect</p>
   {% endif %}
+  {% if may_write_mods %}
+    <p><a href="{% url 'canon-submit-mod' world.pk %}">Submit a Mod</a></p>
+  {% endif %}
   {% if pending %}
     <p><a href="{% url 'canon-pending' world.pk %}">{{ pending }} Canon Change{{ pending|pluralize }} waiting to be decided</a></p>
   {% endif %}

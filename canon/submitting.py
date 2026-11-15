@@ -21,7 +21,7 @@ from organizations.models import World
 
 from . import editing
 from .models import CanonChange, Document, Flag
-from .storing import canon_changes_of, new_row, parsed_into
+from .storing import canon_changes_of, files_of, new_row, parsed_into
 
 REPORT = "after-action"
 PROPOSED = "proposed"
@@ -36,13 +36,18 @@ FRONTMATTER = re.compile(r"\A\ufeff?---\r?\n(.*?)\r?\n---", re.S)
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
-class ReportRefused(Exception):
-    """The report was not saved. `str()` says why. `errors` holds plotcanon's
-    findings, if that was the reason, as text to paste back into an LLM."""
+class Refused(Exception):
+    """A submitted file was not saved. `str()` says why. `errors` holds
+    plotcanon's findings, if that was the reason, as text to paste back into an
+    LLM."""
 
     def __init__(self, reason, errors=""):
         super().__init__(reason)
         self.errors = errors
+
+
+class ReportRefused(Refused):
+    """The report was not saved."""
 
 
 def top_level(text):
@@ -97,7 +102,7 @@ def with_state(text, state):
         raise ReportRefused("The Mod's stored file has no state that can be updated.") from None
 
 
-States = namedtuple("States", "draft finished in_progress reportable")
+States = namedtuple("States", "draft approved finished in_progress reportable")
 
 
 def states():
@@ -113,7 +118,22 @@ def states():
     draft = next(state for state in unfinished
                  if "inbox" in vocabulary["mod_state_dirs"].get(state, []))
     reportable = [state for state in unfinished if state != draft]
-    return States(draft, finished, in_progress, reportable)
+    approved = next(state for state in reportable
+                    if state not in vocabulary["mod_states_that_have_run"])
+    return States(draft, approved, finished, in_progress, reportable)
+
+
+def mod_path(state, slug, campaign=None):
+    """Where a Mod in this state lives in the World. plotcanon's rule: a draft
+    in the inbox, and a Mod approved to run in its Campaign's folder. The
+    folders are plotcanon's; filling in the Campaign is format knowledge it
+    should come to offer (#23)."""
+    folder = plotcanon.vocabularies()["mod_state_dirs"][state][0]
+    if "<campaign>" in folder:
+        if not campaign:
+            raise ValueError(f"a Mod that is {state} lives in its Campaign's folder")
+        folder = folder.replace("<campaign>", campaign)
+    return f"{folder}/{slug}.md"
 
 
 def can_be_reported_on(mod):
@@ -131,19 +151,29 @@ def state_after(mod, report):
     return mod.fields.get("state")
 
 
+def unreadable(text, noun, doc_type, called):
+    """Why a submitted file cannot be taken in, before plotcanon is asked
+    about it, or None. It must be text of a size that can be stored, and if it
+    says what type of document it is, that must be `doc_type`. `noun` and
+    `called` are what to call such a file in the reason."""
+    if len(text.encode("utf-8", errors="replace")) > settings.IMPORT_MAX_FILE_BYTES:
+        megabytes = settings.IMPORT_MAX_FILE_BYTES / (1024 * 1024)
+        return f"That {noun} is too large. The limit is {megabytes:g} MB."
+    if "\x00" in text:
+        return (f"That {noun} contains a null character, which text does not have. It may "
+                f"be damaged, or not really text.")
+    kind = said(text, "type")
+    if kind and kind != doc_type:
+        return f"That file is a `{kind}`. It is not {called}, which has `type: {doc_type}`."
+    return None
+
+
 def submit(world, mod, text, user):
     """File a report on `mod`, a stored Mod of `world`. Returns the report's
     `Document`. Raises `ReportRefused`, having saved nothing, if it cannot be."""
-    if len(text.encode("utf-8", errors="replace")) > settings.IMPORT_MAX_FILE_BYTES:
-        megabytes = settings.IMPORT_MAX_FILE_BYTES / (1024 * 1024)
-        raise ReportRefused(f"That report is too large. The limit is {megabytes:g} MB.")
-    if "\x00" in text:
-        raise ReportRefused("That report contains a null character, which text does not "
-                            "have. It may be damaged, or not really text.")
-    kind = said(text, "type")
-    if kind and kind != REPORT:
-        raise ReportRefused(f"That file is a `{kind}`. It is not an After-Action Report, "
-                            f"which has `type: {REPORT}`.")
+    reason = unreadable(text, "report", REPORT, "an After-Action Report")
+    if reason:
+        raise ReportRefused(reason)
 
     with transaction.atomic():
         # One submission at a time per World: each is checked against the
@@ -153,7 +183,7 @@ def submit(world, mod, text, user):
         mod = Document.objects.get(pk=mod.pk)
         if not can_be_reported_on(mod):
             raise ReportRefused(f"{mod.name} cannot be reported on in its present state.")
-        files = dict(Document.objects.filter(world=world).values_list("path", "text"))
+        files = files_of(world)
         path = path_for(text)
         if path in files:
             # plotcanon would take this as a new version of the stored file. A

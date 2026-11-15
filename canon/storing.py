@@ -25,6 +25,11 @@ def storable(value):
     return str(value)
 
 
+def files_of(world):
+    """A World's stored files as `{path: text}`, which is what plotcanon checks."""
+    return dict(Document.objects.filter(world=world).values_list("path", "text"))
+
+
 def name_of(document, plot_world):
     """What to call a document on a page: its title, or the first of its
     names, or failing both its id. An After-Action Report has neither, so it

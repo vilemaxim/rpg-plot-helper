@@ -18,5 +18,5 @@
   {% if is_plot_master %}
     <p><a href="{% url 'rename-world' world.pk %}">Rename this World</a></p>
   {% endif %}
-  {% world_contents world is_plot_master %}
+  {% world_contents world is_plot_master may_write_mods %}
 {% endblock %}

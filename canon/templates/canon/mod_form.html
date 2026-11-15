@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mod %}Revise {{ mod.name }}{% else %}Submit a Mod{% endif %} — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a>{% if mod %} › <a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a>{% endif %}</p>
+  <h1>{% if mod %}Revise {{ mod.name }}{% else %}Submit a Mod{% endif %}</h1>
+  {% if refused %}
+    <div class="refused">
+      <p><strong>Nothing was saved.</strong> {{ refused }}</p>
+      {% if errors %}
+        <p>Fix these and send it again. You can paste them into the LLM that wrote the Mod.</p>
+        <pre>{{ errors }}</pre>
+      {% endif %}
+    </div>
+  {% endif %}
+  {% if mod %}
+    <p>Paste the revised Mod file your LLM produced, or choose it. It must keep the id <code>{{ mod.slug }}</code>. It replaces the draft, which keeps its history.</p>
+  {% else %}
+    <p>Paste the Mod file your LLM produced, or choose it. It is checked against {{ world.name }} and saved as a draft. It may name people, places and factions {{ world.name }} does not have yet. A Plot Master approves it before it can be run.</p>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="field">
+      {{ form.text.errors }}
+      {{ form.text.label_tag }}
+      {{ form.text }}
+    </div>
+    <div class="field">
+      {{ form.file.errors }}
+      {{ form.file.label_tag }}
+      {{ form.file }}
+    </div>
+    <button type="submit">{% if mod %}Save the revision{% else %}Submit the Mod{% endif %}</button>
+  </form>
+{% endblock %}

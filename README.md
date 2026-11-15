@@ -107,10 +107,20 @@ Each decision is recorded in the change's row, in the report's stored file and, 
 A Plot Master resolves each Flag in one of three ways, from the Flags page or the flagged Mod's page:
 
 - **Dismiss it**, from the Flags page or the Mod's page, when the change does not matter to the Mod after all.
-- **Send the Mod back to its Mod Writer**, from the Mod's page, saying why. The Mod becomes a draft again and can no longer be run or reported on, and every open Flag on it is resolved with that reason. A draft is not Canon, so its stored file moves to the inbox and is marked `canon: proposed`. Only a Mod that has not been played yet can be sent back; one already played has reports that say so. There is not yet a way in the app to approve a draft again.
+- **Send the Mod back to its Mod Writer**, from the Mod's page, saying why. The Mod becomes a draft again and can no longer be run or reported on, and every open Flag on it is resolved with that reason. A draft is not Canon, so its stored file moves to the inbox and is marked `canon: proposed`. Only a Mod that has not been played yet can be sent back; one already played has reports that say so. Its Mod Writer can then revise it, and a Plot Master approve it again (see [Submitting and approving Mods](#submitting-and-approving-mods)).
 - **Reject the change** that raised it, from the review screen or the report's page. Every Flag that change raised is cleared, since what it reported did not happen.
 
 A resolved Flag is no longer listed or warned about, and stays on record on the Mod's page, with how it was resolved, by whom and when. Only a Plot Master of the World can resolve a Flag.
+
+## Submitting and approving Mods
+
+Mods are written in the Mod Writer's own LLM and submitted as a file ([ADR-0002](./docs/adr/0002-mods-and-reports-are-written-in-the-users-own-llm.md)). A World's Mod Writers and Plot Masters submit one from "Submit a Mod" on the World's page, once the World has Canon, pasting the file or choosing it.
+
+- **It arrives as a draft.** It is kept in the World's inbox, says `state: draft` and `canon: proposed` whatever the file claimed, and is not Canon. A draft cannot be run or reported on, and submitting one raises no Flags.
+- **It is checked first.** plotcanon checks it against the World as stored. If anything is wrong, nothing is saved and the errors are shown as text to paste back into the LLM, with what was pasted kept in the form. A draft may name people, places and factions the World does not have yet; plotcanon allows that in the inbox.
+- **Its id is its own.** A Mod whose id the World already uses is refused. To change a draft, revise it from its page with a file that keeps its id; the Mod Writer who submitted it, and the World's Plot Masters, can. A revision keeps the draft's history: who submitted it, its Flags, and who sent it back and why.
+
+A Plot Master approves a draft from its page, which makes it Canon and ready to be run. Its file moves to its Campaign's folder and says `state: approved` and `canon: approved`. A Mod that names no Campaign has one chosen as it is approved, and that is written into its file. The whole World is checked by plotcanon first, and nothing is saved if it finds an error, or a new warning on the Mod: a draft that names something the World does not have cannot be approved until it is revised. A Mod's open Flags stay open when it is approved. Its page says who approved it and when.
 
 ## Who may create an Organization
 

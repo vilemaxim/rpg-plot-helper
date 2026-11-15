@@ -8,9 +8,10 @@ register = template.Library()
 
 
 @register.inclusion_tag("canon/contents.html")
-def world_contents(world, may_import=False):
+def world_contents(world, may_import=False, may_write_mods=False):
     """What a World holds: each kind of document with how many there are. A
-    World with no Canon offers the import, to someone who may do it."""
+    World with no Canon offers the import, to someone who may do it, and one
+    with Canon offers submitting a Mod, to someone who may write one."""
     counts = dict(Document.objects.filter(organization=world.organization, world=world)
                   .values_list("kind").annotate(Count("pk")))
     kinds = [(address, label, counts.get(doc_type, 0))
@@ -18,4 +19,4 @@ def world_contents(world, may_import=False):
     pending = CanonChange.objects.pending(world).count()
     flags = Flag.objects.open_in(world).count()
     return {"world": world, "kinds": [k for k in kinds if k[2]], "total": sum(counts.values()),
-            "may_import": may_import, "pending": pending, "flags": flags}
+            "may_import": may_import, "may_write_mods": may_write_mods, "pending": pending, "flags": flags}

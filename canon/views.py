@@ -6,12 +6,10 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from organizations.views import is_plot_master, world_or_404
+from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import deciding, resolving
-
-from . import submitting
-from .forms import ImportForm, ReportForm
+from . import approving, deciding, intake, resolving, submitting
+from .forms import ImportForm, ModForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
 from .models import CanonChange, Document, Flag
@@ -117,8 +115,15 @@ def detail(request, world_id, kind, slug):
             organization=world.organization, world=world, mod=document,
             resolution=Flag.Resolution.SENT_BACK).select_related("resolved_by")
         .order_by("-resolved_at").first()
-        if doc_type == "mod" and document.fields.get("state") == submitting.states().draft
-        else None,
+        if doc_type == "mod" and is_draft(document) else None,
+        "may_approve": doc_type == "mod" and is_draft(document),
+        "needs_campaign": doc_type == "mod" and approving.needs_campaign(document),
+        "campaigns": approving.campaigns_of(world)
+        if doc_type == "mod" and is_draft(document) else {},
+        "approved_by": document.approved_by,
+        "approved_at": document.approved_at,
+        "may_revise": doc_type == "mod" and is_draft(document)
+        and may_revise(request, world, document),
         "may_send_back": doc_type == "mod"
         and document.fields.get("state") in submitting.states().reportable
         and not reported_on(world, document),
@@ -161,15 +166,74 @@ def report(request, world_id, slug):
     if not form.is_valid():
         return render(request, "canon/report.html", {**context, "form": form})
     try:
-        filed = submitting.submit(world, mod, form.cleaned_data["report"], request.user)
+        filed = submitting.submit(world, mod, form.cleaned_data["contents"], request.user)
     except submitting.ReportRefused as refused:
         # Give back what was sent, so it can be corrected and sent again.
-        again = ReportForm(initial={"text": form.cleaned_data["report"]})
+        again = ReportForm(initial={"text": form.cleaned_data["contents"]})
         return render(request, "canon/report.html",
                       {**context, "form": again, "refused": str(refused),
                        "errors": refused.errors})
     messages.success(request, "Report filed. Its Canon Changes are waiting to be decided.")
     return redirect("canon-detail", world_id=world.pk, kind="reports", slug=filed.slug)
+
+
+def is_draft(mod):
+    """Whether a Mod is a draft: submitted, and not yet approved to run."""
+    return mod.fields.get("state") == submitting.states().draft
+
+
+def may_revise(request, world, mod):
+    """Whether this person may revise this Mod while it is a draft: they are
+    a Plot Master, or the Mod Writer who submitted it."""
+    if is_plot_master(request, world):
+        return True
+    return mod.submitted_by_id == request.user.pk and may_write_mods(request, world)
+
+
+def mod_form(request, context, save):
+    """Show the form for a Mod file, or take one in with `save(text)`, which
+    returns the stored Mod. What was sent is given back if it is refused."""
+    if request.method == "GET":
+        return render(request, "canon/mod_form.html", {**context, "form": ModForm()})
+    form = ModForm(request.POST, request.FILES)
+    if not form.is_valid():
+        return render(request, "canon/mod_form.html", {**context, "form": form})
+    try:
+        saved = save(form.cleaned_data["contents"])
+    except intake.ModRefused as refused:
+        again = ModForm(initial={"text": form.cleaned_data["contents"]})
+        return render(request, "canon/mod_form.html",
+                      {**context, "form": again, "refused": str(refused),
+                       "errors": refused.errors})
+    messages.success(request, f"{saved.name} is saved as a draft. A Plot Master approves it "
+                              f"before it can be run.")
+    return redirect("canon-detail", world_id=saved.world_id, kind="mods", slug=saved.slug)
+
+
+@require_http_methods(["GET", "POST"])
+def submit_mod(request, world_id):
+    """Submit a new Mod, pasted or uploaded. For the World's Mod Writers and
+    Plot Masters, once it has Canon."""
+    world = world_or_404(request, world_id)
+    if not may_write_mods(request, world) or not documents_of(world).exists():
+        raise Http404("No such page")
+    return mod_form(request, {"world": world},
+                    lambda text: intake.submit_mod(world, text, request.user))
+
+
+@require_http_methods(["GET", "POST"])
+def revise(request, world_id, slug):
+    """Replace a draft Mod with a revised file. For the Mod Writer who
+    submitted it and the World's Plot Masters."""
+    world = world_or_404(request, world_id)
+    mod = mod_or_404(world, slug)
+    if not may_revise(request, world, mod):
+        raise Http404("No such page")
+    if not is_draft(mod):
+        messages.error(request, f"{mod.name} is not a draft, and only a draft can be revised.")
+        return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+    return mod_form(request, {"world": world, "mod": mod},
+                    lambda text: intake.revise(world, mod, text, request.user))
 
 
 def change_row(index, change):
@@ -332,6 +396,26 @@ def send_back(request, world_id, slug):
         messages.error(request, str(refused))
     else:
         messages.success(request, f"{mod.name} is a draft again, back with its Mod Writer.")
+    return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+
+
+@require_POST
+def approve(request, world_id, slug):
+    """Approve a draft Mod, so that it can be run. For the World's Plot
+    Masters only."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    mod = mod_or_404(world, slug)
+    try:
+        approving.approve(world, mod, request.user, campaign=request.POST.get("campaign"))
+    except approving.ApprovalRefused as refused:
+        messages.error(request, str(refused))
+        if refused.errors:
+            # plotcanon's findings, one to a line, to copy for the Mod Writer.
+            messages.error(request, refused.errors, extra_tags="findings")
+    else:
+        messages.success(request, f"{mod.name} is approved, and can be run.")
     return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
 
 

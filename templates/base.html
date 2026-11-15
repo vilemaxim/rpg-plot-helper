@@ -72,7 +72,7 @@
     {% endif %}
   </header>
   <main>
-    {% for message in messages %}<p class="message{% if message.tags %} {{ message.tags }}{% endif %}">{{ message }}</p>{% endfor %}
+    {% for message in messages %}{% if "findings" in message.tags %}<pre class="message {{ message.tags }}">{{ message }}</pre>{% else %}<p class="message{% if message.tags %} {{ message.tags }}{% endif %}">{{ message }}</p>{% endif %}{% endfor %}
     {% block content %}{% endblock %}
   </main>
 </body>
