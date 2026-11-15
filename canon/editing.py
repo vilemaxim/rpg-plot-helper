@@ -108,15 +108,8 @@ def set_key(text, path, key, new, after):
     end = offset + value.end_mark.index
     if node.flow_style:
         return text[:end] + f", {key}: {new}" + text[end:]
-    # Down the page: a new line after the line `after` ends on, so that a
-    # comment on that line stays with it, indented as `after` is.
-    newline = text.find("\n", end)
-    if newline == -1:
-        newline = len(text)
-    ending = "\r\n" if text[newline - 1:newline] == "\r" else "\n"
-    at = newline - 1 if ending == "\r\n" else newline
-    indent = " " * name.start_mark.column
-    return text[:at] + f"{ending}{indent}{key}: {new}" + text[at:]
+    # Down the page, indented as `after` is.
+    return line_after(text, end, name.start_mark.column, f"{key}: {new}")
 
 
 def remove_key(text, path, key):
@@ -144,13 +137,26 @@ def remove_key(text, path, key):
         raise CannotEdit(f"`{key}` begins its mapping and cannot be taken out")
     # Down the page: its whole line or lines, from the end of the line before.
     start = text.rfind("\n", 0, offset + name.start_mark.index)
-    newline = text.find("\n", offset + value.end_mark.index - 1)
+    start -= 1 if text[start - 1:start] == "\r" else 0
+    return text[:start] + text[line_end(text, offset + value.end_mark.index - 1):]
+
+
+def line_end(text, index):
+    """Where the line holding `index` ends: just before its line break, or at
+    the end of the text."""
+    newline = text.find("\n", index)
     if newline == -1:
         newline = len(text)
-    if text[newline - 1:newline] == "\r":
-        newline -= 1
-    start -= 1 if text[start - 1:start] == "\r" else 0
-    return text[:start] + text[newline:]
+    return newline - 1 if text[newline - 1:newline] == "\r" else newline
+
+
+def line_after(text, index, column, line):
+    """The file with `line` added on a new line of its own after the line
+    holding `index`, so that a comment on that line stays with it, indented
+    to `column` and ended the way that line is."""
+    at = line_end(text, index)
+    ending = "\r\n" if text[at:at + 1] == "\r" else "\n"
+    return text[:at] + f"{ending}{' ' * column}{line}" + text[at:]
 
 
 def quoted(words):
@@ -180,16 +186,9 @@ def add_to_list(text, field, item):
             return text[:at] + item + text[at:]
         at = offset + node.value[-1].end_mark.index
         return text[:at] + ", " + item + text[at:]
-    # Down the page: a new line after the last item's line, so that a comment
-    # on that line stays with it, indented as the other items are.
-    after = offset + node.value[-1].end_mark.index
-    newline = text.find("\n", after)
-    if newline == -1:
-        newline = len(text)
-    ending = "\r\n" if text[newline - 1:newline] == "\r" else "\n"
-    at = newline - 1 if ending == "\r\n" else newline
-    indent = " " * node.start_mark.column
-    return text[:at] + f"{ending}{indent}- {item}" + text[at:]
+    # Down the page, indented as the other items are.
+    return line_after(text, offset + node.value[-1].end_mark.index, node.start_mark.column,
+                      f"- {item}")
 
 
 def flow_list(items):
