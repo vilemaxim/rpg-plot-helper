@@ -65,7 +65,8 @@ Things to know:
 
 - **All or nothing.** The whole World is checked by plotcanon first. If anything in it is invalid, nothing is imported and the errors are shown, worded so they can be pasted back into the LLM that wrote the files.
 - **Only into an empty World.** A World that already has Canon cannot be imported into. An Organization Admin can create a new World for the purpose.
-- **Nothing touches the disk.** The upload is held in memory, and each of the World's documents is stored in Postgres exactly as it was uploaded. Other files in the zip, such as a README, are ignored.
+- **Nothing touches the disk.** The upload is held in memory, and each of the World's documents is stored in Postgres exactly as it was uploaded, as is its settings file, `world.yml`, if it has one at its root. Other files in the zip, such as a README, are ignored.
+- **The World's settings come with it.** The zip's `world.yml` replaces the one the World was given when it was created. A zip without one gives a World plotcanon's defaults: its Dry Run structure is `encouraged`, whatever the Organization's default.
 - **A zip is not trusted.** An upload over 20 MB is refused, as is a zip with more than 5,000 files, a single file over 1 MB, or more than 50 MB once unpacked; the limits are settings, and are enforced while unpacking, whatever sizes the zip claims. plotcanon itself refuses files that use YAML aliases, which can expand to exhaust memory. Pictures in a document are not shown, since loading one from another site would tell that site who is reading.
 - **The file format is plotcanon's.** plotcanon decides what is valid; this app stores and shows what it parsed ([ADR-0004](./docs/adr/0004-the-schema-lives-in-its-own-package-plotcanon.md)). To lay a page out, the app does know the names of some fields, such as a Mod's Features and a report's Canon Changes, and which fields hold a person's name and so are never links. That knowledge is in `canon/presenting.py`. The version of plotcanon in use is pinned in `pyproject.toml`.
 
@@ -151,9 +152,21 @@ Mods are written in the Mod Writer's own LLM and submitted as a file ([ADR-0002]
 
 - **It arrives as a draft.** It is kept in the World's inbox, says `state: draft` and `canon: proposed` whatever the file claimed, and is not Canon. A draft cannot be run or reported on, and submitting one raises no Flags.
 - **It is checked first.** plotcanon checks it against the World as stored. If anything is wrong, nothing is saved and the errors are shown as text to paste back into the LLM, with what was pasted kept in the form. A draft may name people, places and factions the World does not have yet; plotcanon allows that in the inbox.
+- **Its warnings are shown.** A Mod plotcanon warns about is still saved, and the warnings are shown as text to paste into the LLM, as they are when a draft is approved.
+- **Its Dry Run structure is checked as the World asks.** See [Dry Run structure](#dry-run-structure).
 - **Its id is its own.** A Mod whose id the World already uses is refused. To change a draft, revise it from its page with a file that keeps its id; its Mod Writer, and the World's Plot Masters, can. A revision keeps the draft's history: who submitted it, its Flags, and who sent it back and why.
 
 A Plot Master approves a draft from its page, which makes it Canon and ready to be run. Its file moves to its Campaign's folder and says `state: approved` and `canon: approved`. A Mod that names no Campaign has one chosen as it is approved, and that is written into its file. The whole World is checked by plotcanon first, and nothing is saved if it finds an error, or a new warning on the Mod: a draft that names something the World does not have cannot be approved until it is revised. A Mod's open Flags stay open when it is approved. Its page says who approved it and when.
+
+### Dry Run structure
+
+A Dry Run is built from the links a Mod's Hooks, scenes and Contests name, a convention that is part of plotcanon's file format ([ADR-0007](./docs/adr/0007-a-dry-run-is-built-from-the-mods-markdown.md)). Each World says how strictly it asks for that structure, and a Plot Master changes it from "Dry Run structure" on the World's page:
+
+- **`off`.** Mods are not checked for it.
+- **`encouraged`.** What is missing or broken is a warning: the Mod is saved, and the warnings are shown when it is submitted, revised and approved. A Mod with no structure at all is left alone.
+- **`required`.** The same findings are errors, and a Mod with no structure at all is refused. Every Mod in the World is checked, finished ones too, so a World can only be set to `required` once all of its Mods have the structure. Until then the change is refused and plotcanon's findings are shown, to paste into the LLM that wrote each Mod.
+
+The setting is kept in the World's settings file, `world.yml`, so an export carries it and larp-llm reads it too. A new World is given its Organization's default, which starts at `encouraged`; an Organization Admin changes it on the Organization page. The default is the app's own and is never written into a file, and changing it leaves existing Worlds as they are.
 
 ### Mod Writers
 
@@ -196,7 +209,7 @@ The data is stored the same way in both cases. See [ADR-0005](./docs/adr/0005-on
 An Organization Admin runs these from the Organization page, reached by clicking the Organization's name at the top of any page.
 
 - **The Organization's name.** A new Organization is called "My Organization". Rename it at the top of the Organization page. Links keep working after a rename.
-- **More Worlds.** Create one by name.
+- **More Worlds.** Create one by name. It is given the Organization's [Dry Run structure](#dry-run-structure), which you choose below the list of Worlds.
 - **Invitations.** Enter an email address. The person is emailed a link to the sign-in page with their address filled in. Once signed in with it they are shown the invitation and accept or decline; nobody is joined to an Organization without accepting. You can see who has not answered and who declined, and inviting an address again sends the email again.
 - **Roles.** A new member can open nothing until they are given a role. Roles are per World: Plot Master, Mod Writer and Mod Runner, given and removed on each World's people page. A person can open only the Worlds they hold a role in; an Organization Admin can open them all.
 - **A World's name.** This one is not the Organization Admin's to change: a World is renamed by one of its Plot Masters, from the link on the World's page. The first World is called "My first World". To rename a World you created later, give yourself Plot Master in it first.
