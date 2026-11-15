@@ -5,6 +5,9 @@
       <li><a href="{% url 'canon-list' world.pk address %}">{{ label }}</a> <span class="count">{{ count }}</span></li>
     {% endfor %}
   </ul>
+  {% if pending %}
+    <p><a href="{% url 'canon-pending' world.pk %}">{{ pending }} Canon Change{{ pending|pluralize }} waiting to be decided</a></p>
+  {% endif %}
 {% else %}
   <p>This World has no Canon yet.</p>
   {% if may_import %}

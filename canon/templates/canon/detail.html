@@ -7,6 +7,10 @@
   <h1>{{ document.name }}</h1>
   {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
   {% if aliases %}<p class="aliases">Also called: {{ aliases|join:", " }}</p>{% endif %}
+  {% if submitted_by %}<p>Submitted by {{ submitted_by.email }} on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
+  {% if can_be_reported_on %}
+    <p><a href="{% url 'canon-report' world.pk document.slug %}">File an After-Action Report on this Mod</a></p>
+  {% endif %}
 
   {% if facts %}
     <dl class="facts">

@@ -5,9 +5,7 @@ The zip is not trusted. It is bounded before and while it is unpacked, and
 whatever goes wrong reading it is reported to the person, not raised.
 """
 
-import datetime
 import io
-import math
 import zipfile
 import zlib
 
@@ -17,7 +15,8 @@ from django.db import transaction
 
 from organizations.models import World
 
-from .models import Document
+from .models import CanonChange, Document
+from .storing import canon_changes_of, new_row
 
 MAX_ID = Document._meta.get_field("slug").max_length
 MAX_PATH = Document._meta.get_field("path").max_length
@@ -118,43 +117,6 @@ def validated(files):
     return report
 
 
-def storable(value):
-    """A frontmatter value in a form the database can hold as JSON. YAML allows
-    values JSON does not: dates, not-a-number, binary data, sets."""
-    if isinstance(value, dict):
-        return {str(key): storable(inner) for key, inner in value.items()}
-    if isinstance(value, (list, tuple, set, frozenset)):
-        items = sorted(value, key=str) if isinstance(value, (set, frozenset)) else value
-        return [storable(inner) for inner in items]
-    if isinstance(value, float) and not math.isfinite(value):
-        return str(value)
-    if isinstance(value, (datetime.date, datetime.time)):
-        return value.isoformat()
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    return str(value)
-
-
-def name_of(document, world):
-    """What to call a document on a page: its title, or the first of its
-    names, or failing both its id. An After-Action Report has neither, so it
-    is called after its Mod and Event."""
-    if document.type == "after-action":
-        mod = world.get(document.fields.get("mod"))
-        event = world.get(document.fields.get("event"))
-        if mod is not None and event is not None:
-            return f"{name_of(mod, world)} at {name_of(event, world)}"
-    title = document.fields.get("title")
-    if isinstance(title, str) and title.strip():
-        return title.strip()
-    aliases = document.fields.get("aliases")
-    if isinstance(aliases, list) and aliases and str(aliases[0]).strip():
-        return str(aliases[0]).strip()
-    return str(document.id)
-
-
 def import_world(world, upload):
     """Import the World in an uploaded zip into `world`, which must hold no
     Canon yet. Returns the plotcanon report. Raises `ImportRefused`, having
@@ -182,18 +144,10 @@ def import_world(world, upload):
         if Document.objects.filter(world=world).exists():
             raise ImportRefused(f"{world.name} already has Canon. Someone may have "
                                 "imported into it a moment ago.")
-        Document.objects.bulk_create([
-            Document(
-                organization=world.organization,
-                world=world,
-                path=document.path,
-                kind=document.type,
-                slug=str(document.id),
-                name=name_of(document, report.world)[:300],
-                fields=storable(dict(document.fields)),
-                body=document.body,
-                text=report.world.files[document.path],
-            )
-            for document in report.world.documents
-        ])
+        rows = Document.objects.bulk_create([
+            new_row(world, document, report.world) for document in report.world.documents])
+        # The reports that came in already carry decisions; each of their
+        # Canon Changes goes on record with the one it has.
+        CanonChange.objects.bulk_create(
+            [change for row in rows for change in canon_changes_of(row)])
     return report

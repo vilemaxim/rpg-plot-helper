@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Canon Changes waiting — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>Canon Changes waiting to be decided</h1>
+  {% if changes %}
+    <p>{{ changes|length }} Canon Change{{ changes|length|pluralize }} waiting. These have been reported and are not Canon: nothing they say has changed until a Plot Master approves it.</p>
+    <table>
+      <thead><tr><th>What</th><th>Change</th><th>What happened</th><th>Reported in</th><th>Submitted</th></tr></thead>
+      <tbody>
+        {% for change in changes %}
+          <tr>
+            <td>{% with value=change.entity %}{% include "canon/link.html" %}{% endwith %}</td>
+            <td>{{ change.kind }}{% if change.moved %}: {{ change.before }} → {{ change.after }}{% endif %}</td>
+            <td>{{ change.summary }}</td>
+            <td>{% with value=change.report %}{% include "canon/link.html" %}{% endwith %}</td>
+            <td>{% if change.submitted_by %}{{ change.submitted_by.email }}, {{ change.submitted_at|date:"j M Y H:i" }}{% else %}—{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No Canon Changes are waiting. Every change that has been reported has been decided.</p>
+  {% endif %}
+{% endblock %}

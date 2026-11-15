@@ -5,6 +5,7 @@ one row. The file format belongs to the plotcanon package, which decides
 what is valid. This app stores what plotcanon parsed and shows it (ADR-0004).
 """
 
+from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
@@ -33,6 +34,11 @@ class Document(models.Model):
     fields = models.JSONField(encoder=DjangoJSONEncoder)
     body = models.TextField(blank=True)
     text = models.TextField()
+    # Who submitted this file and when, for one that was submitted on its own.
+    # Empty for a file that arrived as part of an imported World.
+    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name="+")
+    submitted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["name", "slug"]
@@ -44,3 +50,42 @@ class Document(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class CanonChangeQuerySet(models.QuerySet):
+    def pending(self, world):
+        """The Canon Changes of a World that nobody has decided yet. The filter
+        on the Organization repeats what the database already enforces."""
+        return self.filter(organization=world.organization, world=world, decision="proposed")
+
+
+class CanonChange(models.Model):
+    """One alteration to Canon that an After-Action Report proposes.
+
+    The report's file lists its changes; each also has a row here so that it
+    can be found, decided and pointed at on its own. `position` is the change's
+    place in the report's list, counting from 0. `entity` is the id of the
+    document it changes. `decision` says whether it is Canon: only an approved
+    change is.
+    """
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="canon_changes")
+    report = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="canon_changes")
+    position = models.PositiveIntegerField()
+    entity = models.CharField(max_length=200)
+    kind = models.CharField(max_length=40)
+    decision = models.CharField(max_length=40)
+    before = models.TextField(blank=True)
+    after = models.TextField(blank=True)
+    summary = models.TextField(blank=True)
+
+    objects = CanonChangeQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["report_id", "position"]
+        constraints = [
+            models.UniqueConstraint(fields=["report", "position"],
+                                    name="one_canon_change_per_place"),
+        ]
+        indexes = [models.Index(fields=["world", "decision"])]

@@ -69,6 +69,25 @@ Things to know:
 - **A zip is not trusted.** An upload over 20 MB is refused, as is a zip with more than 5,000 files, a single file over 1 MB, or more than 50 MB once unpacked; the limits are settings, and are enforced while unpacking, whatever sizes the zip claims. plotcanon itself refuses files that use YAML aliases, which can expand to exhaust memory. Pictures in a document are not shown, since loading one from another site would tell that site who is reading.
 - **The file format is plotcanon's.** plotcanon decides what is valid; this app stores and shows what it parsed ([ADR-0004](./docs/adr/0004-the-schema-lives-in-its-own-package-plotcanon.md)). To lay a page out, the app does know the names of some fields, such as a Mod's Features and a report's Canon Changes, and which fields hold a person's name and so are never links. That knowledge is in `canon/presenting.py`. The version of plotcanon in use is pinned in `pyproject.toml`.
 
+## Filing an After-Action Report
+
+Anyone who can open a World (anyone with a role in it, and its Organization Admins) can file a report on one of its Mods, from the link on the Mod's page. They paste the report file their LLM produced, or choose it. A Mod can take a report while it is approved or in progress, and can take several: one each time play stops.
+
+What happens to a report:
+
+- **It is checked first.** plotcanon checks it against the World as it is stored. If anything is wrong, nothing is saved and the errors are shown as text to paste back into the LLM. What was pasted is kept in the form.
+- **Its Canon Changes are listed as waiting.** Every change in a submitted report must say `decision: proposed`; only a Plot Master decides one. Each goes on record as proposed and appears on the World's "Canon Changes waiting to be decided" page. **Nothing in Canon changes** until a Plot Master approves it: an NPC a report says died is still alive on their page.
+- **Its Mod's state is brought up to date.** The Mod becomes finished if the report says `finished: true`, in progress if it says the Mod was played (`ran: true`) and has more to come, and stays as it was if it was not played. The Mod's stored file is changed to say so, and the whole World is checked again before anything is saved, so what is stored can always be exported as a World plotcanon accepts.
+- **It records who and when.** The report's page shows its Mod, its Event, its Mod Runner, the PCs who took part, and who submitted it.
+
+To try it, write the sample World's scripted reports to disk alongside the World, and file them in order from each Mod's page:
+
+```sh
+uv run plotcanon sample --write demo --script demo-script
+```
+
+Approving and rejecting Canon Changes, and Flags on the Mods a change affects, are the next pieces to be built.
+
 ## Who may create an Organization
 
 One setting, `OPEN_SIGN_UP`, decides this. It is read from the environment.

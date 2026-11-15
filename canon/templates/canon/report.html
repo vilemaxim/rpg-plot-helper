@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Report on {{ mod.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a></p>
+  <h1>File an After-Action Report</h1>
+  {% if not can_be_reported_on %}
+    <p><strong>{{ mod.name }} is {{ state|lower }}</strong>, so it cannot take a report. A report can be filed on a Mod that is approved or in progress.</p>
+  {% else %}
+    {% if refused %}
+      <div class="refused">
+        <p><strong>Nothing was saved.</strong> {{ refused }}</p>
+        {% if errors %}
+          <p>Fix these and send it again. You can paste them into the LLM that wrote the report.</p>
+          <pre>{{ errors }}</pre>
+        {% endif %}
+      </div>
+    {% endif %}
+    <p>Paste the report file your LLM produced, or choose it. It is checked against {{ world.name }} first. If it is valid it is saved, each Canon Change in it is listed as waiting to be decided, and {{ mod.name }} becomes in progress if it was played and has more to come, or finished if the report says the Mod finished. Nothing in Canon changes until a Plot Master approves it.</p>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <div class="field">
+        {{ form.text.errors }}
+        {{ form.text.label_tag }}
+        {{ form.text }}
+      </div>
+      <div class="field">
+        {{ form.file.errors }}
+        {{ form.file.label_tag }}
+        {{ form.file }}
+      </div>
+      <button type="submit">File the report</button>
+    </form>
+  {% endif %}
+{% endblock %}
