@@ -94,8 +94,8 @@ wheels = [
 
 [[package]]
 name = "plotcanon"
-version = "0.4.0"
-source = { git = "https://github.com/vilemaxim/plotcanon?rev=v0.4.0#e5f930c5af7cb69ac1b5ec13b6d431b05cdb9710" }
+version = "0.4.1"
+source = { git = "https://github.com/vilemaxim/plotcanon?rev=v0.4.1#898457cccf7ddfafc325e190283baef4c3acf69e" }
 dependencies = [
     { name = "pyyaml" },
 ]
@@ -236,7 +236,7 @@ requires-dist = [
     { name = "django-sesame", specifier = ">=3.2.5" },
     { name = "markdown", specifier = ">=3.11.3" },
     { name = "nh3", specifier = ">=0.3.7" },
-    { name = "plotcanon", git = "https://github.com/vilemaxim/plotcanon?rev=v0.4.0" },
+    { name = "plotcanon", git = "https://github.com/vilemaxim/plotcanon?rev=v0.4.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.9" },
 ]
 
