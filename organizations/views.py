@@ -120,9 +120,11 @@ def rename_world(request, world_id):
 
 # ── The Organization: its Worlds, its people, invitations ───────────────────
 
-def organization_page(request, *, name_form=None, world_form=None, invitation_form=None):
+def organization_page(request, *, name_form=None, world_form=None, invitation_form=None,
+                      refused=None):
     organization = request.organization
     return render(request, "organizations/organization.html", {
+        "refused": refused,
         "name_form": name_form or NameForm(initial={"name": organization.name}),
         "worlds": World.objects.filter(organization=organization),
         "memberships": (Membership.objects.filter(organization=organization)
@@ -202,6 +204,78 @@ def invite(request):
         defaults={"invited_by": request.user, "accepted_at": None, "declined_at": None})
     send_invitation(request, invitation)
     return redirect("organization")
+
+
+@organization_admin_only
+@require_POST
+def withdraw_invitation(request, invitation_id):
+    """Take back an invitation nobody has answered yet. The row goes, so
+    signing in with the address no longer offers it, and the address can be
+    invited again later."""
+    withdrawn, _ = (Invitation.objects.filter(organization=request.organization, pk=invitation_id)
+                    .waiting().delete())
+    if not withdrawn:
+        raise Http404("No such invitation")
+    return redirect("organization")
+
+
+def membership_or_404(request, membership_id):
+    """A Membership of the Organization being worked in."""
+    membership = (Membership.objects.filter(organization=request.organization)
+                  .select_related("user").filter(pk=membership_id).first())
+    if membership is None:
+        raise Http404("No such member")
+    return membership
+
+
+@organization_admin_only
+@require_POST
+def remove_member(request, membership_id):
+    """Remove someone from the Organization. Their roles in its Worlds go with
+    the Membership (see migration 0004); their account and any other
+    Organization they belong to are untouched. An Organization Admin may
+    remove themselves, as long as another remains."""
+    membership = membership_or_404(request, membership_id)
+    if is_only_admin(membership):
+        return refuse_last_admin(request, membership)
+    membership.delete()
+    if membership.user_id == request.user.pk:
+        request.session.pop(tenancy.SESSION_KEY, None)
+        signup.give_an_organization_if_due(request.user)
+        return redirect("home")
+    return redirect("organization")
+
+
+@organization_admin_only
+@require_POST
+def make_admin(request, membership_id):
+    membership = membership_or_404(request, membership_id)
+    membership.is_admin = True
+    membership.save(update_fields=["is_admin"])
+    return redirect("organization")
+
+
+@organization_admin_only
+@require_POST
+def stop_admin(request, membership_id):
+    membership = membership_or_404(request, membership_id)
+    if is_only_admin(membership):
+        return refuse_last_admin(request, membership)
+    membership.is_admin = False
+    membership.save(update_fields=["is_admin"])
+    if membership.user_id == request.user.pk:
+        # The Organization page is no longer theirs to open.
+        return redirect("home")
+    return redirect("organization")
+
+
+def refuse_last_admin(request, membership):
+    """An Organization always keeps one Organization Admin, or nobody could run
+    it, and with sign-up closed nobody could get in to fix it (ADR-0005)."""
+    who = "You are" if membership.user_id == request.user.pk else f"{membership.user.email} is"
+    return organization_page(
+        request, refused=f"{who} the only Organization Admin of {request.organization.name}. "
+                "Make someone else Organization Admin first.")
 
 
 @require_POST

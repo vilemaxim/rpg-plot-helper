@@ -30,9 +30,20 @@
   </form>
 
   <h2>People</h2>
+  {% if refused %}<p class="errorlist"><strong>{{ refused }}</strong></p>{% endif %}
   <ul>
     {% for membership in memberships %}
-      <li>{{ membership.user.email }}{% if membership.is_admin %} — Organization Admin{% endif %}</li>
+      <li>
+        {{ membership.user.email }}{% if membership.is_admin %} — Organization Admin{% endif %}
+        <form method="post" action="{% url membership.is_admin|yesno:'stop-admin,make-admin' membership.pk %}" class="inline">
+          {% csrf_token %}
+          <button type="submit">{% if membership.is_admin %}No longer Organization Admin{% else %}Make Organization Admin{% endif %}</button>
+        </form>
+        <form method="post" action="{% url 'remove-member' membership.pk %}" class="inline">
+          {% csrf_token %}
+          <button type="submit">Remove</button>
+        </form>
+      </li>
     {% endfor %}
   </ul>
   <p>Roles are given per World, on each World's people page.</p>
@@ -40,7 +51,15 @@
   {% if invitations %}
     <h3>Invited, not yet joined</h3>
     <ul>
-      {% for invitation in invitations %}<li>{{ invitation.email }}</li>{% endfor %}
+      {% for invitation in invitations %}
+        <li>
+          {{ invitation.email }}
+          <form method="post" action="{% url 'withdraw-invitation' invitation.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit">Withdraw</button>
+          </form>
+        </li>
+      {% endfor %}
     </ul>
   {% endif %}
 
