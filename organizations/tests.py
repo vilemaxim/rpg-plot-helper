@@ -9,12 +9,16 @@ from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import include, path
 
 from accounts.models import User
+from plothelper import limits
 from organizations import tenancy
 from organizations.models import Membership, Organization, World, WorldRole
 
 
 def sign_in(email):
-    """A browser signed in as this person, following the emailed link."""
+    """A browser signed in as this person, following the emailed link. Each
+    call stands for a visit of its own, so the limits on asking for links
+    (tested in accounts/tests.py) start over."""
+    limits.LimitCount.objects.all().delete()
     client = Client()
     client.post("/sign-in/", {"email": email})
     link = re.search(r"http://testserver(/sign-in/link/\S+)", mail.outbox[-1].body).group(1)

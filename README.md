@@ -98,7 +98,7 @@ A Mod Runner does not need an account. A Plot Master creates a private link for 
 
 - **Shown once.** The link holds a long random secret, and only its hash is kept, so it is shown once, when it is created. A lost link is replaced by creating another.
 - **It works while the Mod can be run**: while it is approved or in progress, and until a Plot Master turns it off from the Mod's page. A finished or shelved Mod's links open nothing.
-- **Guessing is limited.** An address that presents 20 secrets no link has in 15 minutes is refused for the rest of that time (`MOD_LINK_FAILURES_ALLOWED`, `MOD_LINK_FAILURE_WINDOW`); reloading a link that has stopped working does not count. Each link takes at most 10 reports an hour, saved or not (`MOD_LINK_REPORTS_ALLOWED`, `MOD_LINK_REPORT_WINDOW`). The counts are kept in Django's cache, which is per process unless a shared cache is configured, and behind a proxy the address is the proxy's until #16 settles how to read the visitor's.
+- **Guessing is limited.** An address that presents 20 secrets no link has in 15 minutes is refused for the rest of that time (`MOD_LINK_FAILURES_ALLOWED`, `MOD_LINK_FAILURE_WINDOW`); reloading a link that has stopped working does not count. Each link takes at most 10 reports an hour, saved or not (`MOD_LINK_REPORTS_ALLOWED`, `MOD_LINK_REPORT_WINDOW`). The counts are kept in Postgres and shared by every process, and an address is read as sign-in reads it (see [Limits on sign-in](#limits-on-sign-in)).
 - **Only the Mod.** A refused report shows only plotcanon's findings about the report itself, with any other document's path taken out. A finding can still say whether an id it names exists, which is why reports through a link are limited.
 - **The secret is in the address.** It is never put in a message, cookie or session, but a web server's access log records addresses; keep those logs as private as the data.
 - **The database opens one link.** A visitor has no Organization, so the table of links lets a request see the single link whose secret's hash it presents, and nothing else; the request then works in that link's Organization ([migration 0013](./canon/migrations/0013_mod_links_kept_apart.py)).
@@ -156,6 +156,19 @@ A Mod's file names its writer by a handle, such as `mod_writer: sam`, which is a
 - **A draft can be reassigned** by a Plot Master, from its page, to anyone with the Mod Writer or Plot Master role in the World. The page says who reassigned it and when. This wins over both of the above.
 
 A Mod's page shows its Mod Writer. Only its Mod Writer, or a Plot Master, can revise a draft. When a Mod is sent back, its Mod Writer is emailed which Mod, who sent it back, why, and a link to it, and their drafts are listed for them on the World's page, marked if they were sent back. None of this is written into any file: accounts never appear in files ([ADR-0001](./docs/adr/0001-two-versions-one-schema-owned-by-larp-llm.md)).
+
+## Limits on sign-in
+
+Asking for a sign-in link sends an email, so it is limited, or a stranger could use the app to flood someone's inbox or fill the database with accounts.
+
+- **Per requester:** 10 links an hour from one network address, an IPv4 address or an IPv6 /64 network (`SIGN_IN_LINKS_PER_REQUESTER`, `SIGN_IN_REQUESTER_WINDOW`).
+- **Per email address:** one link every 5 minutes (`SIGN_IN_LINKS_PER_ADDRESS`, `SIGN_IN_ADDRESS_WINDOW`). An email address is counted only for a requester within its own limit, so someone over theirs cannot keep a stranger from getting a link.
+- **The same page either way.** Someone over a limit sees "Check your email" like anyone else, and no email is sent. The email is sent before the page returns, so that none is lost on hosting that stops once a response is sent; the cost is that the page is slower when an email goes, which could tell someone timing it whether one did.
+- **No account is kept for an email address that never signs in.** Asking makes an account; one that has not signed in a day later (`SIGN_IN_UNUSED_ACCOUNT_AGE`), and that nobody has deactivated, is removed the next time anyone asks for a link, or by `uv run python manage.py remove_unused_accounts`, which can be run on a schedule.
+- **A link works once**, even if it is used twice at the same moment.
+- **Behind a proxy**, set `TRUSTED_PROXIES` to how many of your own proxies stand in front of the app, and a requester's network address is read from `X-Forwarded-For`. Left at 0, that header is ignored, since anyone can write it.
+
+The counts are kept in Postgres and shared by every process. What was counted is kept as a hash, not as it was given, though a guessable value such as an email address can be found from its hash by trying ([ADR-0003](./docs/adr/0003-django-and-postgres-in-one-codebase.md)). Private links use the same counts.
 
 ## Who may create an Organization
 

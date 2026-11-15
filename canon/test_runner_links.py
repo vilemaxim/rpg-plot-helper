@@ -4,7 +4,6 @@ sample World and script."""
 
 import re
 
-from django.core.cache import cache
 from django.test import override_settings
 
 from canon.models import CanonChange, Document, ModLink
@@ -17,10 +16,6 @@ VIGIL_MOD = "storm-moon-vigil"
 
 class LinkTest(ResolvingTest):
     """The stair report has been filed, so the warrant Mod has open Flags."""
-
-    def setUp(self):
-        super().setUp()
-        cache.clear()
 
     def links_page(self, mod):
         return f"{self.mod_page(mod)}links/"

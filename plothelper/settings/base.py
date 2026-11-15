@@ -100,3 +100,18 @@ MOD_LINK_FAILURES_ALLOWED = 20
 MOD_LINK_FAILURE_WINDOW = 15 * 60
 MOD_LINK_REPORTS_ALLOWED = 10
 MOD_LINK_REPORT_WINDOW = 60 * 60
+
+# Sign-in links (accounts/views.py): how many one address may be sent, and
+# one requester may ask for, in how many seconds. A person who is over a limit
+# sees the same page as anyone, and no email is sent. An account that asked
+# for a link and never used one is removed after SIGN_IN_UNUSED_ACCOUNT_AGE.
+SIGN_IN_LINKS_PER_ADDRESS = 1
+SIGN_IN_ADDRESS_WINDOW = 5 * 60
+SIGN_IN_LINKS_PER_REQUESTER = 10
+SIGN_IN_REQUESTER_WINDOW = 60 * 60
+SIGN_IN_UNUSED_ACCOUNT_AGE = timedelta(days=1)
+
+# How many proxies of our own stand in front of the app, such as a load
+# balancer. With none, a request's address is the one it came from; with
+# some, it is read from X-Forwarded-For. Used by every limit.
+TRUSTED_PROXIES = 0

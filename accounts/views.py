@@ -10,6 +10,8 @@ from django.views.decorators.http import require_http_methods, require_POST
 from sesame import settings as link_settings
 from sesame.utils import get_token
 
+from plothelper import limits
+
 from .forms import SignInForm
 from .models import User
 
@@ -31,6 +33,8 @@ def send_sign_in_link(request, user, next_url):
         query["next"] = next_url
     link = request.build_absolute_uri(f"{reverse('sign-in-link')}?{urlencode(query)}")
     minutes = int(link_settings.MAX_AGE // 60)
+    # Sent while the request runs, not after it: on hosting that stops an
+    # instance once its response is sent, mail sent afterwards can be lost.
     send_mail(
         subject="Your sign-in link for RPG Plot Helper",
         message=render_to_string("accounts/sign_in_email.txt",
@@ -38,6 +42,19 @@ def send_sign_in_link(request, user, next_url):
         from_email=None,
         recipient_list=[user.email],
     )
+
+
+def within_limits(request, email):
+    """Count this request against the limits on sign-in links, and say
+    whether a link may be sent. The requester is counted first, and the
+    email address only if the requester is within its limit: otherwise
+    someone over their own limit could keep counting a stranger's address
+    and stop them ever getting a link."""
+    if not limits.take("sign-in-requester", limits.requester(request),
+                       settings.SIGN_IN_LINKS_PER_REQUESTER, settings.SIGN_IN_REQUESTER_WINDOW):
+        return False
+    return limits.take("sign-in-address", email, settings.SIGN_IN_LINKS_PER_ADDRESS,
+                       settings.SIGN_IN_ADDRESS_WINDOW)
 
 
 @login_not_required
@@ -62,10 +79,16 @@ def sign_in(request):
     if not form.is_valid():
         return render(request, "accounts/sign_in.html", {"form": form})
 
-    user = User.objects.for_email(form.cleaned_data["email"])
+    User.objects.remove_unused()
+    email = User.objects.tidy(form.cleaned_data["email"])
+    response = render(request, "accounts/link_sent.html", {"email": email})
+    if not within_limits(request, email):
+        # The same page, and no email, so being limited tells no one anything.
+        return response
+    user = User.objects.for_email(email)
     if user.is_active:
         send_sign_in_link(request, user, form.cleaned_data["next"])
-    return render(request, "accounts/link_sent.html", {"email": user.email})
+    return response
 
 
 @login_not_required
@@ -78,6 +101,14 @@ def follow_link(request):
         return render(request, "accounts/follow_link.html")
 
     user = authenticate(request, sesame=request.GET.get(TOKEN, ""))
+    if user is not None:
+        # A link works once: signing in changes `last_login`, which ends it.
+        # Two requests with one link at the same moment could both check it
+        # before either signs in, so the second waits here for the first and
+        # finds the link already used.
+        locked = User.objects.select_for_update().filter(pk=user.pk).first()
+        if locked is None or locked.last_login != user.last_login:
+            user = None
     if user is None:
         return render(request, "accounts/link_expired.html", status=400)
     login(request, user)

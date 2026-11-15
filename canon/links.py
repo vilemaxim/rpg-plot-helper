@@ -75,26 +75,20 @@ def works(link):
     return link.turned_off_at is None and can_be_reported_on(link.mod)
 
 
-def guesses_key(request):
-    # The address the request came from. Behind a proxy this is the proxy's,
-    # unless the deployment passes the visitor's on (see #16).
-    return f"mod-link-guesses:{request.META.get('REMOTE_ADDR', '')}"
-
-
 def opened(request, secret):
     """The link this secret opens, with its Mod, if it still works, or None.
     On success the request is told the link's Organization and works in it
     from then on with no person set: everything it shows must come from the
     link's Mod. Raises `TooMany` if this address has guessed too often lately."""
-    key = guesses_key(request)
-    if limits.reached(key, settings.MOD_LINK_FAILURES_ALLOWED):
+    address = limits.requester(request)
+    if limits.reached("mod-link-guesses", address, settings.MOD_LINK_FAILURES_ALLOWED):
         raise TooMany("Too many links that open nothing have come from here. Try again "
                       "later.")
     token_hash = ModLink.hash_of(secret)
     with tenancy.link_presented(token_hash):
         link = ModLink.objects.filter(token_hash=token_hash).first()
     if link is None:
-        limits.count(key, settings.MOD_LINK_FAILURE_WINDOW)
+        limits.count("mod-link-guesses", address, settings.MOD_LINK_FAILURE_WINDOW)
         return None
     tenancy.set_context(organization=link.organization_id)
     link = ModLink.objects.select_related("mod", "world", "world__organization") \
@@ -104,9 +98,9 @@ def opened(request, secret):
 
 def count_report(link):
     """Count a report sent through this link, saved or not. Raises `TooMany`
-    once the link has sent its share for now."""
-    key = f"mod-link-reports:{link.pk}"
-    if limits.reached(key, settings.MOD_LINK_REPORTS_ALLOWED):
+    once the link has sent its share for now. Counted before it is checked,
+    so reports sent at the same moment cannot all slip under the limit."""
+    if not limits.take("mod-link-reports", link.pk, settings.MOD_LINK_REPORTS_ALLOWED,
+                       settings.MOD_LINK_REPORT_WINDOW):
         raise TooMany("Too many reports have been sent through this link lately. Try again "
                       "later, or ask a Plot Master.")
-    limits.count(key, settings.MOD_LINK_REPORT_WINDOW)
