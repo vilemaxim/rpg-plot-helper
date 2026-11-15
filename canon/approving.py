@@ -42,8 +42,10 @@ def needs_campaign(mod):
 
 def approve(world, mod, user, campaign=None):
     """Approve a draft Mod. `campaign` is used only if the Mod names none, and
-    must then be one of the World's. Raises `ApprovalRefused`, having saved
-    nothing, if it cannot be approved."""
+    must then be one of the World's. Returns the Mod and plotcanon's warnings
+    about it as approved, as text: those it already had as a draft, such as
+    the Dry Run convention's under `encouraged`. Raises `ApprovalRefused`,
+    having saved nothing, if it cannot be approved."""
     with transaction.atomic():
         World.objects.select_for_update().get(pk=world.pk)
         mod = Document.objects.get(pk=mod.pk)
@@ -88,4 +90,4 @@ def approve(world, mod, user, campaign=None):
         mod = parsed_into(mod, whole.world.get(mod.slug), whole.world)
         mod.approved_by, mod.approved_at = user, timezone.now()
         mod.save()
-    return mod
+    return mod, "\n".join(str(w) for w in whole.warnings if w.path == path)

@@ -6,7 +6,9 @@ import re
 
 import plotcanon
 
+from canon.test_approving import DAUGHTER
 from canon.test_exporting import unzipped
+from canon.test_mod_submissions import NEW, SubmissionTest, a_mod
 from canon.test_reports import ReportTest
 from canon.tests import CanonTest
 
@@ -150,6 +152,104 @@ class TheOrganizationsDefault(DryRunStructureTest):
         self.assertEqual(sam.post(self.ORGANIZATION_SETTING, {"structure": "off"}).status_code,
                          404)
         self.assertEqual(self.default_shown(), ["encouraged"])
+
+
+HOOKED = {"- She asks a player to carry the message.":
+          "- She asks a player to carry the message → [[The message]]"}
+# Structure throughout: the Hook leads to the first scene, each scene to the
+# next, and the last to an outcome.
+STRUCTURED = {
+    **HOOKED,
+    "**If players do nothing:** it is not delivered.":
+        "**If players do nothing:** it is not delivered → [[The answer]]",
+    "**If players do nothing:** the captain tells her the truth.":
+        "**If players do nothing:** the captain tells her the truth → [[The truth is told]]",
+    "The feud ends, deepens, or goes on unspoken.": "### The truth is told\n\nThe feud ends.",
+}
+GAP = "Dry Run: scene `The answer` has no exits"
+UNSTRUCTURED = "Dry Run: the body has no Dry Run structure"
+
+
+class DryRunChecks(SubmissionTest):
+    """Submitting, revising and approving a Mod are checked against the
+    World's setting. The sample World encourages the structure."""
+
+    def required_world(self):
+        """A second World that requires the structure, holding only the
+        sample World's Campaigns, in which Sam writes Mods."""
+        second = self.make_world("Second World")
+        self.give("mira@example.com", "plot-master", world=second)
+        self.give("sam@example.com", "mod-writer", world=second)
+        files = {path: text for path, text in plotcanon.sample_world().items()
+                 if path.startswith("canon/campaigns/")}
+        files["world.yml"] = settings_file("required")
+        self.import_files(files, world=second)
+        return second
+
+    def test_under_encouraged_a_mod_with_gaps_is_saved_and_its_warnings_shown(self):
+        response = self.submit_mod(a_mod(**HOOKED))
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(NEW))
+        self.assertContains(response, GAP)
+        self.assertContains(response, "<pre")
+
+    def test_under_encouraged_a_mod_with_no_structure_is_left_alone(self):
+        response = self.submit_mod(a_mod())
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(NEW))
+        self.assertNotContains(response, "Dry Run:")
+
+    def test_a_revision_shows_its_warnings_too(self):
+        self.submit_mod(a_mod())
+
+        response = self.revise(NEW, a_mod(**HOOKED))
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(NEW))
+        self.assertContains(response, GAP)
+
+    def test_approving_shows_the_warnings_that_remain(self):
+        self.revise(DAUGHTER, a_mod(slug=DAUGHTER, **HOOKED), by=self.mira)
+
+        response = self.approve(DAUGHTER, campaign="tideward")
+
+        self.assertEqual(self.state_shown(DAUGHTER), "Approved")
+        self.assertContains(response, GAP)
+
+    def test_under_off_none_are_shown(self):
+        self.choose("off")
+
+        response = self.submit_mod(a_mod(**HOOKED))
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(NEW))
+        self.assertNotContains(response, "Dry Run:")
+
+    def test_under_required_a_mod_with_no_structure_is_refused(self):
+        second = self.required_world()
+
+        response = self.sam.post(f"{second}submit-mod/", {"text": a_mod()}, follow=True)
+
+        self.assertContains(response, "Nothing was saved")
+        self.assertContains(response, UNSTRUCTURED)
+
+    def test_under_required_a_mod_with_gaps_is_refused(self):
+        second = self.required_world()
+
+        response = self.sam.post(f"{second}submit-mod/", {"text": a_mod(**HOOKED)}, follow=True)
+
+        self.assertContains(response, "Nothing was saved")
+        self.assertContains(response, GAP)
+
+    def test_under_required_a_mod_with_structure_throughout_is_saved(self):
+        second = self.required_world()
+
+        response = self.sam.post(f"{second}submit-mod/", {"text": a_mod(**STRUCTURED)},
+                                 follow=True)
+
+        self.assertEqual(response.redirect_chain[-1][0], f"{second}mods/{NEW}/")
+        self.assertNotContains(response, "Dry Run:")
+
+    choose = DryRunStructureTest.choose
+    setting_page = DryRunStructureTest.setting_page
 
 
 class AFirstWorld(CanonTest):

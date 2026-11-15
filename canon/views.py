@@ -335,16 +335,26 @@ def may_revise(request, world, mod):
     return writers.is_writer_of(mod, request.user) and may_write_mods(request, world)
 
 
+def show_warnings(request, warnings):
+    """plotcanon's warnings about a Mod that was saved anyway, one to a line,
+    to copy for the Mod Writer's LLM."""
+    if warnings:
+        messages.warning(request, "plotcanon noted these about it. They do not stop it, "
+                                  "but are worth a look:")
+        messages.warning(request, warnings, extra_tags="findings")
+
+
 def mod_form(request, context, save):
     """Show the form for a Mod file, or take one in with `save(text)`, which
-    returns the stored Mod. What was sent is given back if it is refused."""
+    returns the stored Mod and plotcanon's warnings about it. What was sent is
+    given back if it is refused."""
     if request.method == "GET":
         return render(request, "canon/mod_form.html", {**context, "form": ModForm()})
     form = ModForm(request.POST, request.FILES)
     if not form.is_valid():
         return render(request, "canon/mod_form.html", {**context, "form": form})
     try:
-        saved = save(form.cleaned_data["contents"])
+        saved, warnings = save(form.cleaned_data["contents"])
     except intake.ModRefused as refused:
         again = ModForm(initial={"text": form.cleaned_data["contents"]})
         return render(request, "canon/mod_form.html",
@@ -352,6 +362,7 @@ def mod_form(request, context, save):
                        "errors": refused.errors})
     messages.success(request, f"{saved.name} is saved as a draft. A Plot Master approves it "
                               f"before it can be run.")
+    show_warnings(request, warnings)
     return redirect("canon-detail", world_id=saved.world_id, kind="mods", slug=saved.slug)
 
 
@@ -716,7 +727,8 @@ def approve(request, world_id, slug):
         raise Http404("No such page")
     mod = mod_or_404(world, slug)
     try:
-        approving.approve(world, mod, request.user, campaign=request.POST.get("campaign"))
+        _, warnings = approving.approve(world, mod, request.user,
+                                        campaign=request.POST.get("campaign"))
     except approving.ApprovalRefused as refused:
         messages.error(request, str(refused))
         if refused.errors:
@@ -724,6 +736,7 @@ def approve(request, world_id, slug):
             messages.error(request, refused.errors, extra_tags="findings")
     else:
         messages.success(request, f"{mod.name} is approved, and can be run.")
+        show_warnings(request, warnings)
     return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
 
 

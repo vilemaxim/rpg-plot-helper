@@ -55,7 +55,10 @@ def screened(text):
 
 def checked(files, path, text):
     """plotcanon's verdict on the World with `text` at `path`, which must be a
-    Mod. Raises `ModRefused` if it is not valid."""
+    Mod, and its warnings about the Mod, as text. Raises `ModRefused` if it is
+    not valid. How strictly the Mod must follow the Dry Run convention is the
+    World's setting, in its settings file among `files`: under `encouraged`
+    the convention's findings are warnings, under `required` errors."""
     try:
         report = plotcanon.check_file(files, path, text)
     except (ValueError, TypeError) as error:
@@ -69,11 +72,12 @@ def checked(files, path, text):
     if not whole.ok:
         raise ModRefused("Saving that Mod would leave the World with errors.",
                          errors="\n".join(str(e) for e in whole.errors))
-    return whole
+    return whole, "\n".join(str(w) for w in report.warnings)
 
 
 def submit_mod(world, text, user):
-    """Take in a new Mod as a draft. Returns its `Document`. Raises
+    """Take in a new Mod as a draft. Returns its `Document` and plotcanon's
+    warnings about it, as text to paste into an LLM. Raises
     `ModRefused`, having saved nothing, if it cannot be."""
     screened(text)
     slug = said(text, "id")
@@ -97,17 +101,18 @@ def submit_mod(world, text, user):
         if path in files:
             raise ModRefused(f"{world.name} already has a file at `{path}`. Give the Mod an "
                              f"id of its own.")
-        whole = checked(files, path, text)
+        whole, warnings = checked(files, path, text)
         row = new_row(world, whole.world.get(slug), whole.world,
                       submitted_by=user, submitted_at=timezone.now())
         row.save()
-    return row
+    return row, warnings
 
 
 def revise(world, mod, text, user):
     """Replace a draft Mod's file with a revised one with the same id. The
     draft keeps its history: who submitted it, its Flags, and who sent it back
-    and why. Raises `ModRefused`, having saved nothing, if it cannot be."""
+    and why. Returns the Mod and plotcanon's warnings about it, as text.
+    Raises `ModRefused`, having saved nothing, if it cannot be."""
     screened(text)
     if said(text, "id") != mod.slug:
         raise ModRefused(f"That file is the Mod `{said(text, 'id')}`, not {mod.name}, "
@@ -119,6 +124,6 @@ def revise(world, mod, text, user):
         if mod.fields.get("state") != states().draft:
             raise ModRefused(f"{mod.name} is not a draft, and only a draft can be revised.")
         files = files_of(world)
-        whole = checked(files, mod.path, text)
+        whole, warnings = checked(files, mod.path, text)
         parsed_into(mod, whole.world.get(mod.slug), whole.world).save()
-    return mod
+    return mod, warnings
