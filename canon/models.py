@@ -138,6 +138,21 @@ class CanonChange(models.Model):
 
     objects = CanonChangeQuerySet.as_manager()
 
+    # A decision, as this change holds it and as an Undo keeps it.
+    DECISION_FIELDS = ("decision", "decided_by", "decided_at", "note")
+
+    def decision_made(self):
+        """This change's decision, who made it, when and why, as fields an
+        Undo takes."""
+        return {name: getattr(self, name) for name in self.DECISION_FIELDS}
+
+    def record_decision(self, decision, by=None, at=None, note="", replaced=None):
+        """Save this change's decision, who made it, when and why, and what
+        approving it replaced, if anything."""
+        self.decision, self.decided_by, self.decided_at, self.note = decision, by, at, note
+        self.replaced = replaced or {}
+        self.save(update_fields=[*self.DECISION_FIELDS, "replaced"])
+
     class Meta:
         ordering = ["report_id", "position"]
         constraints = [

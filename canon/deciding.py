@@ -297,14 +297,12 @@ def decide(world, change_id, decision, user, note=""):
         before = rewrite(world, change, report_text, entity_text if moves else None,
                          "Deciding", "Approving",
                          " Reject this change, or correct its report.")
+        replaced = None
         if before is not None:
             field = transitions()[change.kind]
-            change.replaced = {field: before.get(field), "as_of": before.get("as_of")}
-        change.decision = decision
-        change.decided_by = user
-        change.decided_at = timezone.now()
-        change.note = note
-        change.save(update_fields=["decision", "decided_by", "decided_at", "replaced", "note"])
+            replaced = {field: before.get(field), "as_of": before.get("as_of")}
+        change.record_decision(decision, by=user, at=timezone.now(), note=note,
+                               replaced=replaced)
         if decision == Decision.REJECTED:
             # A rejected change did not happen, so nothing it touched is in
             # question any more.
@@ -346,12 +344,9 @@ def undo(world, change_id, user):
             resolving.reopen(Flag.objects.filter(change=change),
                              Flag.Resolution.CHANGE_REJECTED)
         Undo.objects.create(organization=world.organization, world=world, change=change,
-                            decision=change.decision, decided_by=change.decided_by,
-                            decided_at=change.decided_at, note=change.note, undone_by=user,
+                            **change.decision_made(), undone_by=user,
                             undone_at=timezone.now())
-        change.decision, change.decided_by, change.decided_at = Decision.PROPOSED, None, None
-        change.replaced, change.note = {}, ""
-        change.save(update_fields=["decision", "decided_by", "decided_at", "replaced", "note"])
+        change.record_decision(Decision.PROPOSED)
     return change
 
 
