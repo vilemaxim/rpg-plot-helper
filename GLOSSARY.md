@@ -40,6 +40,18 @@ _Avoid_: Twine, playtest, simulation
 A point in a Mod where what happens next depends on play that is not written in advance, such as a fight, a chase or a persuasion, and so has named results, at least success and failure. A Dry Run does not simulate a Contest; the reader picks its result.
 _Avoid_: Combat, check, roll
 
+**Premise**:
+The situation a Mod opens on, before any player is drawn in. A Dry Run starts there.
+_Avoid_: Intro, setup, background
+
+**Hook**:
+One way PCs are drawn into a Mod, leading on from its Premise into a scene. A Mod offers two or three, and they are a Dry Run's first choices.
+_Avoid_: Lead-in, entry point
+
+**Dry Run structure**:
+How strictly a World asks for its Mods to be written so that a Dry Run can be built from them: off, encouraged or required. It is a World's setting, kept in the World's own files; a new World is given its Organization's default.
+_Avoid_: Strictness, Dry Run mode
+
 **Mod Writer**:
 The role of writing a Mod and submitting it for the Plot Master's approval.
 _Avoid_: Author, plot writer
@@ -64,7 +76,7 @@ The role that approves Mods and proposed changes into a World's Canon. Several p
 _Avoid_: Plot lead, canon keeper
 
 **Private link**:
-A link to one Mod that lets whoever holds it read the Mod, download it and file After-Action Reports on it, with no account. A Plot Master creates one for a Mod Runner.
+A link to one Mod that lets whoever holds it read the Mod, download it as its file or for Twine, play its Dry Run and file After-Action Reports on it, with no account. A Plot Master creates one for a Mod Runner.
 _Avoid_: Share link, guest link
 
 **Interlude**:
