@@ -5,7 +5,7 @@ import plotcanon
 
 from canon.models import CanonChange, Document, Flag
 from canon.test_decisions import DecisionTest
-from canon.test_interludes import RECORD, InterludeTest
+from canon.test_interludes import QUIET, RECORD, InterludeTest
 from canon.test_reports import LEDGER_2
 from canon.test_resolving import WARRANT, ResolvingTest
 
@@ -109,6 +109,63 @@ class UndoingARejection(UndoTest, ResolvingTest):
 
         with self.in_world():
             self.assertEqual(Flag.objects.get(pk=flag.pk).resolution, "dismissed")
+
+
+class UndoingAnApprovalThatKeptNothing(UndoTest):
+    """An approval made before what it replaced was kept, or imported already
+    approved, has nothing in `replaced`. Undoing one of a status change."""
+
+    def forget_replaced(self, change):
+        with self.in_world():
+            CanonChange.objects.filter(pk=change.pk).update(replaced={})
+
+    def test_as_of_goes_back_to_the_latest_remaining_approved_change(self):
+        before = self.stored("clerk-pell").text
+        self.rule(self.pell, "approve")
+        self.forget_replaced(self.pell)
+
+        self.undo(self.pell)
+
+        # The earlier report's approved change left him missing as of e01.
+        self.assertEqual(self.stored("clerk-pell").text, before)
+        self.assertEqual(self.status_shown("clerk-pell"), "Missing")
+        self.assert_valid()
+
+    def test_with_no_approved_change_remaining_the_field_goes_back_and_as_of_stays(self):
+        earlier = self.change("clerk-pell", "aa-the-tax-collectors-ledger")
+        self.assertEqual(self.reloaded(earlier).replaced, {})    # imported approved
+        as_of = self.stored("clerk-pell").fields["as_of"]
+
+        self.undo(earlier)
+
+        self.assertEqual(self.reloaded(earlier).decision, "proposed")
+        pell = self.stored("clerk-pell").fields
+        self.assertEqual(pell["status"], earlier.before)
+        self.assertEqual(pell["as_of"], as_of)
+        self.assert_valid()
+
+
+class UndoingAMoveThatKeptNothing(InterludeTest):
+    """A change of location, recorded during an Interlude, whose approval kept
+    nothing in `replaced`."""
+
+    def test_the_location_goes_back_and_as_of_stays_with_no_approved_change_left(self):
+        self.add()
+        before = self.stored("the-ferryman").fields
+        self.record(entity="the-ferryman", kind="location", before="brackwater-harbour",
+                    after="saint-oreths-light", summary="Rowed out to the light.")
+        change = self.change("the-ferryman", RECORD)
+        with self.in_world():
+            CanonChange.objects.filter(pk=change.pk).update(replaced={})
+
+        self.rule(change, "undo")
+
+        after = self.stored("the-ferryman").fields
+        self.assertEqual(after["location"], "brackwater-harbour")
+        # Nothing says where "as of" stood before, so it stays where it is.
+        self.assertEqual(after["as_of"], QUIET)
+        self.assertNotEqual(before.get("as_of"), QUIET)
+        self.assert_valid()
 
 
 class TheUndoIsRecorded(UndoTest):
