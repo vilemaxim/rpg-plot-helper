@@ -529,6 +529,30 @@ class WhatAPageShows(CanonTest):
         self.assertNotIn("Mira the Witch", page)
         self.assertIn("mira", page)
 
+    def test_a_document_whose_id_is_a_persons_handle_is_not_said_to_be_named_by_their_mods(self):
+        """An NPC `mira` is not featured in every Mod whose writer is `mira`."""
+        files = plotcanon.sample_world()
+        files["canon/npcs/mira.md"] = files["canon/npcs/cutter-jass.md"].replace(
+            "id: cutter-jass", "id: mira").replace('["Cutter Jass", "Jass"]', '["Mira the Witch"]')
+        self.import_files(files)
+
+        page = self.mira.get(f"{self.first_world}npcs/mira/").content.decode()
+
+        self.assertNotIn(f'href="{self.first_world}mods/the-low-tide-market/"', page)
+        self.assertNotIn(f'href="{self.first_world}reports/aa-the-low-tide-market/"', page)
+
+    def test_a_field_the_file_format_does_not_call_a_reference_is_not_a_link(self):
+        files = plotcanon.sample_world()
+        mod = "mods/tideward/the-low-tide-market.md"
+        files[mod] = files[mod].replace("slot: 1\n", "slot: 1\nrival_mod: clerk-pell\n")
+        self.import_files(files)
+
+        page = self.mira.get(f"{self.first_world}mods/the-low-tide-market/").content.decode()
+        npc = self.mira.get(f"{self.first_world}npcs/clerk-pell/").content.decode()
+
+        self.assertRegex(page, r"<dt>Rival mod</dt>\s*<dd>clerk-pell</dd>")
+        self.assertNotIn(f'href="{self.first_world}mods/the-low-tide-market/"', npc)
+
     def test_an_odd_but_accepted_document_still_has_a_page(self):
         files = plotcanon.sample_world()
         files["canon/npcs/cutter-jass.md"] = files["canon/npcs/cutter-jass.md"].replace(

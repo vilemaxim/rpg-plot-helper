@@ -1,15 +1,15 @@
 """Turning a stored document into what a page shows.
 
-plotcanon decides what is valid; nothing here does. But to lay a page out this
-module has to know the names of some fields: which hold a state, which hold a
-Mod's Features or a report's Canon Changes, and which hold a person's name and
-so are never links. A value is otherwise shown as a link when it is the id of
-another document in the same World, and as text when it is not. plotcanon does
-not yet say which fields are references; when it does, the lists here can go.
+plotcanon decides what is valid, and says which values name other documents
+and which hold a word from a vocabulary; nothing here decides either. A value
+is shown as a link when plotcanon says it is a reference and the document it
+names is in the World, and as text otherwise. This module only knows which
+fields a page lays out in its own way.
 """
 
 import markdown
 import nh3
+import plotcanon
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
@@ -21,19 +21,6 @@ NOT_PLAIN_FACTS = {"id", "type", "title", "aliases", "state", "status", "feature
 
 LABELS = {"mod_writer": "Mod Writer", "mod_runner": "Mod Runner", "pcs": "PCs", "npcs": "NPCs",
           "as_of": "As of", "canon": "In Canon", "recorded_by": "Recorded by"}
-
-# Fields that hold a person's handle, a date, a number or free text. Their
-# values are never another document's id, so they are never shown as links,
-# even when a document happens to have that id.
-NEVER_LINKS = {"mod_writer", "mod_runner", "recorded_by", "owner", "player", "tags", "in_world", "region",
-               "real_date", "real_date_end", "ordinal", "slot", "duration_est", "sort_hint",
-               "ran", "era"}
-
-# The kinds of Canon Change whose `from` and `to` name other documents.
-CHANGES_BETWEEN_DOCUMENTS = {"location", "affiliation"}
-
-# Values from a vocabulary, shown as words: "in-progress" becomes "In progress".
-VOCABULARY_FIELDS = {"state", "status", "decision", "canon", "visibility", "period_type", "kind"}
 
 
 def label(field):
@@ -61,16 +48,10 @@ def plain(value):
     return {"text": "—" if value is None else str(value), "url": None}
 
 
-def names(value, slug):
-    """Whether a frontmatter value names the document with this id, at any
-    depth: as the value itself, in a list, or in a mapping."""
-    if isinstance(value, str):
-        return value == slug
-    if isinstance(value, dict):
-        return any(names(inner, slug) for inner in value.values())
-    if isinstance(value, list):
-        return any(names(inner, slug) for inner in value)
-    return False
+def as_parsed(document):
+    """A stored document as the `plotcanon.Document` it was parsed into."""
+    return plotcanon.Document(document.path, document.kind, document.slug, document.fields,
+                              document.body)
 
 
 class Index:
@@ -79,6 +60,13 @@ class Index:
     def __init__(self, world, documents):
         self.world = world
         self.by_slug = {document.slug: document for document in documents}
+        self.parsed = {slug: as_parsed(document) for slug, document in self.by_slug.items()}
+
+    def references(self, document):
+        """Where in the document plotcanon says a value names another
+        document, as a set of `(field, position, part)`."""
+        return {(ref.field, ref.position, ref.part)
+                for ref in plotcanon.references(self.parsed[document.slug])}
 
     def address(self, document):
         return reverse("canon-detail", args=[self.world.pk, ADDRESS_OF[document.kind],
@@ -98,26 +86,34 @@ class Index:
 
     def facts(self, document):
         """The document's plain frontmatter, as `(label, [links])` rows."""
+        references = self.references(document)
+        vocabulary = plotcanon.vocabulary_fields(self.parsed[document.slug])
         rows = []
         for field, value in document.fields.items():
             if field in NOT_PLAIN_FACTS or value in ("", [], {}):
                 continue
-            if field in VOCABULARY_FIELDS:
+            if field in vocabulary:
                 rows.append((label(field), [{"text": wording(value), "url": None}]))
             elif isinstance(value, dict):
                 continue
-            elif field in NEVER_LINKS:
-                values = value if isinstance(value, list) else [value]
-                rows.append((label(field), [plain(v) for v in values]))
+            elif isinstance(value, list):
+                rows.append((label(field), [self.link(item) if (field, position, None) in references
+                                            else plain(item)
+                                            for position, item in enumerate(value)]))
             else:
-                rows.append((label(field), self.links(value)))
+                rows.append((label(field), [self.link(value) if (field, None, None) in references
+                                            else plain(value)]))
         return rows
 
-    def grouped(self, mapping):
-        """A `features` or `involves` block as `(label, [links])` rows."""
-        if not isinstance(mapping, dict):
-            return []
-        return [(label(str(group)), self.links(ids)) for group, ids in mapping.items() if ids]
+    def grouped(self, document):
+        """A Mod's `features` or a timeline entry's `involves` as
+        `(label, [links])` rows, one per group, in the order the file lists
+        them."""
+        groups = {}
+        for ref in plotcanon.references(self.parsed[document.slug]):
+            if ref.field in ("features", "involves"):
+                groups.setdefault(ref.part, []).append(self.link(ref.id))
+        return [(label(group), links) for group, links in groups.items()]
 
     def mods_of(self, document):
         """A Plot's Mods, in the order the Plot lists them, each with its state."""
@@ -134,30 +130,14 @@ class Index:
         Mods run at it, an NPC the Mods that feature them and the reports that
         changed them, and a PC the reports they took part in.
         """
+        world = plotcanon.World(self.parsed.values(), {})
+        referring = {other.id for other in plotcanon.referrers(world, document.slug)}
         rows = []
         for address, (doc_type, kind_label) in KINDS.items():
             found = sorted((other for other in self.by_slug.values()
                             if other.kind == doc_type and other.slug != document.slug
-                            and names(other.fields, document.slug)),
+                            and other.slug in referring),
                            key=lambda other: (other.name, other.slug))
             if found:
                 rows.append((kind_label, [self.link(other.slug) for other in found]))
-        return rows
-
-    def canon_changes(self, document):
-        changes = document.fields.get("canon_changes")
-        rows = []
-        for change in changes if isinstance(changes, list) else []:
-            if not isinstance(change, dict):
-                continue
-            between = self.link if change.get("kind") in CHANGES_BETWEEN_DOCUMENTS else plain
-            rows.append({
-                "entity": self.link(change.get("entity")),
-                "kind": wording(change.get("kind", "")),
-                "decision": wording(change.get("decision", "")),
-                "moved": "from" in change or "to" in change,
-                "before": between(change.get("from")),
-                "after": between(change.get("to")),
-                "summary": change.get("summary", ""),
-            })
         return rows

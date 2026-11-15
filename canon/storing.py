@@ -3,6 +3,8 @@
 import datetime
 import math
 
+import plotcanon
+
 from .models import CanonChange, Document
 
 
@@ -31,36 +33,13 @@ def files_of(world):
                 .values_list("path", "text"))
 
 
-def name_of(document, plot_world):
-    """What to call a document on a page: its title, or the first of its
-    names, or failing both its id. An After-Action Report has neither, so it
-    is called after its Mod and Event, and a record of an Interlude's changes
-    after the Interlude."""
-    if document.type == "interlude-changes":
-        event = plot_world.get(document.fields.get("event"))
-        if event is not None:
-            return f"Changes during {name_of(event, plot_world)}"
-    if document.type == "after-action":
-        mod = plot_world.get(document.fields.get("mod"))
-        event = plot_world.get(document.fields.get("event"))
-        if mod is not None and event is not None:
-            return f"{name_of(mod, plot_world)} at {name_of(event, plot_world)}"
-    title = document.fields.get("title")
-    if isinstance(title, str) and title.strip():
-        return title.strip()
-    aliases = document.fields.get("aliases")
-    if isinstance(aliases, list) and aliases and str(aliases[0]).strip():
-        return str(aliases[0]).strip()
-    return str(document.id)
-
-
 def parsed_into(row, document, plot_world):
     """Fill a `Document` row from what plotcanon parsed. `plot_world` is the
     plotcanon World the document was parsed in, which holds its text."""
     row.path = document.path
     row.kind = document.type
     row.slug = str(document.id)
-    row.name = name_of(document, plot_world)[:300]
+    row.name = plotcanon.name_of(plot_world, document)[:300]
     row.fields = storable(dict(document.fields))
     row.body = document.body
     row.text = plot_world.files[document.path]
