@@ -105,11 +105,18 @@ class SubmittingFromTwine(SubmissionTest):
 
         self.assertEqual(self.stored(NEW).text, a_mod())
 
-    def test_a_twine_file_over_five_megabytes_is_refused(self):
-        response = self.sam.post(self.form,
-                                 {"file": uploaded("x" * (6 * 1024 * 1024), "big.twee")})
+    def test_a_twine_file_over_five_million_bytes_is_refused_as_too_large(self):
+        response = self.sam.post(self.form, {"file": uploaded("x" * 5_000_001, "big.twee")})
 
         self.assertContains(response, "big.twee is too large. The limit is 5 MB.")
+
+    def test_a_twine_file_of_five_million_bytes_is_read_by_plotcanon(self):
+        """The app's limit is plotcanon's: a file the app lets through is one
+        plotcanon reads, so it is never refused for its size by plotcanon."""
+        response = self.sam.post(self.form, {"file": uploaded("x" * 5_000_000, "big.twee")})
+
+        self.assertNotContains(response, "too large")
+        self.assertNotContains(response, "larger than")
 
     def test_a_revision_can_be_a_twee_file(self):
         self.submit_mod(a_mod())

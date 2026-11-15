@@ -4,6 +4,8 @@ import plotcanon
 from django import forms
 from django.conf import settings
 
+from .importing import megabytes
+
 # An LLM asked for a file often answers with the file inside a code fence, and
 # sometimes a line of its own before it. A person pasting the answer should not
 # have to know to take those off.
@@ -65,9 +67,8 @@ class FileForm(forms.Form):
         twine = uploaded and self.takes_twine and is_twine(uploaded.name)
         limit = settings.TWINE_MAX_FILE_BYTES if twine else settings.IMPORT_MAX_FILE_BYTES
         if uploaded and uploaded.size > limit:
-            megabytes = limit / (1024 * 1024)
             raise forms.ValidationError(
-                f"{uploaded.name} is too large. The limit is {megabytes:g} MB.")
+                f"{uploaded.name} is too large. The limit is {megabytes(limit)}.")
         if twine:
             converted = plotcanon.from_twine(uploaded.read())
             if not converted.ok:

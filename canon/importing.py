@@ -31,7 +31,10 @@ class ImportRefused(Exception):
 
 
 def megabytes(size):
-    return f"{size / (1024 * 1024):g} MB"
+    """A limit in bytes, for a person. One set in either kind of megabyte, a
+    million bytes (as plotcanon's are) or 1024 x 1024, reads as a whole number."""
+    unit = 1024 * 1024 if size % (1024 * 1024) == 0 else 1000 * 1000
+    return f"{size / unit:g} MB"
 
 
 def read_bounded(archive, member, room):

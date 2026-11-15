@@ -194,7 +194,7 @@ A Mod can be taken into [Twine](https://twinery.org/) and brought back ([ADR-000
 - **Download for Twine (.twee)** is on every Mod's page, draft or not, for anyone who can read the Mod, and on the page a private link opens. Import the file into Twine. Its scenes, Contests and outcomes are linked passages; every other section is a passage of its own tagged `mod-section`, and the frontmatter is a passage tagged `frontmatter`. Keep that one.
 - **Bring it back** wherever a Mod file is submitted or a draft revised: choose the `.twee` file, or the `.html` file Twine saves or publishes. It is turned back into markdown, then checked, taken in as a draft and held to the revision rules exactly as a markdown file is. A story written in Twine from scratch with no `frontmatter` passage is refused like a file with no frontmatter.
 - **What Twine adds that a Mod has no place for** (variables, macros, styling, tags, the story's JavaScript and stylesheet) is kept as text or left out, and each is listed as a warning beside plotcanon's messages, as the Mod is saved or refused. It does nothing in a Dry Run.
-- **A Twine file may be up to 5 MB**, since a published story carries its story format's code. The Mod it turns into is still held to the 1 MB limit of a Mod file. A Twine file is recognised by its name ending `.twee`, `.tw`, `.html` or `.htm`; a pasted Mod is always read as markdown.
+- **A Twine file may be up to 5 MB** (5,000,000 bytes, the most plotcanon reads), since a published story carries its story format's code. The Mod it turns into is still held to the 1 MB limit of a Mod file. A Twine file is recognised by its name ending `.twee`, `.tw`, `.html` or `.htm`; a pasted Mod is always read as markdown.
 
 ## Limits on sign-in
 
