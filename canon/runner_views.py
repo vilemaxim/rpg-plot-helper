@@ -16,7 +16,7 @@ from . import links, submitting
 from .forms import ReportForm
 from .models import Document, Flag
 from .presenting import Index, render_markdown
-from .views import flags_shown, state_of
+from .views import flags_shown, state_of, twee_download
 
 
 def refused_for_now(reason):
@@ -69,6 +69,13 @@ def mod_file(request, link):
     response = HttpResponse(link.mod.text, content_type="text/markdown; charset=utf-8")
     response["Content-Disposition"] = content_disposition_header(True, f"{link.mod.slug}.md")
     return response
+
+
+@through_a_link
+@require_GET
+def mod_twee(request, link):
+    """The Mod as a Twee file, to open in Twine."""
+    return twee_download(link.mod)
 
 
 def own_findings(world, errors, text):

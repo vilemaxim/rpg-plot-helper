@@ -11,6 +11,7 @@
   {% if filed_through %}<p>Filed through the private link for {{ filed_through.label|default:"a Mod Runner" }}, on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
   {% if submitted_by %}<p>Submitted by {{ submitted_by.email }} on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
   {% if approved_by and not may_approve %}<p>Approved by {{ approved_by.email }} on {{ approved_at|date:"j F Y" }}.</p>{% endif %}
+  {% if kind == "mods" %}<p><a href="{% url 'canon-twee' world.pk document.slug %}" download>Download for Twine (.twee)</a> to edit it in Twine, then submit or revise it from the file Twine saves.</p>{% endif %}
   {% if sent_back %}
     <div class="sent-back warning">
       <p><strong>Sent back to its Mod Writer</strong>{% if document.sent_back_by %} by {{ document.sent_back_by.email }}{% endif %} on {{ document.sent_back_at|date:"j F Y" }}.</p>

@@ -94,7 +94,7 @@ uv run plotcanon sample --write demo --script demo-script
 
 ### Private links for Mod Runners
 
-A Mod Runner does not need an account. A Plot Master creates a private link for a Mod from its page, saying who it is for if they like, and sends it on. Anyone with the link can read that Mod, download its file to read with no signal, see its open Flags, and file an After-Action Report on it, pasted or uploaded, and nothing else in the World. A report filed that way says which link it came through.
+A Mod Runner does not need an account. A Plot Master creates a private link for a Mod from its page, saying who it is for if they like, and sends it on. Anyone with the link can read that Mod, download its file to read with no signal or to edit in Twine, see its open Flags, and file an After-Action Report on it, pasted or uploaded, and nothing else in the World. A report filed that way says which link it came through.
 
 - **Shown once.** The link holds a long random secret, and only its hash is kept, so it is shown once, when it is created. A lost link is replaced by creating another.
 - **It works while the Mod can be run**: while it is approved or in progress, and until a Plot Master turns it off from the Mod's page. A finished or shelved Mod's links open nothing.
@@ -164,6 +164,15 @@ A Mod's file names its writer by a handle, such as `mod_writer: sam`, which is a
 - **A draft can be reassigned** by a Plot Master, from its page, to anyone with the Mod Writer or Plot Master role in the World. The page says who reassigned it and when. This wins over both of the above.
 
 A Mod's page shows its Mod Writer. Only its Mod Writer, or a Plot Master, can revise a draft. When a Mod is sent back, its Mod Writer is emailed which Mod, who sent it back, why, and a link to it, and their drafts are listed for them on the World's page, marked if they were sent back. None of this is written into any file: accounts never appear in files ([ADR-0001](./docs/adr/0001-two-versions-one-schema-owned-by-larp-llm.md)).
+
+### Editing a Mod in Twine
+
+A Mod can be taken into [Twine](https://twinery.org/) and brought back ([ADR-0007](./docs/adr/0007-a-dry-run-is-built-from-the-mods-markdown.md)). Twine is only a way to edit it: the Mod is always stored as its markdown file.
+
+- **Download for Twine (.twee)** is on every Mod's page, draft or not, for anyone who can read the Mod, and on the page a private link opens. Import the file into Twine. Its scenes, Contests and outcomes are linked passages; every other section is a passage of its own tagged `mod-section`, and the frontmatter is a passage tagged `frontmatter`. Keep that one.
+- **Bring it back** wherever a Mod file is submitted or a draft revised: choose the `.twee` file, or the `.html` file Twine saves or publishes. It is turned back into markdown, then checked, taken in as a draft and held to the revision rules exactly as a markdown file is. A story written in Twine from scratch with no `frontmatter` passage is refused like a file with no frontmatter.
+- **What Twine adds that a Mod has no place for** (variables, macros, styling, tags, the story's JavaScript and stylesheet) is kept as text or left out, and each is listed as a warning beside plotcanon's messages, as the Mod is saved or refused. It does nothing in a Dry Run.
+- **A Twine file may be up to 5 MB**, since a published story carries its story format's code. The Mod it turns into is still held to the 1 MB limit of a Mod file. A Twine file is recognised by its name ending `.twee`, `.tw`, `.html` or `.htm`; a pasted Mod is always read as markdown.
 
 ## Limits on sign-in
 

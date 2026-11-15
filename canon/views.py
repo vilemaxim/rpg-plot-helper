@@ -273,6 +273,22 @@ def mod_or_404(world, slug):
     return mod
 
 
+def twee_download(mod):
+    """The Mod as a Twee file to open in Twine (ADR-0007). It is made from the
+    stored file each time; the Twine file is never stored."""
+    response = HttpResponse(plotcanon.to_twee(mod.text),
+                            content_type="text/plain; charset=utf-8")
+    response["Content-Disposition"] = content_disposition_header(True, f"{mod.slug}.twee")
+    return response
+
+
+@require_GET
+def twee(request, world_id, slug):
+    """Download a Mod for Twine. For anyone who can read the Mod."""
+    world = world_or_404(request, world_id)
+    return twee_download(mod_or_404(world, slug))
+
+
 @require_http_methods(["GET", "POST"])
 def report(request, world_id, slug):
     """File an After-Action Report on a Mod, pasted or uploaded. For anyone
@@ -321,15 +337,18 @@ def mod_form(request, context, save):
     form = ModForm(request.POST, request.FILES)
     if not form.is_valid():
         return render(request, "canon/mod_form.html", {**context, "form": form})
+    twine_warnings = "\n".join(form.cleaned_data["twine_warnings"])
     try:
         saved = save(form.cleaned_data["contents"])
     except intake.ModRefused as refused:
         again = ModForm(initial={"text": form.cleaned_data["contents"]})
         return render(request, "canon/mod_form.html",
                       {**context, "form": again, "refused": str(refused),
-                       "errors": refused.errors})
+                       "errors": refused.errors, "twine_warnings": twine_warnings})
     messages.success(request, f"{saved.name} is saved as a draft. A Plot Master approves it "
                               f"before it can be run.")
+    if twine_warnings:
+        messages.warning(request, twine_warnings, extra_tags="findings")
     return redirect("canon-detail", world_id=saved.world_id, kind="mods", slug=saved.slug)
 
 
