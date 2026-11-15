@@ -212,8 +212,7 @@ def detail(request, world_id, kind, slug):
         "state": state_of(document),
         "aliases": [str(a) for a in aliases_of(document) if str(a) != document.name],
         "facts": index.facts(document),
-        "features": index.grouped(document.fields.get("features")
-                                  or document.fields.get("involves")),
+        "features": index.grouped(document),
         "plot_mods": index.mods_of(document),
         "plot_entities": index.links(entities) if isinstance(entities, list) else [],
         "referred_to_by": index.referred_to_by(document),
