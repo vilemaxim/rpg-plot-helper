@@ -90,6 +90,39 @@ def set_field(text, field, new):
         return text[:block.end(1)] + f"{ending}{field}: {new}" + text[block.end(1):]
 
 
+def add_to_list(text, field, item):
+    """The file with `item`, which must already be YAML, added at the end of
+    the list in a top-level field, written the way the list already is: on one
+    line, or down the page. A field that is not there, or is empty, becomes a
+    list of the one item. Raises `CannotEdit` if the field holds something
+    other than a list."""
+    try:
+        node, offset = find(text, [field])
+    except CannotEdit:
+        return set_field(text, field, flow_list([item]))
+    if isinstance(node, yaml.ScalarNode) and node.tag == "tag:yaml.org,2002:null":
+        return replace(text, [field], flow_list([item]))
+    if not isinstance(node, yaml.SequenceNode):
+        raise CannotEdit(f"`{field}` is not a list")
+    if node.flow_style:
+        if not node.value:
+            # Just inside the closing bracket.
+            at = offset + node.end_mark.index - 1
+            return text[:at] + item + text[at:]
+        at = offset + node.value[-1].end_mark.index
+        return text[:at] + ", " + item + text[at:]
+    # Down the page: a new line after the last item's line, so that a comment
+    # on that line stays with it, indented as the other items are.
+    after = offset + node.value[-1].end_mark.index
+    newline = text.find("\n", after)
+    if newline == -1:
+        newline = len(text)
+    ending = "\r\n" if text[newline - 1:newline] == "\r" else "\n"
+    at = newline - 1 if ending == "\r\n" else newline
+    indent = " " * node.start_mark.column
+    return text[:at] + f"{ending}{indent}- {item}" + text[at:]
+
+
 def flow_list(items):
     """A list of ids written as YAML on one line."""
     return "[" + ", ".join(items) + "]"

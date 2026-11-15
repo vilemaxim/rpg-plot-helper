@@ -3,8 +3,10 @@
 A report is checked by plotcanon against the World as it is stored. A valid
 one is saved, its Canon Changes go on record as proposed, and its Mod's state
 is brought up to date: finished if the report says the Mod finished, and in
-progress if it ran and there is more to play. The Mod's stored file is changed
-to say so, and the World with both changes in it is checked again before
+progress if it ran and there is more to play. A report at an Event of the
+Mod's Campaign that the Mod does not list yet adds that Event to the Mod's
+`events`, since a Mod interrupted at one Event can go on at another. The Mod's
+stored file is changed to say so, and the World with both changes in it is checked again before
 anything is saved, so what is stored is always a World plotcanon accepts.
 """
 
@@ -102,6 +104,39 @@ def with_state(text, state):
         raise ReportRefused("The Mod's stored file has no state that can be updated.") from None
 
 
+def with_event(text, event):
+    """A Mod's file with `event` added to its `events`, and every other
+    character, line endings included, left as it was."""
+    try:
+        return editing.add_to_list(text, "events", event)
+    except editing.CannotEdit:
+        raise ReportRefused("The Mod's stored file has no list of Events that can be "
+                            "added to.") from None
+
+
+def listing_its_event(world, mod, text, files):
+    """The Mod's file as it should be stored once this report is filed: with
+    the report's Event added to its `events` if it is not there yet, which is
+    how a Mod that goes on at a later Event comes to list it. The Event must be
+    one of the Mod's own Campaign. Returns the file unchanged if the report
+    names no Event the app can read; plotcanon then says what is wrong."""
+    event = said(text, "event")
+    listed = mod.fields.get("events") or []
+    if not event or not isinstance(listed, list) or event in listed:
+        return files[mod.path]
+    found = Document.objects.filter(world=world, kind="event", slug=event).first()
+    if found is None:
+        raise ReportRefused(f"There is no Event `{event}` in this World. Check the "
+                            f"report's `event`: it should be the id of the Event where "
+                            f"{mod.name} was run.")
+    campaign = mod.fields.get("campaign")
+    if found.fields.get("campaign") != campaign:
+        raise ReportRefused(f"The Event `{event}` ({found.name}) is not one of "
+                            f"{mod.name}'s Campaign, `{campaign}`, so the Mod cannot run "
+                            f"there. Check the report's `event`.")
+    return with_event(files[mod.path], event)
+
+
 States = namedtuple("States", "draft approved finished in_progress reportable")
 
 
@@ -193,6 +228,7 @@ def submit(world, mod, text, user, filed_through=None):
             raise ReportRefused(f"A report with the id `{said(text, 'id')}` has already "
                                 f"been filed for that Event. If this is a further report on "
                                 f"the Mod, give it an id of its own.")
+        files[mod.path] = listing_its_event(world, mod, text, files)
         try:
             checked = plotcanon.check_file(files, path, text)
         except (ValueError, TypeError) as error:
@@ -219,7 +255,7 @@ def submit(world, mod, text, user, filed_through=None):
         files[path] = text
         state = state_after(mod, report)
         if state != mod.fields.get("state"):
-            files[mod.path] = with_state(mod.text, state)
+            files[mod.path] = with_state(files[mod.path], state)
         whole = plotcanon.load_world(files)
         if not whole.ok:
             raise ReportRefused("Saving that report would leave the World with errors.",
