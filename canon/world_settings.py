@@ -12,7 +12,7 @@ plotcanon's findings, and the World keeps the setting it had.
 import plotcanon
 from django.db import transaction
 
-from organizations.models import World
+from organizations.models import World, settings_file_for
 
 from .storing import files_of, one_to_a_line, settings_file_of
 from .submitting import Refused
@@ -26,11 +26,6 @@ def settings_of(world):
     """The World's settings, as its settings file says. plotcanon's defaults
     apply to a World with no settings file."""
     return plotcanon.world_settings(settings_file_of(world))
-
-
-def settings_file_for(structure):
-    """The whole text of a settings file giving this Dry Run structure."""
-    return plotcanon.WorldSettings(dry_run_structure=structure).text()
 
 
 def set_dry_run_structure(world, structure):

@@ -175,8 +175,7 @@ def create_world(request):
     if not form.is_valid():
         return organization_page(request, world_form=form)
     world = World.objects.create(organization=request.organization,
-                                 name=form.cleaned_data["name"],
-                                 settings_file=request.organization.new_world_settings_file())
+                                 name=form.cleaned_data["name"])
     return redirect("world", world_id=world.pk)
 
 

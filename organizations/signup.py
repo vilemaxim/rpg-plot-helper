@@ -33,8 +33,7 @@ def create_first_organization(user):
     tenancy.set_context(user, organization_id)
     organization = Organization.objects.create(id=organization_id, name=FIRST_ORGANIZATION_NAME)
     Membership.objects.create(organization=organization, user=user, is_admin=True)
-    world = World.objects.create(organization=organization, name=FIRST_WORLD_NAME,
-                                 settings_file=organization.new_world_settings_file())
+    world = World.objects.create(organization=organization, name=FIRST_WORLD_NAME)
     WorldRole.objects.create(organization=organization, world=world, user=user,
                              role=Role.PLOT_MASTER)
     return organization

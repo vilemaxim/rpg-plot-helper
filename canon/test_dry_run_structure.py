@@ -5,6 +5,11 @@ the structure, so none can be checked under `required`."""
 import re
 
 import plotcanon
+from django.core.exceptions import ValidationError
+
+from accounts.models import User
+from organizations import tenancy
+from organizations.models import Membership, World
 
 from canon.test_approving import DAUGHTER
 from canon.test_exporting import unzipped
@@ -128,6 +133,29 @@ class TheOrganizationsDefault(DryRunStructureTest):
         second = self.new_world()
 
         self.assertContains(self.mira.get(second), f"{second}import/")
+
+    def miras_organization(self):
+        """Mira's Organization, and a block to act in it as her."""
+        user = User.objects.get(email="mira@example.com")
+        with tenancy.acting_as(user=user):
+            organization = Membership.objects.get().organization
+        return organization, tenancy.acting_as(user=user, organization=organization)
+
+    def test_a_world_created_by_any_path_is_given_it(self):
+        self.mira.post(self.ORGANIZATION_SETTING, {"structure": "off"})
+        organization, acting = self.miras_organization()
+
+        with acting:
+            world = World.objects.create(organization=organization, name="Third World")
+
+        self.assertEqual(world.settings_file, settings_file("off"))
+
+    def test_a_setting_plotcanon_does_not_have_cannot_be_stored(self):
+        organization, acting = self.miras_organization()
+        organization.dry_run_structure = "sometimes"
+
+        with self.assertRaises(ValidationError), acting:
+            organization.save()
 
     def test_a_world_imported_without_a_settings_file_is_encouraged(self):
         self.mira.post(self.ORGANIZATION_SETTING, {"structure": "off"})

@@ -10,7 +10,36 @@ import uuid
 
 import plotcanon
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
+
+# A World's Dry Run structure (ADR-0007) is a setting in its settings file,
+# whose format is plotcanon's (ADR-0004): plotcanon says what it may be, what
+# each value means and which is the default, and the app keeps no list of its
+# own.
+
+def dry_run_structures():
+    """The values a Dry Run structure may have, each with what it means, in
+    plotcanon's words."""
+    return plotcanon.vocabularies()["vocabularies"]["dry_run_structure"]
+
+
+def default_dry_run_structure():
+    return plotcanon.vocabularies()["dry_run_structure_default"]
+
+
+def a_dry_run_structure(value):
+    """Refuse a value plotcanon does not have."""
+    if value not in dry_run_structures():
+        raise ValidationError(f"`{value}` is not a Dry Run structure. It is one of "
+                              f"{', '.join(dry_run_structures())}.")
+
+
+def settings_file_for(structure):
+    """The whole text of a World's settings file giving this Dry Run
+    structure."""
+    return plotcanon.WorldSettings(dry_run_structure=structure).text()
 
 
 class Organization(models.Model):
@@ -23,15 +52,17 @@ class Organization(models.Model):
     # The Dry Run structure each new World is given (ADR-0007), which an
     # Organization Admin may change. It lives only in the app (ADR-0001): a
     # World's own setting is in its settings file, written when it is created.
-    dry_run_structure = models.CharField(max_length=20, default="encouraged")
+    # It is checked as it is saved, since a value plotcanon does not have
+    # would leave every World created after with a settings file it refuses.
+    dry_run_structure = models.CharField(max_length=20, default=default_dry_run_structure,
+                                         validators=[a_dry_run_structure])
 
     def __str__(self):
         return self.name
 
-    def new_world_settings_file(self):
-        """The settings file a World created now is given: this Organization's
-        default Dry Run structure, in plotcanon's format."""
-        return plotcanon.WorldSettings(dry_run_structure=self.dry_run_structure).text()
+    def save(self, *args, **kwargs):
+        a_dry_run_structure(self.dry_run_structure)
+        super().save(*args, **kwargs)
 
 
 class Membership(models.Model):
@@ -67,7 +98,8 @@ class World(models.Model):
     # it out. It is kept here rather than as a `canon.Document` row because it
     # is not a document: it has no id, type or name, and the app takes "the
     # World has Canon" to mean "the World has a document", which a new
-    # World's settings file must not make true.
+    # World's settings file must not make true. A World is created with its
+    # Organization's default Dry Run structure in it, however it is created.
     settings_file = models.TextField(blank=True)
 
     class Meta:
@@ -75,6 +107,16 @@ class World(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and not self.settings_file:
+            # Read as the row is written, so an Organization this request may
+            # not see gives nothing, and the database refuses the World.
+            structure = (Organization.objects.filter(pk=self.organization_id)
+                         .values_list("dry_run_structure", flat=True).first())
+            if structure:
+                self.settings_file = settings_file_for(structure)
+        super().save(*args, **kwargs)
 
 
 class Role(models.TextChoices):
