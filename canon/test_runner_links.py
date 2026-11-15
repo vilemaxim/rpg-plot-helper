@@ -160,6 +160,43 @@ class WhatARefusedReportShows(LinkTest):
         self.assertNotIn(secret, str(dict(self.mira.session)))
 
 
+class AtAnEventTheModDoesNotListThroughALink(LinkTest):
+    """A Mod Runner with a link files at an Event the Mod does not list yet."""
+
+    def setUp(self):
+        super().setUp()
+        self.link = self.create_link(VIGIL_MOD)
+
+    def file_at(self, event):
+        return self.file(self.link, VIGIL, text=VIGIL.text.replace(
+            "event: e03-storm-moon\n", f"event: {event}\n"))
+
+    def test_an_event_of_the_mods_campaign_is_added_to_it(self):
+        response = self.file_at("e01-low-tide")
+
+        self.assertContains(response, "Report filed")
+        self.assertEqual(self.stored(VIGIL_MOD).fields["events"],
+                         ["e03-storm-moon", "e01-low-tide"])
+        with self.in_world():
+            report = Document.objects.select_related("filed_through") \
+                .get(slug="aa-storm-moon-vigil")
+            self.assertEqual(report.fields["event"], "e01-low-tide")
+            self.assertEqual(report.filed_through.label, "Rhea, Saturday night")
+
+    def test_an_event_of_another_campaign_is_refused_saying_why(self):
+        before = self.stored(VIGIL_MOD).text
+
+        response = self.file_at("e04-second-lantern")
+
+        self.assertContains(response, "Nothing was saved.")
+        for said in ("e04-second-lantern", "Second Lantern", "tideward",
+                     "the report&#x27;s `event`"):
+            self.assertContains(response, said)
+        self.assertEqual(self.stored(VIGIL_MOD).text, before)
+        with self.in_world():
+            self.assertFalse(Document.objects.filter(slug="aa-storm-moon-vigil").exists())
+
+
 @override_settings(MOD_LINK_REPORTS_ALLOWED=2)
 class ReportsThroughOneLink(LinkTest):
     def test_are_limited_whether_or_not_they_are_saved(self):
