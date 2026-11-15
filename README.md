@@ -86,7 +86,13 @@ To try it, write the sample World's scripted reports to disk alongside the World
 uv run plotcanon sample --write demo --script demo-script
 ```
 
-Approving and rejecting Canon Changes, and Flags on the Mods a change affects, are the next pieces to be built.
+### Flags
+
+Filing a report also raises Flags. Every Mod that is not finished or shelved, and that features something one of the report's changes touches, gets a Flag for that change, in any Campaign of the World. A report that finishes its own Mod does not flag that Mod. Which Mods are flagged is plotcanon's rule (`plotcanon.flags`); the app records the result.
+
+The World page links to a list of open Flags, each naming the Mod, the Feature the change touches, the change, and the report it came from. A flagged Mod's page shows a warning listing its Flags, so a Mod Runner sees it before running the Mod.
+
+Approving and rejecting Canon Changes, and resolving Flags, are the next pieces to be built.
 
 ## Who may create an Organization
 

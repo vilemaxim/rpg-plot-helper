@@ -10,7 +10,7 @@ from . import submitting
 from .forms import ImportForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
-from .models import CanonChange, Document
+from .models import CanonChange, Document, Flag
 from .presenting import Index, render_markdown, wording
 
 
@@ -105,6 +105,8 @@ def detail(request, world_id, kind, slug):
         "plot_entities": index.links(entities) if isinstance(entities, list) else [],
         "canon_changes": index.canon_changes(document),
         "referred_to_by": index.referred_to_by(document),
+        "flags": flags_shown(index, Flag.objects.open_in(world).filter(mod=document))
+        if doc_type == "mod" else [],
         "can_be_reported_on": doc_type == "mod" and submitting.can_be_reported_on(document),
         "submitted_by": document.submitted_by,
         "submitted_at": document.submitted_at,
@@ -164,3 +166,28 @@ def pending(request, world_id):
         "submitted_at": change.report.submitted_at,
     } for change in changes]
     return render(request, "canon/pending.html", {"world": world, "changes": rows})
+
+
+def flags_shown(index, flags):
+    """Flags as rows a page can show: the Mod, the Feature the change touches,
+    what the change says, and the report it came from."""
+    return [{
+        "mod": index.link(flag.mod.slug),
+        "entity": index.link(flag.change.entity),
+        "kind": wording(flag.change.kind),
+        "moved": bool(flag.change.before or flag.change.after),
+        "before": flag.change.before,
+        "after": flag.change.after,
+        "summary": flag.change.summary,
+        "report": index.link(flag.change.report.slug),
+    } for flag in flags.select_related("mod", "change__report")
+        .order_by("mod__name", "change__report__submitted_at", "change__position")]
+
+
+@require_GET
+def flags(request, world_id):
+    """Every open Flag in the World, by Mod."""
+    world = world_or_404(request, world_id)
+    index = Index(world, documents_of(world))
+    return render(request, "canon/flags.html", {
+        "world": world, "flags": flags_shown(index, Flag.objects.open_in(world))})

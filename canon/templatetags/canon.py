@@ -2,7 +2,7 @@ from django import template
 from django.db.models import Count
 
 from ..kinds import KINDS
-from ..models import CanonChange, Document
+from ..models import CanonChange, Document, Flag
 
 register = template.Library()
 
@@ -16,5 +16,6 @@ def world_contents(world, may_import=False):
     kinds = [(address, label, counts.get(doc_type, 0))
              for address, (doc_type, label) in KINDS.items()]
     pending = CanonChange.objects.pending(world).count()
+    flags = Flag.objects.open_in(world).count()
     return {"world": world, "kinds": [k for k in kinds if k[2]], "total": sum(counts.values()),
-            "may_import": may_import, "pending": pending}
+            "may_import": may_import, "pending": pending, "flags": flags}

@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from organizations.models import World
 
-from .models import CanonChange, Document
+from .models import CanonChange, Document, Flag
 from .storing import canon_changes_of, new_row, parsed_into
 
 REPORT = "after-action"
@@ -194,7 +194,23 @@ def submit(world, mod, text, user):
         row = new_row(world, whole.world.get(report.id), whole.world,
                       submitted_by=user, submitted_at=timezone.now())
         row.save()
-        CanonChange.objects.bulk_create(canon_changes_of(row))
+        changes = CanonChange.objects.bulk_create(canon_changes_of(row))
         if files[mod.path] != mod.text:
             parsed_into(mod, whole.world.get(mod.slug), whole.world).save()
+        raise_flags(world, whole, report.id, changes)
     return row
+
+
+def raise_flags(world, whole, report_id, changes):
+    """Flag every unfinished Mod that a change in the report touches, in any
+    Campaign. `whole` is plotcanon's report on the World with the new report
+    in it and its Mod's state brought up to date, which is the World the Flags
+    are worked out in. Which Mods a change flags is plotcanon's rule."""
+    by_position = {change.position: change for change in changes}
+    mods = dict(Document.objects.filter(world=world, kind="mod").values_list("slug", "pk"))
+    Flag.objects.bulk_create([
+        Flag(organization=world.organization, world=world, mod_id=mods[flag.mod],
+             change=by_position[flag.change])
+        for flag in plotcanon.flags(whole.world, whole.world.get(report_id))
+        if flag.mod in mods and flag.change in by_position
+    ])

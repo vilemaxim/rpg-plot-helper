@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Flags — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>Flags</h1>
+  {% if flags %}
+    <p>A Flag is raised on an unfinished Mod when a reported change touches something it relies on, in any Campaign. A Mod has one Flag for each such change.</p>
+    <table>
+      <thead><tr><th>Mod</th><th>Touches</th><th>Change</th><th>Reported in</th></tr></thead>
+      <tbody>
+        {% for flag in flags %}
+          <tr class="flag">
+            <td>{% with value=flag.mod %}{% include "canon/link.html" %}{% endwith %}</td>
+            <td>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}</td>
+            <td>{{ flag.kind }}{% if flag.moved %}: {{ flag.before }} → {{ flag.after }}{% endif %}. {{ flag.summary }}</td>
+            <td>{% with value=flag.report %}{% include "canon/link.html" %}{% endwith %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No Mods are flagged.</p>
+  {% endif %}
+{% endblock %}

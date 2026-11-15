@@ -8,6 +8,16 @@
   {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
   {% if aliases %}<p class="aliases">Also called: {{ aliases|join:", " }}</p>{% endif %}
   {% if submitted_by %}<p>Submitted by {{ submitted_by.email }} on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
+  {% if flags %}
+    <div class="warning">
+      <p><strong>{{ flags|length }} Flag{{ flags|length|pluralize }} on this Mod.</strong> A reported change touches something it relies on. Check before running it.</p>
+      <ul>
+        {% for flag in flags %}
+          <li>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}, {{ flag.kind|lower }}: {{ flag.summary }} ({% with value=flag.report %}{% include "canon/link.html" %}{% endwith %})</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
   {% if can_be_reported_on %}
     <p><a href="{% url 'canon-report' world.pk document.slug %}">File an After-Action Report on this Mod</a></p>
   {% endif %}

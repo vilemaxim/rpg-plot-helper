@@ -89,3 +89,33 @@ class CanonChange(models.Model):
                                     name="one_canon_change_per_place"),
         ]
         indexes = [models.Index(fields=["world", "decision"])]
+
+
+class FlagQuerySet(models.QuerySet):
+    def open_in(self, world):
+        """A World's Flags. The filter on the Organization repeats what the
+        database already enforces."""
+        return self.filter(organization=world.organization, world=world)
+
+
+class Flag(models.Model):
+    """A warning on an unfinished Mod that a proposed Canon Change touches one
+    of its Features. The change names the Feature and the report it came from.
+
+    Raised when the change is proposed, in any Campaign of the World. Which
+    Mods a change flags is plotcanon's rule (`plotcanon.flags`).
+    """
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="flags")
+    mod = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="flags")
+    change = models.ForeignKey(CanonChange, on_delete=models.CASCADE, related_name="flags")
+    raised_at = models.DateTimeField(auto_now_add=True)
+
+    objects = FlagQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["raised_at", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["mod", "change"], name="one_flag_per_mod_and_change"),
+        ]

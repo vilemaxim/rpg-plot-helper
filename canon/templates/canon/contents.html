@@ -5,6 +5,9 @@
       <li><a href="{% url 'canon-list' world.pk address %}">{{ label }}</a> <span class="count">{{ count }}</span></li>
     {% endfor %}
   </ul>
+  {% if flags %}
+    <p class="warning"><a href="{% url 'canon-flags' world.pk %}">{{ flags }} open Flag{{ flags|pluralize }}</a> on Mods that a reported change may affect</p>
+  {% endif %}
   {% if pending %}
     <p><a href="{% url 'canon-pending' world.pk %}">{{ pending }} Canon Change{{ pending|pluralize }} waiting to be decided</a></p>
   {% endif %}
