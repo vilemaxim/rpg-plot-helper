@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Mod Writers — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>Mod Writers</h1>
+  <p>A Mod's file names its writer by a handle. Link each handle to the person it means, and they become the Mod Writer of every Mod with that handle: they can revise its drafts, and are emailed when one is sent back. A Mod submitted here already belongs to the person who submitted it. The links are kept here, never in the files.</p>
+  {% if handles %}
+    <table>
+      <thead><tr><th>Handle</th><th>Person</th></tr></thead>
+      <tbody>
+        {% for handle, person in handles %}
+          <tr>
+            <td class="handle">{{ handle }}</td>
+            <td>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="handle" value="{{ handle }}">
+                <select name="user" aria-label="The person {{ handle }} means">
+                  <option value="">Nobody</option>
+                  {% for someone in people %}<option value="{{ someone.pk }}"{% if person and someone.pk == person.pk %} selected{% endif %}>{{ someone.email }}</option>{% endfor %}
+                </select>
+                <button type="submit">Save</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No Mod in {{ world.name }} names a Mod Writer.</p>
+  {% endif %}
+  <p>Only someone with the Mod Writer or Plot Master role in {{ world.name }} can be linked. An Organization Admin gives roles from the World's people page.</p>
+{% endblock %}

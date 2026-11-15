@@ -2,9 +2,17 @@ from django import template
 from django.db.models import Count
 
 from ..kinds import KINDS
+from .. import writers
 from ..models import CanonChange, Document, Flag
 
 register = template.Library()
+
+
+@register.inclusion_tag("canon/my_drafts.html")
+def my_drafts(world, user):
+    """The draft Mods this person is the Mod Writer of, each marked if it was
+    sent back to them."""
+    return {"world": world, "drafts": writers.drafts_of(world, user)}
 
 
 @register.inclusion_tag("canon/contents.html")

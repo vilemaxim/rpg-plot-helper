@@ -7,12 +7,13 @@
   <h1>{{ document.name }}</h1>
   {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
   {% if aliases %}<p class="aliases">Also called: {{ aliases|join:", " }}</p>{% endif %}
+  {% if writer %}<p class="writer">Mod Writer: {{ writer.email }}{% if document.reassigned_by and document.writer_id == writer.pk %}, reassigned by {{ document.reassigned_by.email }} on {{ document.reassigned_at|date:"j F Y" }}{% endif %}</p>{% endif %}
   {% if submitted_by %}<p>Submitted by {{ submitted_by.email }} on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}
   {% if approved_by and not may_approve %}<p>Approved by {{ approved_by.email }} on {{ approved_at|date:"j F Y" }}.</p>{% endif %}
   {% if sent_back %}
     <div class="sent-back warning">
-      <p><strong>Sent back to its Mod Writer</strong>{% if sent_back.resolved_by %} by {{ sent_back.resolved_by.email }}{% endif %} on {{ sent_back.resolved_at|date:"j F Y" }}.</p>
-      <p>{{ sent_back.note }}</p>
+      <p><strong>Sent back to its Mod Writer</strong>{% if document.sent_back_by %} by {{ document.sent_back_by.email }}{% endif %} on {{ document.sent_back_at|date:"j F Y" }}.</p>
+      <p>{{ document.sent_back_reason }}</p>
       <p>It is a draft, and cannot be run or reported on until it is approved again.</p>
     </div>
   {% endif %}
@@ -46,6 +47,17 @@
   {% endif %}
   {% if may_revise %}
     <p><a href="{% url 'canon-revise' world.pk document.slug %}">Revise this draft</a></p>
+  {% endif %}
+  {% if may_reassign %}
+    <form method="post" action="{% url 'canon-reassign' world.pk document.slug %}" class="reassign">
+      {% csrf_token %}
+      <label for="reassign-to">Reassign this draft to</label>
+      <select id="reassign-to" name="user" required>
+        <option value="">Choose someone</option>
+        {% for someone in mod_writers %}<option value="{{ someone.pk }}">{{ someone.email }}</option>{% endfor %}
+      </select>
+      <button type="submit">Reassign</button>
+    </form>
   {% endif %}
   {% if may_decide and may_approve %}
     <form method="post" action="{% url 'canon-approve' world.pk document.slug %}" class="approve">

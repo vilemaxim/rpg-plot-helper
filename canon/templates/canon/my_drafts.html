@@ -1,0 +1,10 @@
+{% if drafts %}
+  <section class="my-drafts">
+    <h2>Your drafts</h2>
+    <ul>
+      {% for mod, sent_back in drafts %}
+        <li><a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a>{% if sent_back %}, sent back to you{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}

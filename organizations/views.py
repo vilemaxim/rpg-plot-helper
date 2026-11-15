@@ -13,7 +13,7 @@ from accounts.models import User
 
 from . import signup, tenancy
 from .forms import InvitationForm, NameForm, WorldForm
-from .models import Invitation, Membership, Role, World, WorldRole
+from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole
 
 
 def worlds_open_to(request):
@@ -81,11 +81,6 @@ def is_plot_master(request, world):
 def holds_role(request, world, *roles):
     """Whether the person holds any of these roles in this World."""
     return WorldRole.objects.filter(world=world, user=request.user, role__in=roles).exists()
-
-
-# Who may submit Mods to a World: its Mod Writers, and its Plot Masters, who
-# may do anything a Mod Writer may.
-WRITES_MODS = (Role.MOD_WRITER, Role.PLOT_MASTER)
 
 
 def may_write_mods(request, world):

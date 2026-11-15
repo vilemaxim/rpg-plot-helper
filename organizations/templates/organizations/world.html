@@ -18,5 +18,9 @@
   {% if is_plot_master %}
     <p><a href="{% url 'rename-world' world.pk %}">Rename this World</a></p>
   {% endif %}
+  {% if is_plot_master %}
+    <p><a href="{% url 'canon-mod-writers' world.pk %}">Mod Writers</a></p>
+  {% endif %}
   {% world_contents world is_plot_master may_write_mods %}
+  {% my_drafts world user %}
 {% endblock %}

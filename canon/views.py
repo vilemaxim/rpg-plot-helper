@@ -1,5 +1,8 @@
 from django.conf import settings
 from django.contrib import messages
+from django.core.mail import send_mail
+from django.db import transaction
+from django.template.loader import render_to_string
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -8,7 +11,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import approving, deciding, intake, resolving, submitting
+from . import approving, deciding, intake, resolving, submitting, writers
 from .forms import ImportForm, ModForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
@@ -93,6 +96,7 @@ def detail(request, world_id, kind, slug):
     if document is None or document.kind != doc_type:
         raise Http404("No such document")
     entities = document.fields.get("entities")
+    draft = doc_type == "mod" and is_draft(document)
     return render(request, "canon/detail.html", {
         "world": world,
         "kind": kind,
@@ -111,19 +115,16 @@ def detail(request, world_id, kind, slug):
         "resolved_flags": flags_shown(index, Flag.objects.filter(
             organization=world.organization, world=world, mod=document).exclude(resolution=""))
         if doc_type == "mod" else [],
-        "sent_back": Flag.objects.filter(
-            organization=world.organization, world=world, mod=document,
-            resolution=Flag.Resolution.SENT_BACK).select_related("resolved_by")
-        .order_by("-resolved_at").first()
-        if doc_type == "mod" and is_draft(document) else None,
-        "may_approve": doc_type == "mod" and is_draft(document),
+        "sent_back": draft and document.sent_back_at is not None,
+        "may_approve": draft,
         "needs_campaign": doc_type == "mod" and approving.needs_campaign(document),
-        "campaigns": approving.campaigns_of(world)
-        if doc_type == "mod" and is_draft(document) else {},
+        "campaigns": approving.campaigns_of(world) if draft else {},
         "approved_by": document.approved_by,
         "approved_at": document.approved_at,
-        "may_revise": doc_type == "mod" and is_draft(document)
-        and may_revise(request, world, document),
+        "may_revise": draft and may_revise(request, world, document),
+        "writer": writers.writer_of(document) if doc_type == "mod" else None,
+        "may_reassign": draft and is_plot_master(request, world),
+        "mod_writers": writers.may_write_mods_in(world) if draft else [],
         "may_send_back": doc_type == "mod"
         and document.fields.get("state") in submitting.states().reportable
         and not reported_on(world, document),
@@ -184,10 +185,10 @@ def is_draft(mod):
 
 def may_revise(request, world, mod):
     """Whether this person may revise this Mod while it is a draft: they are
-    a Plot Master, or the Mod Writer who submitted it."""
+    a Plot Master, or its Mod Writer."""
     if is_plot_master(request, world):
         return True
-    return mod.submitted_by_id == request.user.pk and may_write_mods(request, world)
+    return writers.is_writer_of(mod, request.user) and may_write_mods(request, world)
 
 
 def mod_form(request, context, save):
@@ -391,12 +392,77 @@ def send_back(request, world_id, slug):
         raise Http404("No such page")
     mod = mod_or_404(world, slug)
     try:
-        resolving.send_back(world, mod, request.POST.get("reason", ""), request.user)
+        mod = resolving.send_back(world, mod, request.POST.get("reason", ""), request.user)
     except resolving.ResolutionRefused as refused:
         messages.error(request, str(refused))
+        return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+    # The World stays locked until this request's transaction ends, so the
+    # Mod Writer read here is the one it was sent back to.
+    writer = writers.writer_of(mod)
+    if writer is not None and not writers.still_writes(world, writer):
+        messages.success(request, f"{mod.name} is a draft again. Its Mod Writer, "
+                                  f"{writer.email}, no longer writes Mods here, so nobody "
+                                  f"was emailed; a Plot Master can reassign it from its page.")
+    elif writer is None:
+        messages.success(request, f"{mod.name} is a draft again. No Mod Writer is known for "
+                                  f"it, so nobody was emailed; a Plot Master can reassign it "
+                                  f"from its page.")
     else:
-        messages.success(request, f"{mod.name} is a draft again, back with its Mod Writer.")
+        tell_sent_back(request, world, mod, writer, mod.sent_back_reason)
+        messages.success(request, f"{mod.name} is a draft again, back with its Mod Writer, "
+                                  f"{writer.email}, who has been emailed why.")
     return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+
+
+def tell_sent_back(request, world, mod, writer, reason):
+    """Email a Mod's Mod Writer that it has been sent back, once that is saved."""
+    link = request.build_absolute_uri(reverse("canon-detail", args=[world.pk, "mods", mod.slug]))
+    message = render_to_string("canon/sent_back_email.txt", {
+        "mod": mod.name, "world": world.name, "by": request.user.email, "reason": reason,
+        "link": link})
+    # An email subject must be one line.
+    subject = " ".join(f"{mod.name} has been sent back to you".split())
+    transaction.on_commit(lambda: send_mail(subject=subject, message=message, from_email=None,
+                                            recipient_list=[writer.email]))
+
+
+@require_POST
+def reassign(request, world_id, slug):
+    """Make someone else the Mod Writer of a draft. For the World's Plot
+    Masters only."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    mod = mod_or_404(world, slug)
+    try:
+        writers.reassign(world, mod, request.POST.get("user", ""), request.user)
+    except writers.WriterRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, f"{mod.name} is reassigned.")
+    return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+
+
+@require_http_methods(["GET", "POST"])
+def mod_writers(request, world_id):
+    """Link each Mod Writer handle in the World's files to a person. For the
+    World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    if request.method == "POST":
+        handle = request.POST.get("handle", "")
+        try:
+            person = writers.link(world, handle, request.POST.get("user", ""), request.user)
+        except writers.WriterRefused as refused:
+            messages.error(request, str(refused))
+        else:
+            messages.success(request, f"`{handle}` is {person.email}." if person
+                             else f"`{handle}` is linked to nobody.")
+        return redirect("canon-mod-writers", world_id=world.pk)
+    return render(request, "canon/mod_writers.html", {
+        "world": world, "handles": writers.handles_in(world).items(),
+        "people": writers.may_write_mods_in(world)})
 
 
 @require_POST

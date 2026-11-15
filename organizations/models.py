@@ -66,6 +66,11 @@ class Role(models.TextChoices):
     MOD_RUNNER = "mod-runner", "Mod Runner"
 
 
+# Who may write Mods in a World: its Mod Writers, and its Plot Masters, who
+# may do anything a Mod Writer may.
+WRITES_MODS = (Role.MOD_WRITER, Role.PLOT_MASTER)
+
+
 class WorldRole(models.Model):
     """One role held by one person in one World. A person can hold several."""
 

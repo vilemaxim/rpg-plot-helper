@@ -44,6 +44,21 @@ class Document(models.Model):
     approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                     on_delete=models.SET_NULL, related_name="+")
     approved_at = models.DateTimeField(null=True, blank=True)
+    # The person a Plot Master reassigned a draft Mod to, and who did that and
+    # when. Otherwise a Mod's Mod Writer is the person who submitted it, or
+    # whoever its file's handle is linked to (`writers.py`). Never written
+    # into the file (ADR-0001).
+    writer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                               on_delete=models.SET_NULL, related_name="+")
+    reassigned_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name="+")
+    reassigned_at = models.DateTimeField(null=True, blank=True)
+    # The last time this Mod was sent back to its Mod Writer: by whom, when
+    # and why. Kept while it is a draft and after, as its history.
+    sent_back_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name="+")
+    sent_back_at = models.DateTimeField(null=True, blank=True)
+    sent_back_reason = models.TextField(blank=True)
 
     class Meta:
         ordering = ["name", "slug"]
@@ -155,4 +170,25 @@ class Flag(models.Model):
         ordering = ["raised_at", "pk"]
         constraints = [
             models.UniqueConstraint(fields=["mod", "change"], name="one_flag_per_mod_and_change"),
+        ]
+
+
+class WriterHandle(models.Model):
+    """A Mod Writer's handle, as a World's files name them (`mod_writer: sam`),
+    linked to the person it means. Every Mod with that handle has that person
+    as its Mod Writer, unless one has been reassigned. The link is kept here,
+    not in the files: accounts never appear in files (ADR-0001)."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="writer_handles")
+    handle = models.CharField(max_length=200)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name="+")
+    linked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                  on_delete=models.SET_NULL, related_name="+")
+    linked_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["world", "handle"], name="one_person_per_handle"),
         ]

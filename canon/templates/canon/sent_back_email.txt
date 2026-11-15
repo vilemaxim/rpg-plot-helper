@@ -1,0 +1,10 @@
+{% autoescape off %}{{ by }} has sent {{ mod }}, in {{ world }}, back to you to revise.
+
+Why:
+
+{{ reason }}
+
+It is a draft again, and cannot be run until a Plot Master approves it. Revise it from its page:
+
+{{ link }}
+{% endautoescape %}

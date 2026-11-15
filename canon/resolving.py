@@ -52,7 +52,8 @@ MAX_REASON = 2000
 
 def send_back(world, mod, reason, user):
     """Return a Mod to its Mod Writer: it becomes a draft again, and every open
-    Flag on it is resolved with the reason given. A draft is not Canon, so its
+    Flag on it is resolved with the reason given. Who sent it back, when and
+    why is kept on the Mod, whether or not it had Flags. A draft is not Canon, so its
     file moves to the inbox and says `canon: proposed`."""
     reason = reason.strip()
     if not reason:
@@ -89,7 +90,9 @@ def send_back(world, mod, reason, user):
                 f"not been. Dismiss its Flags instead, and handle the rest of it in the "
                 f"reports still to come.")
 
-        parsed_into(mod, whole.world.get(mod.slug), whole.world).save()
+        mod = parsed_into(mod, whole.world.get(mod.slug), whole.world)
+        mod.sent_back_by, mod.sent_back_at, mod.sent_back_reason = user, timezone.now(), reason
+        mod.save()
         resolve(Flag.objects.filter(organization=world.organization, world=world, mod=mod),
                 Flag.Resolution.SENT_BACK, user, note=reason)
     return mod

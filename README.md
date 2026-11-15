@@ -118,9 +118,19 @@ Mods are written in the Mod Writer's own LLM and submitted as a file ([ADR-0002]
 
 - **It arrives as a draft.** It is kept in the World's inbox, says `state: draft` and `canon: proposed` whatever the file claimed, and is not Canon. A draft cannot be run or reported on, and submitting one raises no Flags.
 - **It is checked first.** plotcanon checks it against the World as stored. If anything is wrong, nothing is saved and the errors are shown as text to paste back into the LLM, with what was pasted kept in the form. A draft may name people, places and factions the World does not have yet; plotcanon allows that in the inbox.
-- **Its id is its own.** A Mod whose id the World already uses is refused. To change a draft, revise it from its page with a file that keeps its id; the Mod Writer who submitted it, and the World's Plot Masters, can. A revision keeps the draft's history: who submitted it, its Flags, and who sent it back and why.
+- **Its id is its own.** A Mod whose id the World already uses is refused. To change a draft, revise it from its page with a file that keeps its id; its Mod Writer, and the World's Plot Masters, can. A revision keeps the draft's history: who submitted it, its Flags, and who sent it back and why.
 
 A Plot Master approves a draft from its page, which makes it Canon and ready to be run. Its file moves to its Campaign's folder and says `state: approved` and `canon: approved`. A Mod that names no Campaign has one chosen as it is approved, and that is written into its file. The whole World is checked by plotcanon first, and nothing is saved if it finds an error, or a new warning on the Mod: a draft that names something the World does not have cannot be approved until it is revised. A Mod's open Flags stay open when it is approved. Its page says who approved it and when.
+
+### Mod Writers
+
+A Mod's file names its writer by a handle, such as `mod_writer: sam`, which is a word in the file and not an account. The app knows a Mod's Mod Writer as a person:
+
+- **A Mod submitted here** belongs to the person who submitted it.
+- **An imported Mod** belongs to whoever its handle is linked to. A Plot Master links each handle once, on the World's "Mod Writers" page, and that covers every Mod with it.
+- **A draft can be reassigned** by a Plot Master, from its page, to anyone with the Mod Writer or Plot Master role in the World. The page says who reassigned it and when. This wins over both of the above.
+
+A Mod's page shows its Mod Writer. Only its Mod Writer, or a Plot Master, can revise a draft. When a Mod is sent back, its Mod Writer is emailed which Mod, who sent it back, why, and a link to it, and their drafts are listed for them on the World's page, marked if they were sent back. None of this is written into any file: accounts never appear in files ([ADR-0001](./docs/adr/0001-two-versions-one-schema-owned-by-larp-llm.md)).
 
 ## Who may create an Organization
 

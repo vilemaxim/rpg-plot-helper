@@ -36,6 +36,10 @@ _Avoid_: Adventure, module
 The role of writing a Mod and submitting it for the Plot Master's approval.
 _Avoid_: Author, plot writer
 
+**Handle**:
+The name a Mod's file gives its Mod Writer, such as `sam`. It is a word in the file, not an account; a Plot Master links it to the person it means.
+_Avoid_: Username, login
+
 **Mod Runner**:
 The role of running a Mod and reporting what happened in it. A solo GM is the Mod Runner of every Mod they run.
 
