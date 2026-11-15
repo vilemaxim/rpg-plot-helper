@@ -13,7 +13,7 @@
       <p><strong>{{ flags|length }} Flag{{ flags|length|pluralize }} on this Mod.</strong> A reported change touches something it relies on. Check before running it.</p>
       <ul>
         {% for flag in flags %}
-          <li>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}, {{ flag.kind|lower }}: {{ flag.summary }} ({% with value=flag.report %}{% include "canon/link.html" %}{% endwith %})</li>
+          <li>{% with value=flag.entity %}{% include "canon/link.html" %}{% endwith %}, {{ flag.kind|lower }}{% if flag.moved %} {{ flag.before }} → {{ flag.after }}{% endif %}: {{ flag.summary }} ({% with value=flag.report %}{% include "canon/link.html" %}{% endwith %})</li>
         {% endfor %}
       </ul>
     </div>

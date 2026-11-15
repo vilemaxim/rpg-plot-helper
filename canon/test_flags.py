@@ -50,7 +50,7 @@ class Raising(FlagTest):
 
         flagged = self.flagged()
         for mod in ("the-low-tide-market", "the-wardens-ball"):
-            self.assertEqual(self.stored(mod).fields["state"] in ("finished", "shelved"), True)
+            self.assertIn(self.stored(mod).fields["state"], ("finished", "shelved"))
             self.assertNotIn(mod, flagged)
 
     def test_a_mod_finished_by_the_report_is_not_flagged_by_it(self):
@@ -127,6 +127,49 @@ class WhatAFlagSays(FlagTest):
         eves_world = eve.get("/", follow=True).redirect_chain[-1][0]
 
         self.assertContains(eve.get(f"{eves_world}flags/"), "No Mods are flagged")
+
+
+class WhenAFlaggedModFinishes(FlagTest):
+    """A Flag warns about a Mod still to be played. Once the Mod is finished it
+    is no longer shown as open, though it stays on record."""
+
+    def setUp(self):
+        super().setUp()
+        self.submit(STAIR)       # flags a-warrant-for-dunmore, among others
+        self.submit(VIGIL)       # flags storm-moon-vigil itself: it has more to play
+        self.submit(VIGIL_2)     # finishes storm-moon-vigil
+
+    def test_its_flags_leave_the_open_list(self):
+        page = self.mira.get(self.flags_page)
+
+        self.assertNotContains(page, 'href="' + self.mod_page("storm-moon-vigil") + '"')
+        self.assertContains(page, 'href="' + self.mod_page("a-warrant-for-dunmore") + '"')
+
+    def test_its_page_no_longer_warns(self):
+        self.assertNotContains(self.mira.get(self.mod_page("storm-moon-vigil")), 'class="warning"')
+
+    def test_the_world_page_counts_only_open_flags(self):
+        with self.in_world():
+            on_record = Flag.objects.count()
+            open_now = Flag.objects.exclude(mod__slug="storm-moon-vigil").count()
+
+        page = self.mira.get(self.first_world)
+
+        self.assertLess(open_now, on_record)
+        self.assertContains(page, f"{open_now} open Flags")
+
+    def test_they_stay_on_record(self):
+        with self.in_world():
+            self.assertTrue(Flag.objects.filter(mod__slug="storm-moon-vigil").exists())
+
+
+class WhatAWarningSays(FlagTest):
+    def test_the_mods_page_shows_what_changed_from_and_to(self):
+        self.submit(STAIR)
+
+        page = self.mira.get(self.mod_page("a-warrant-for-dunmore"))
+
+        self.assertContains(page, "alive → dead")
 
 
 class WhoSeesThem(FlagTest):

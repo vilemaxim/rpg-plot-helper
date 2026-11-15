@@ -93,9 +93,15 @@ class CanonChange(models.Model):
 
 class FlagQuerySet(models.QuerySet):
     def open_in(self, world):
-        """A World's Flags. The filter on the Organization repeats what the
-        database already enforces."""
-        return self.filter(organization=world.organization, world=world)
+        """A World's open Flags: those on a Mod that is still to be played. A
+        Flag on a Mod that has since finished, or been shelved, stays on record
+        but warns about nothing. The filter on the Organization repeats what
+        the database already enforces."""
+        import plotcanon
+
+        unfinished = plotcanon.vocabularies()["mod_states_unfinished"]
+        return self.filter(organization=world.organization, world=world,
+                           mod__fields__state__in=unfinished)
 
 
 class Flag(models.Model):
