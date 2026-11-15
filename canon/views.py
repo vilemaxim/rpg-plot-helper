@@ -259,6 +259,7 @@ def detail(request, world_id, kind, slug):
                            CanonChange.objects.pending(world).filter(entity=document.slug)
                            .select_related("report__submitted_by")],
         "may_decide": is_plot_master(request, world),
+        "note_length": deciding.NOTE_LENGTH,
         "submitted_by": document.submitted_by,
         "submitted_at": document.submitted_at,
         "body": render_markdown(document.body),
@@ -427,6 +428,7 @@ def pending(request, world_id):
     return render(request, "canon/pending.html", {
         "world": world, "groups": groups, "count": len(waiting),
         "may_decide": is_plot_master(request, world),
+        "note_length": deciding.NOTE_LENGTH,
         "selected": selected, "refused": refused,
     })
 

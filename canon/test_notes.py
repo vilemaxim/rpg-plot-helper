@@ -72,6 +72,7 @@ class WhereANoteIsWritten(NoteTest):
         for page in (self.pending, self.report_page):
             response = self.mira.get(page)
             self.assertContains(response, 'name="note"')
+            self.assertContains(response, 'name="note" maxlength="500"')
 
     @property
     def report_page(self):
