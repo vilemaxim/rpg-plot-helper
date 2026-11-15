@@ -32,6 +32,14 @@ _Avoid_: Thread, arc, storyline
 A single runnable piece of play, written in advance by a Mod Writer and run for players by a Mod Runner. A Mod can be interrupted and continue later, even at another Event.
 _Avoid_: Adventure, module
 
+**Dry Run**:
+A playable, branching version of a Mod, built from its scenes and Possible Outcomes, for walking through what could happen without players. Nothing in a Dry Run changes Canon. Anyone who may read the Mod may play its Dry Run; players never can.
+_Avoid_: Twine, playtest, simulation
+
+**Contest**:
+A point in a Mod where what happens next depends on play that is not written in advance, such as a fight, a chase or a persuasion, and so has named results, at least success and failure. A Dry Run does not simulate a Contest; the reader picks its result.
+_Avoid_: Combat, check, roll
+
 **Mod Writer**:
 The role of writing a Mod and submitting it for the Plot Master's approval.
 _Avoid_: Author, plot writer
