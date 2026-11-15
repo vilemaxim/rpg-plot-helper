@@ -166,7 +166,7 @@ A Dry Run is built from the links a Mod's Hooks, scenes and Contests name, a con
 - **`encouraged`.** What is missing or broken is a warning: the Mod is saved, and the warnings are shown when it is submitted, revised and approved. A Mod with no structure at all is left alone.
 - **`required`.** The same findings are errors, and a Mod with no structure at all is refused. Every Mod in the World is checked, finished ones too, so a World can only be set to `required` once all of its Mods have the structure. Until then the change is refused and plotcanon's findings are shown, to paste into the LLM that wrote each Mod.
 
-The setting is kept in the World's settings file, `world.yml`, so an export carries it and larp-llm reads it too. A new World is given its Organization's default, which starts at `encouraged`; an Organization Admin changes it on the Organization page. The default is the app's own and is never written into a file, and changing it leaves existing Worlds as they are.
+The setting is kept in the World's settings file, `world.yml`, so an export carries it and larp-llm reads it too. A new World is given its Organization's default, which starts at plotcanon's default, `encouraged`; an Organization Admin changes it on the Organization page. The default is the app's own and is never written into a file, and changing it leaves existing Worlds as they are.
 
 ### Playing a Dry Run
 
