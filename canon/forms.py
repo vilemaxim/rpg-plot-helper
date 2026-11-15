@@ -69,3 +69,55 @@ class ReportForm(FileForm):
 
 class ModForm(FileForm):
     noun = "Mod"
+
+
+class RecordForm(FileForm):
+    noun = "record"
+
+
+class InterludeForm(forms.Form):
+    """A new Interlude: what to call it, which Campaign it belongs to and which
+    Event it follows. `events` and `campaigns` are `(id, name)` pairs, the
+    Events in order."""
+
+    name = forms.CharField(max_length=200, label="What to call it")
+    campaign = forms.ChoiceField(label="Campaign")
+    after = forms.ChoiceField(label="It comes after")
+    in_world = forms.CharField(max_length=500, label="When it is in the World",
+                               help_text="A phrase, such as “the weeks after the storm”.")
+    real_date = forms.DateField(label="Real-world date it begins",
+                                widget=forms.DateInput(attrs={"type": "date"}))
+
+    def __init__(self, *args, events=(), campaigns=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["after"].choices = list(events)
+        self.fields["campaign"].choices = list(campaigns)
+        if events:
+            self.fields["after"].initial = list(events)[-1][0]
+
+    def clean_name(self):
+        name = " ".join(self.cleaned_data["name"].split())
+        if not name:
+            raise forms.ValidationError("Give the Interlude a name.")
+        return name
+
+
+class ChangeForm(forms.Form):
+    """One Canon Change made during an Interlude. `entities` are `(id, name)`
+    pairs and `kinds` the kinds of change plotcanon knows."""
+
+    entity = forms.ChoiceField(label="What changes")
+    kind = forms.ChoiceField(label="Kind of change")
+    before = forms.CharField(required=False, max_length=200, label="From",
+                             help_text="For a status, location or affiliation. Left empty "
+                                       "for a status or location, it is what Canon "
+                                       "says at this Interlude.")
+    after = forms.CharField(required=False, max_length=200, label="To",
+                            help_text="For a status, location or affiliation: the new "
+                                      "value, as an id.")
+    summary = forms.CharField(max_length=500, label="What happened, in one line")
+
+    def __init__(self, *args, entities=(), kinds=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["entity"].choices = list(entities)
+        self.fields["kind"].choices = list(kinds)

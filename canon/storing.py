@@ -34,7 +34,12 @@ def files_of(world):
 def name_of(document, plot_world):
     """What to call a document on a page: its title, or the first of its
     names, or failing both its id. An After-Action Report has neither, so it
-    is called after its Mod and Event."""
+    is called after its Mod and Event, and a record of an Interlude's changes
+    after the Interlude."""
+    if document.type == "interlude-changes":
+        event = plot_world.get(document.fields.get("event"))
+        if event is not None:
+            return f"Changes during {name_of(event, plot_world)}"
     if document.type == "after-action":
         mod = plot_world.get(document.fields.get("mod"))
         event = plot_world.get(document.fields.get("event"))

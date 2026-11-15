@@ -119,6 +119,14 @@ A Plot Master decides each Canon Change, one at a time, from the "Canon Changes 
 
 Each decision is recorded in the change's row, in the report's stored file and, where a field moves, in the entity's stored file, and the World is checked by plotcanon before anything is saved: a decision is refused if plotcanon finds an error, or warns that the entity's file disagrees with its approved changes. Only a Plot Master of the World can decide.
 
+### Interludes
+
+Canon also changes between Events, with no Mod run: backstories, off-screen moves, letters. The time between two Events is an Interlude.
+
+- **Adding one.** A Plot Master adds an Interlude from the Events list, naming it, choosing its Campaign and the Event it comes after. It takes the next place in the World's order, and every later Event moves up one: plotcanon requires the order to have no gaps, and everything refers to an Event by its id, so nothing else moves. The new Event's file is written and the whole World checked before anything is saved.
+- **Recording changes.** From the Interlude's page, a Plot Master records changes made during it, one at a time in a form or several as a pasted `interlude-changes` file (plotcanon's format). A change of status or location entered in the form changes from what Canon says at the Interlude's place in the order, unless the Plot Master says otherwise; a change of affiliation names the faction left, which is never inferred. They are approved as they are recorded, since the Plot Master is the one making them, whatever a pasted file says (one that marks a change rejected is refused): each goes through the same decision as a reported change, so one that contradicts Canon is refused and nothing is saved. They raise Flags on the unfinished Mods they touch, and appear in each entity's History as "Changes during" the Interlude.
+- **Who recorded them** is kept in the app. A file made from the form says `recorded_by: plot-master`, since accounts never appear in files.
+
 ### Resolving Flags
 
 A Plot Master resolves each Flag in one of three ways, from the Flags page or the flagged Mod's page:

@@ -20,12 +20,12 @@ NOT_PLAIN_FACTS = {"id", "type", "title", "aliases", "state", "status", "feature
                    "canon_changes", "requires", "expected_changes", "mods", "entities"}
 
 LABELS = {"mod_writer": "Mod Writer", "mod_runner": "Mod Runner", "pcs": "PCs", "npcs": "NPCs",
-          "as_of": "As of", "canon": "In Canon"}
+          "as_of": "As of", "canon": "In Canon", "recorded_by": "Recorded by"}
 
 # Fields that hold a person's handle, a date, a number or free text. Their
 # values are never another document's id, so they are never shown as links,
 # even when a document happens to have that id.
-NEVER_LINKS = {"mod_writer", "mod_runner", "owner", "player", "tags", "in_world", "region",
+NEVER_LINKS = {"mod_writer", "mod_runner", "recorded_by", "owner", "player", "tags", "in_world", "region",
                "real_date", "real_date_end", "ordinal", "slot", "duration_est", "sort_hint",
                "ran", "era"}
 

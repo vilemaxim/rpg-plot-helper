@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Record changes — {{ event.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-detail' world.pk 'events' event.slug %}">{{ event.name }}</a></p>
+  <h1>Record Canon Changes during {{ event.name }}</h1>
+  <p>Changes recorded here are Canon at once: you are the Plot Master making them. Each is checked against what Canon already holds, and raises Flags on the unfinished Mods it touches, as a reported change does.</p>
+  {% if refused %}
+    <div class="refused">
+      <p><strong>Nothing was saved.</strong> {{ refused }}</p>
+      {% if errors %}<pre>{{ errors }}</pre>{% endif %}
+    </div>
+  {% endif %}
+  <h2>One change</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ change_form.non_field_errors }}
+    {% for field in change_form %}
+      <div class="field">
+        {{ field.errors }}
+        {{ field.label_tag }}
+        {{ field }}
+        {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+      </div>
+    {% endfor %}
+    <button type="submit">Record this change</button>
+  </form>
+  <h2>Or several, as a file</h2>
+  <p>Paste an <code>interlude-changes</code> file, or choose it. Its <code>event</code> must be <code>{{ event.slug }}</code>.</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ file_form.non_field_errors }}
+    <div class="field">
+      {{ file_form.text.errors }}
+      {{ file_form.text.label_tag }}
+      {{ file_form.text }}
+    </div>
+    <div class="field">
+      {{ file_form.file.errors }}
+      {{ file_form.file.label_tag }}
+      {{ file_form.file }}
+    </div>
+    <button type="submit">Record these changes</button>
+  </form>
+{% endblock %}

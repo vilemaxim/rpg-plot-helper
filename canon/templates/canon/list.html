@@ -5,6 +5,9 @@
 {% block content %}
   <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
   <h1>{{ label }}</h1>
+  {% if may_add_interlude %}
+    <p><a href="{% url 'canon-add-interlude' world.pk %}">Add an Interlude</a>, for Canon that changes between Events with no Mod run.</p>
+  {% endif %}
   {% if documents %}
     <ul class="plain">
       {% for document in documents %}

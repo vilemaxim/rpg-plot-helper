@@ -14,6 +14,7 @@ KINDS = {
     "locations": ("location", "Locations"),
     "pcs": ("pc", "PCs"),
     "reports": ("after-action", "After-Action Reports"),
+    "interludes": ("interlude-changes", "Interlude Changes"),
     "timeline": ("timeline", "Timeline"),
 }
 

@@ -103,6 +103,9 @@
       <button type="submit">Approve this Mod</button>
     </form>
   {% endif %}
+  {% if may_record %}
+    <p><a href="{% url 'canon-record-changes' world.pk document.slug %}">Record Canon Changes made during this Interlude</a></p>
+  {% endif %}
   {% if can_be_reported_on %}
     <p><a href="{% url 'canon-report' world.pk document.slug %}">File an After-Action Report on this Mod</a></p>
   {% endif %}

@@ -1,5 +1,6 @@
 from functools import wraps
 
+import plotcanon
 from django.conf import settings
 from django.contrib import messages
 from django.core.mail import send_mail
@@ -14,8 +15,9 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import approving, deciding, exporting, intake, links, resolving, submitting, writers
-from .forms import ImportForm, ModForm, ReportForm
+from . import (approving, deciding, exporting, intake, interludes, links, resolving,
+               submitting, writers)
+from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
 from .models import CanonChange, Document, Flag, ModLink
@@ -99,6 +101,70 @@ def export_download(request, world):
     return response
 
 
+@require_http_methods(["GET", "POST"])
+@plot_masters_only
+def add_interlude(request, world):
+    """Add an Interlude to the World's order of Events. For its Plot Masters."""
+    choices = {
+        "events": [(event.slug, event.name) for event in interludes.events_of(world)],
+        "campaigns": list(approving.campaigns_of(world).items())}
+    if not choices["events"]:
+        raise Http404("No such page")
+    form = InterludeForm(request.POST or None, **choices)
+    if request.method == "POST" and form.is_valid():
+        try:
+            event = interludes.add(world, user=request.user, **form.cleaned_data)
+        except interludes.InterludeRefused as refused:
+            messages.error(request, " ".join(filter(None, [str(refused), refused.errors])))
+        else:
+            messages.success(request, f"{event.name} is added to the order of Events. Record "
+                                      f"the Canon Changes made during it from here.")
+            return redirect("canon-detail", world_id=world.pk, kind="events", slug=event.slug)
+    return render(request, "canon/add_interlude.html", {"world": world, "form": form})
+
+
+@require_http_methods(["GET", "POST"])
+@plot_masters_only
+def record_changes(request, world, slug):
+    """Record Canon Changes made during an Interlude, one entered here or a
+    pasted file of them. For the World's Plot Masters."""
+    event = documents_of(world).filter(kind="event", slug=slug).first()
+    if event is None or not interludes.is_interlude(event):
+        raise Http404("No such page")
+    vocabulary = plotcanon.vocabularies()["vocabularies"]["canon_change_kind"]
+    entity_kinds = ("npc", "faction", "location", "plot", "pc")
+    choices = {
+        "entities": [(d.slug, f"{d.name} ({d.kind})") for d in
+                     documents_of(world).filter(kind__in=entity_kinds).order_by("name")],
+        "kinds": [(kind, wording(kind)) for kind in vocabulary]}
+    context = {"world": world, "event": event}
+    change_form, file_form = ChangeForm(**choices), RecordForm()
+    if request.method == "POST":
+        pasting = "text" in request.POST or "file" in request.FILES
+        if pasting:
+            file_form = RecordForm(request.POST, request.FILES)
+            text = file_form.cleaned_data["contents"] if file_form.is_valid() else None
+        else:
+            change_form = ChangeForm(request.POST, **choices)
+            text = interludes.change_file(world, event, **change_form.cleaned_data) \
+                if change_form.is_valid() else None
+        if text is not None:
+            try:
+                record = interludes.record(world, event, text, request.user)
+            except interludes.InterludeRefused as refused:
+                context.update(refused=str(refused), errors=refused.errors)
+                if pasting:
+                    file_form = RecordForm(initial={"text": text})
+            else:
+                count = len(record.fields.get("canon_changes") or [])
+                messages.success(request, f"{count} change{'' if count == 1 else 's'} recorded "
+                                          f"during {event.name}, and Canon now.")
+                return redirect("canon-detail", world_id=world.pk, kind="events",
+                                slug=event.slug)
+    return render(request, "canon/record.html",
+                  {**context, "change_form": change_form, "file_form": file_form})
+
+
 def state_of(document):
     """A document's state or status, as words, or nothing if it has neither."""
     value = document.fields.get("state") or document.fields.get("status")
@@ -124,7 +190,8 @@ def listing(request, world_id, kind):
     for document in documents:
         document.state = state_of(document)
     return render(request, "canon/list.html",
-                  {"world": world, "kind": kind, "label": label, "documents": documents})
+                  {"world": world, "kind": kind, "label": label, "documents": documents,
+                   "may_add_interlude": doc_type == "event" and is_plot_master(request, world)})
 
 
 @require_GET
@@ -177,7 +244,9 @@ def detail(request, world_id, kind, slug):
         "report_changes": [change_row(index, c) for c in
                            CanonChange.objects.in_world(world).filter(report=document)
                            .select_related("report__submitted_by", "decided_by")]
-        if doc_type == "after-action" else [],
+        if doc_type in ("after-action", interludes.RECORD) else [],
+        "may_record": doc_type == "event" and interludes.is_interlude(document)
+        and is_plot_master(request, world),
         "history": history(index, world, document),
         "waiting_for_it": [change_row(index, c) for c in
                            CanonChange.objects.pending(world).filter(entity=document.slug)

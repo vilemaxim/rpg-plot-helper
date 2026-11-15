@@ -4,6 +4,10 @@ from . import runner_views, views
 
 urlpatterns = [
     path("worlds/<uuid:world_id>/import/", views.import_page, name="canon-import"),
+    path("worlds/<uuid:world_id>/add-interlude/", views.add_interlude,
+         name="canon-add-interlude"),
+    path("worlds/<uuid:world_id>/events/<slug:slug>/record/", views.record_changes,
+         name="canon-record-changes"),
     path("worlds/<uuid:world_id>/export/", views.export_page, name="canon-export"),
     path("worlds/<uuid:world_id>/export/download/", views.export_download,
          name="canon-export-download"),
