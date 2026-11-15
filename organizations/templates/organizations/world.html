@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load canon %}
 
 {% block title %}{{ world.name }} — RPG Plot Helper{% endblock %}
 
@@ -17,5 +18,5 @@
   {% if is_plot_master %}
     <p><a href="{% url 'rename-world' world.pk %}">Rename this World</a></p>
   {% endif %}
-  <p>This World has no Canon yet. Importing a World comes next.</p>
+  {% world_contents world is_plot_master %}
 {% endblock %}

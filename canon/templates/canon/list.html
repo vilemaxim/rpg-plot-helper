@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}{{ label }} — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>{{ label }}</h1>
+  {% if documents %}
+    <ul class="plain">
+      {% for document in documents %}
+        <li>
+          <a href="{% url 'canon-detail' world.pk kind document.slug %}">{{ document.name }}</a>
+          {% if document.state %}<span class="state">{{ document.state }}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>There are none in this World.</p>
+  {% endif %}
+{% endblock %}

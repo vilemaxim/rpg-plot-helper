@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.name }} — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-list' world.pk kind %}">{{ label }}</a></p>
+  <h1>{{ document.name }}</h1>
+  {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
+  {% if aliases %}<p class="aliases">Also called: {{ aliases|join:", " }}</p>{% endif %}
+
+  {% if facts %}
+    <dl class="facts">
+      {% for label, values in facts %}
+        <dt>{{ label }}</dt>
+        <dd>{% for value in values %}{% include "canon/link.html" %}{% if not forloop.last %}, {% endif %}{% endfor %}</dd>
+      {% endfor %}
+    </dl>
+  {% endif %}
+
+  {% if features %}
+    <h2>Features</h2>
+    <dl class="facts">
+      {% for label, values in features %}
+        <dt>{{ label }}</dt>
+        <dd>{% for value in values %}{% include "canon/link.html" %}{% if not forloop.last %}, {% endif %}{% endfor %}</dd>
+      {% endfor %}
+    </dl>
+  {% endif %}
+
+  {% if plot_mods %}
+    <h2>Mods</h2>
+    <ol>
+      {% for value, mod_state in plot_mods %}
+        <li>{% include "canon/link.html" %} <span class="state">{{ mod_state }}</span></li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+
+  {% if plot_entities %}
+    <h2>Turns on</h2>
+    <p>{% for value in plot_entities %}{% include "canon/link.html" %}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+  {% endif %}
+
+  {% if canon_changes %}
+    <h2>Canon Changes</h2>
+    <table>
+      <thead><tr><th>What</th><th>Change</th><th>Decision</th><th>What happened</th></tr></thead>
+      <tbody>
+        {% for change in canon_changes %}
+          <tr>
+            <td>{% with value=change.entity %}{% include "canon/link.html" %}{% endwith %}</td>
+            <td>{{ change.kind }}{% if change.moved %}:
+              {% with value=change.before %}{% include "canon/link.html" %}{% endwith %} →
+              {% with value=change.after %}{% include "canon/link.html" %}{% endwith %}{% endif %}</td>
+            <td>{{ change.decision }}</td>
+            <td>{{ change.summary }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  {% if referred_to_by %}
+    <h2>Referred to by</h2>
+    <dl class="facts">
+      {% for label, values in referred_to_by %}
+        <dt>{{ label }}</dt>
+        <dd>{% for value in values %}{% include "canon/link.html" %}{% if not forloop.last %}, {% endif %}{% endfor %}</dd>
+      {% endfor %}
+    </dl>
+  {% endif %}
+
+  <div class="body">{{ body }}</div>
+{% endblock %}

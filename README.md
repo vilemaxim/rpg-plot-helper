@@ -50,6 +50,25 @@ export PLOTHELPER_DB_PORT=5433
 export DATABASE_URL=postgres://plothelper:plothelper@localhost:5433/plothelper
 ```
 
+## Importing and browsing a World
+
+A World's Canon arrives as files. A Plot Master of a World uploads one `.zip` of them from the link on the World's page, and everyone who can open that World can then browse it: Campaigns, Events, Mods, Plots, NPCs, factions, locations, PCs, After-Action Reports and timeline entries, each with a list and a page per item. A Mod's page shows its state, its Events and its Features, and each of those links to its own page. Every page also lists what refers to it, so a Campaign shows its Events and Mods, and an NPC shows the Mods that feature them and the reports that changed them.
+
+To try it, make a zip of the sample World that ships with [plotcanon](https://github.com/vilemaxim/plotcanon):
+
+```sh
+uv run plotcanon sample --write demo
+zip -r demo.zip demo
+```
+
+Things to know:
+
+- **All or nothing.** The whole World is checked by plotcanon first. If anything in it is invalid, nothing is imported and the errors are shown, worded so they can be pasted back into the LLM that wrote the files.
+- **Only into an empty World.** A World that already has Canon cannot be imported into. An Organization Admin can create a new World for the purpose.
+- **Nothing touches the disk.** The upload is held in memory, and each of the World's documents is stored in Postgres exactly as it was uploaded. Other files in the zip, such as a README, are ignored.
+- **A zip is not trusted.** An upload over 20 MB is refused, as is a zip with more than 5,000 files, a single file over 1 MB, or more than 50 MB once unpacked; the limits are settings, and are enforced while unpacking, whatever sizes the zip claims. Files that use YAML aliases are refused. Pictures in a document are not shown, since loading one from another site would tell that site who is reading.
+- **The file format is plotcanon's.** plotcanon decides what is valid; this app stores and shows what it parsed ([ADR-0004](./docs/adr/0004-the-schema-lives-in-its-own-package-plotcanon.md)). To lay a page out, the app does know the names of some fields, such as a Mod's Features and a report's Canon Changes, and which fields hold a person's name and so are never links. That knowledge is in `canon/presenting.py`. The version of plotcanon in use is pinned in `pyproject.toml`.
+
 ## Who may create an Organization
 
 One setting, `OPEN_SIGN_UP`, decides this. It is read from the environment.

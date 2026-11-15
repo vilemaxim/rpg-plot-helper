@@ -16,6 +16,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "accounts",
     "organizations",
+    "canon",
 ]
 
 MIDDLEWARE = [
@@ -78,3 +79,15 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+
+# ── Uploads ─────────────────────────────────────────────────────────────────
+# Nothing is written to the app's own disk (ADR-0003), so an upload is held in
+# memory and never spooled to a temporary file. That makes the size limit a
+# hard one: a larger upload is refused.
+FILE_UPLOAD_HANDLERS = ["django.core.files.uploadhandler.MemoryFileUploadHandler"]
+FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+
+# A zip is not trusted. These bound what an imported World may unpack to.
+IMPORT_MAX_FILES = 5000
+IMPORT_MAX_FILE_BYTES = 1024 * 1024
+IMPORT_MAX_UNPACKED_BYTES = 50 * 1024 * 1024

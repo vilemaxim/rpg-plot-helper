@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Import into {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>Import a World</h1>
+  {% if has_canon %}
+    <p><strong>{{ world.name }} already has Canon</strong>, so nothing can be imported into it. To import another World, ask an Organization Admin to create a new World and import into that.</p>
+  {% else %}
+    {% if refused %}
+      <div class="refused">
+        <p><strong>Nothing was imported.</strong> {{ refused }}</p>
+        {% if errors %}
+          <p>Fix these and upload again. You can paste them into the LLM that wrote the files.</p>
+          <pre>{{ errors }}</pre>
+        {% endif %}
+      </div>
+    {% endif %}
+    <p>Upload one .zip file holding the World's files: markdown under folders such as <code>canon/</code>, <code>mods/</code> and <code>after-actions/</code>. Zipping the World's folder works. Everything in it is checked first, and it is imported only if it is all valid.</p>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="field">
+        {{ form.archive.errors }}
+        {{ form.archive.label_tag }}
+        {{ form.archive }}
+      </div>
+      <button type="submit">Import</button>
+    </form>
+  {% endif %}
+{% endblock %}
