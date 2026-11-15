@@ -11,7 +11,7 @@ from accounts.models import User
 from organizations import tenancy
 from organizations.models import Membership
 from organizations.test_people import ORGANIZATION, PeopleTest
-from organizations.tests import sign_in
+from organizations.tests import sign_in, world_address
 
 INVITATIONS = "/invitations/"
 
@@ -68,6 +68,48 @@ class RemovingAMember(MembersTest):
 
         self.assertEqual(pat.get(own_world).status_code, 200)
         self.assertRedirects(pat.get("/"), own_world)
+
+
+class RemovedFromTheirOnlyOrganization(MembersTest):
+    """Sam joined by invitation, so Mira's is his only Organization. Removed
+    from it, he belongs nowhere; signing in again gives him what sign-up would
+    give anyone in that position (ADR-0005)."""
+
+    def test_with_sign_up_open_the_next_sign_in_gives_them_one_of_their_own(self):
+        self.press("sam@example.com", "remove")
+
+        sam = sign_in("sam@example.com")
+
+        own_world = world_address(sam)
+        self.assertNotEqual(own_world, self.first_world)
+        page = sam.get(own_world)
+        self.assertContains(page, "My first World")
+        self.assertEqual(sam.get(ORGANIZATION).status_code, 200)
+        with tenancy.acting_as(user=self.user_id("sam@example.com")):
+            [membership] = Membership.objects.filter(user__email="sam@example.com")
+            self.assertTrue(membership.is_admin)
+            self.assertEqual(membership.organization.name, "My Organization")
+
+    def test_with_sign_up_closed_the_next_sign_in_needs_an_invitation(self):
+        self.press("sam@example.com", "remove")
+
+        with override_settings(OPEN_SIGN_UP=False):
+            sam = sign_in("sam@example.com")
+            response = sam.get("/")
+
+        self.assertContains(response, "You need an invitation")
+        with tenancy.acting_as(user=self.user_id("sam@example.com")):
+            self.assertFalse(Membership.objects.filter(user__email="sam@example.com").exists())
+
+    def test_with_an_invitation_waiting_they_answer_it_first(self):
+        self.press("sam@example.com", "remove")
+        self.invite("sam@example.com")
+
+        sam = sign_in("sam@example.com")
+
+        self.assertRedirects(sam.get("/"), INVITATIONS)
+        with tenancy.acting_as(user=self.user_id("sam@example.com")):
+            self.assertFalse(Membership.objects.filter(user__email="sam@example.com").exists())
 
 
 class WithdrawingAnInvitation(MembersTest):
