@@ -1,4 +1,5 @@
 from functools import wraps
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import plotcanon
 from django.conf import settings
@@ -204,6 +205,12 @@ def detail(request, world_id, kind, slug):
         raise Http404("No such document")
     entities = document.fields.get("entities")
     draft = doc_type == "mod" and is_draft(document)
+    report_changes = [{**change_row(index, c), "undos": c.undos.all()} for c in
+                      CanonChange.objects.in_world(world).filter(report=document)
+                      .select_related("report__submitted_by", "decided_by")
+                      .prefetch_related("undos__decided_by", "undos__undone_by")] \
+        if doc_type in ("after-action", interludes.RECORD) else []
+    selected, refused = selection(request)
     return render(request, "canon/detail.html", {
         "world": world,
         "kind": kind,
@@ -240,11 +247,10 @@ def detail(request, world_id, kind, slug):
         and document.fields.get("state") in submitting.states().reportable
         and not reported_on(world, document),
         "can_be_reported_on": doc_type == "mod" and submitting.can_be_reported_on(document),
-        "report_changes": [{**change_row(index, c), "undos": c.undos.all()} for c in
-                           CanonChange.objects.in_world(world).filter(report=document)
-                           .select_related("report__submitted_by", "decided_by")
-                           .prefetch_related("undos__decided_by", "undos__undone_by")]
-        if doc_type in ("after-action", interludes.RECORD) else [],
+        "report_changes": report_changes,
+        "report_waiting": any(c["proposed"] for c in report_changes),
+        "selected": selected,
+        "refused": refused,
         "may_record": doc_type == "event" and interludes.is_interlude(document)
         and is_plot_master(request, world),
         "history": history(index, world, document),
@@ -415,9 +421,11 @@ def pending(request, world_id):
             "waiting": mark_disagreements([change_row(index, c) for c in mine]),
             "recent": [change_row(index, c) for c in recent[-RECENTLY_DECIDED:]],
         })
+    selected, refused = selection(request)
     return render(request, "canon/pending.html", {
         "world": world, "groups": groups, "count": len(waiting),
         "may_decide": is_plot_master(request, world),
+        "selected": selected, "refused": refused,
     })
 
 
@@ -445,7 +453,64 @@ def decide(request, world_id, change_id, decision):
     if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
                                            require_https=request.is_secure()):
         back = reverse("canon-pending", args=[world.pk])
-    return redirect(back)
+    return redirect(without_selected(back))
+
+
+@require_POST
+def decide_selected(request, world_id):
+    """Approve or reject the selected Canon Changes together, or every waiting
+    change of one report, then go back to the page they were decided on. All
+    are decided or none; if none, the page says which could not be and why,
+    with the rest still selected. For the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    decisions = {"approve": deciding.APPROVED, "reject": deciding.REJECTED}
+    decision = request.POST.get("decision")
+    if decision not in decisions or not is_plot_master(request, world):
+        raise Http404("No such page")
+    chosen = [int(i) for i in request.POST.getlist("change") if i.isdigit()]
+    report = request.POST.get("report")
+    if report:
+        chosen = list(CanonChange.objects.pending(world).filter(report__slug=report)
+                      .values_list("pk", flat=True))
+    back = request.POST.get("next", "")
+    if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
+        back = reverse("canon-pending", args=[world.pk])
+    try:
+        decided = deciding.decide_all(world, chosen, decisions[decision], request.user)
+    except deciding.SelectionRefused as refused:
+        messages.error(request, str(refused))
+        return redirect(with_selected(back, [i for i in chosen if i != refused.change.pk],
+                                      refused.change.pk))
+    except deciding.DecisionRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        count = len(decided)
+        messages.success(request, f"{wording(decisions[decision])} {count} Canon "
+                                  f"Change{'' if count == 1 else 's'}.")
+    return redirect(without_selected(back))
+
+
+def without_selected(address):
+    """`address` without the selection a refused one left on it."""
+    parts = urlsplit(address)
+    query = [(k, v) for k, v in parse_qsl(parts.query) if k not in ("selected", "refused")]
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
+def with_selected(address, selected, refused):
+    """`address` showing the changes still selected, and the one refused, so
+    the Plot Master can untick it and try again."""
+    parts = urlsplit(without_selected(address))
+    query = parse_qsl(parts.query) + [("selected", i) for i in selected] + [("refused", refused)]
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
+def selection(request):
+    """The changes a refused selection left selected, and the one refused."""
+    selected = {int(i) for i in request.GET.getlist("selected") if i.isdigit()}
+    refused = request.GET.get("refused", "")
+    return selected, int(refused) if refused.isdigit() else None
 
 
 def flags_shown(index, flags):
