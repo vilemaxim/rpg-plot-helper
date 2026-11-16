@@ -87,6 +87,10 @@ _Avoid_: Route, playthrough, trace
 What someone who took part in a Mod, whatever their part, thinks plot should know about it. It belongs to the Mod and its Event, and proposes no changes to Canon; a Plot Master reads it beside the After-Action Reports.
 _Avoid_: Player report, extra report
 
+**Reconciliation**:
+The app's LLM checking a draft Mod against the whole World's Canon and reporting what conflicts, for a Plot Master to read before approving the Mod or sending it back.
+_Avoid_: Canon check, review
+
 **Interview**:
 A conversation in which the app's LLM asks someone questions and writes their Mod, After-Action Report or Debrief from the answers. The person reads what it wrote and submits it themselves.
 _Avoid_: Chat, assistant, wizard
@@ -105,6 +109,16 @@ _Avoid_: Downtime, between-game
 
 **Visibility**:
 Who may know a fact in Canon: public, player-known or GM-only.
+
+**Plot team**:
+The people who may read everything in a World, GM-only facts included: its Plot Masters and its Organization's Admins. Anyone else reads what is public or player-known, and what they have been given more of.
+
+**Grant**:
+A Plot Master's choice to let one Mod Writer or Mod Runner read one document in full, GM-only facts included, until it is revoked.
+_Avoid_: Plot grant, clearance, permission, share
+
+**GM Notes**:
+The section of a document that only the plot team may read, wherever the rest of the document is shown.
 
 **PC**:
 A player's character, held only as a stub: a name, who plays them, and their ties to NPCs, factions and Plots. Character sheets and the player roster live outside this system.
