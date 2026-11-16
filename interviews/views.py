@@ -31,7 +31,7 @@ from canon.storing import one_to_a_line
 from canon.views import documents_of, to_saved_mod
 from organizations.views import may_write_mods, world_or_404
 
-from . import config
+from . import config, spending
 from .conversation import Tampered, mod_file_in, opened, sealed
 from .providers import Ended, Message, ProviderError, Text
 
@@ -87,6 +87,11 @@ def interview(request, world_id):
                       {"world": world, "turns": turns, "form": form,
                        "transcript": request.POST.get("transcript", "")})
     said = form.cleaned_data["said"]
+    paused = spending.turn_refused(request.user)
+    if paused:
+        return render(request, "interviews/interview.html",
+                      {"world": world, "turns": turns, "form": form, "said": said,
+                       "paused": paused, "transcript": request.POST.get("transcript", "")})
     asked = [*turns, Message("user", said)]
     page = render_to_string("interviews/interview.html",
                             {"world": world, "turns": asked, "streaming": True}, request)

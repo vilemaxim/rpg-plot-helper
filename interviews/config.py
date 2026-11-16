@@ -16,13 +16,17 @@ naming the key (ADR-0008).
     effort = "high"                 # the provider's own values
     max_tokens = 32000
 
+    [limits]                        # either may be left out: no limit
+    turns_per_person_per_day = 40
+    tokens_per_organization_per_month = 5000000
+
 A kind of Interview is on only if it has an entry here and its provider's key
 is set in the environment: `llm_for(kind)` answers that, and gives the
 provider adapter to talk to. Otherwise it is off, and the paste path takes its
 place.
 
-To add a setting (a limit, say), add it to `INTERVIEW_KEYS` or
-`PROVIDER_KEYS` with the function that checks its value, and a field to the
+To add a setting, add it to `INTERVIEW_KEYS`, `PROVIDER_KEYS` or
+`LIMIT_KEYS` with the function that checks its value, and a field to the
 matching dataclass.
 """
 
@@ -64,9 +68,19 @@ class InterviewSettings:
 
 
 @dataclass(frozen=True)
+class Limits:
+    """What the deployment's operator allows Interviews to spend. None is no
+    limit. See `interviews.spending`."""
+
+    turns_per_person_per_day: int | None = None
+    tokens_per_organization_per_month: int | None = None
+
+
+@dataclass(frozen=True)
 class Config:
     providers: dict[str, ProviderSettings] = field(default_factory=dict)
     interviews: dict[str, InterviewSettings] = field(default_factory=dict)
+    limits: Limits = field(default_factory=Limits)
 
 
 @dataclass(frozen=True)
@@ -94,8 +108,10 @@ def _positive(value):
 PROVIDER_KEYS = {"key_env": _text}
 INTERVIEW_KEYS = {"provider": _text, "model": _text, "effort": _text,
                   "max_tokens": _positive}
+LIMIT_KEYS = {"turns_per_person_per_day": _positive,
+              "tokens_per_organization_per_month": _positive}
 REQUIRED_INTERVIEW_KEYS = ("provider", "model")
-TOP_LEVEL_KEYS = ("providers", "interviews")
+TOP_LEVEL_KEYS = ("providers", "interviews", "limits")
 
 
 def load(path, *, required=True):
@@ -152,7 +168,12 @@ def _checked(raw, where):
             refuse(f"{prefix}.effort", f"is `{effort}`, which {provider} does not take. "
                                        f"It takes {_listed(ADAPTERS[provider].efforts)}")
         interviews[kind] = InterviewSettings(kind=kind, **values)
-    return Config(providers, interviews)
+
+    limits = raw.get("limits", {})
+    if not isinstance(limits, dict):
+        refuse("limits", "must be a table, [limits]")
+    limits = Limits(**_values(limits, "limits", LIMIT_KEYS, refuse))
+    return Config(providers, interviews, limits)
 
 
 def _tables(raw, key, refuse):
