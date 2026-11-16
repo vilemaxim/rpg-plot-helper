@@ -74,7 +74,7 @@ Things to know:
 
 A Plot Master downloads a World as one `.zip` of its files from "Export this World" on the World's page, so nobody is locked in ([ADR-0001](./docs/adr/0001-two-versions-one-schema-owned-by-larp-llm.md)). Each file is written exactly as it is stored now, with every report and decision since the import in it ([ADR-0006](./docs/adr/0006-current-state-is-kept-in-the-entitys-file.md)), inside one folder named after the World. The zip is made in memory, and plotcanon checks the World before it is handed over; a World it finds errors in is reported as a fault, not downloaded.
 
-The zip imports into an empty World here, and unpacked it is a plotcanon World anywhere else: `plotcanon validate --root <folder>`, which is what a larp-llm repo's `scripts/validate.py` runs, passes on it. What lives only in the app is not in the files: who submitted or decided what, Flags and their resolutions, why a Mod was sent back, Mod Writers, private links, and people and their roles. The export page says so.
+The zip imports into an empty World here, and unpacked it is a plotcanon World anywhere else: `plotcanon validate --root <folder>`, which is what a larp-llm repo's `scripts/validate.py` runs, passes on it. What lives only in the app is not in the files: who submitted or decided what, Flags and their resolutions, why a Mod was sent back, Mod Writers, Assignments, private links, and people and their roles. The export page says so.
 
 ## Filing an After-Action Report
 
@@ -92,6 +92,15 @@ To try it, write the sample World's scripted reports to disk alongside the World
 ```sh
 uv run plotcanon sample --write demo --script demo-script
 ```
+
+### Assigning Mod Runners
+
+A Plot Master assigns a Mod Runner to a Mod from its page, while the Mod is approved or in progress. An Assignment is for one Event that has not ended, which is the default, or until a Plot Master revokes it. A Mod can have several, such as one Mod Runner for each group its players split into at one Event.
+
+- **Only someone with the Mod Runner role** in the World can be assigned, and not twice to the same Mod for the same Event, or twice until revoked. Anyone in the World but a Plot Master is answered 403.
+- **One for an Event ends by itself** once that Event's last day (`real_date_end`, or `real_date` for a one-day Event) has passed.
+- **Who sees them.** The Mod's page lists its live Assignments to everyone with a role in the World, and revoked and ended ones, with who assigned and revoked each and when, to Plot Masters. A Mod Runner's own live Assignments are listed on the World's page.
+- **Kept in the app alone**, never in a file, so an export leaves them out.
 
 ### Private links for Mod Runners
 

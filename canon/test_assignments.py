@@ -15,6 +15,9 @@ from accounts.models import User
 from canon import assignments
 from canon.models import Assignment, Document
 from canon.test_reports import ReportTest
+from canon.test_exporting import unzipped
+from organizations import tenancy
+from organizations.models import Membership
 from organizations.tests import sign_in
 
 VIGIL = "storm-moon-vigil"            # approved
@@ -337,3 +340,70 @@ class WhoMayAssign(AssignmentTest):
 
     def test_it_cannot_be_done_with_a_link(self):
         self.assertEqual(self.mira.get(f"{self.mod_page(VIGIL)}assignments/").status_code, 405)
+
+
+class WhoSeesThem(AssignmentTest):
+    def test_every_world_role_sees_the_live_ones_on_the_mods_page(self):
+        self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)
+        self.assign(VIGIL, "tom@example.com")
+
+        for someone in (self.mira, self.rhea, self.tom, self.sam):
+            live = self.live_shown(VIGIL, by=someone)
+            self.assertIn("rhea@example.com, for Storm Moon", live)
+            self.assertIn("tom@example.com, until revoked", live)
+
+    def test_a_mod_runner_sees_their_own_live_assignments_on_the_world_page(self):
+        self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)
+        self.assign(LEDGER, "rhea@example.com")
+        self.assign(LEDGER, "tom@example.com", event=SECOND_LANTERN)
+        self.assign(VIGIL, "rhea@example.com", event=SECOND_LANTERN)
+        self.revoke(VIGIL, self.assignment_ids(VIGIL)[-1])
+
+        mine = self.section(self.rhea.get(self.first_world), "my-assignments")
+
+        self.assertIn(f"mods/{VIGIL}/", mine)
+        self.assertIn("Storm Moon Vigil</a>, for Storm Moon", mine)
+        self.assertIn("The Tax Collector&#x27;s Ledger</a>, until revoked", mine)
+        self.assertNotIn("Second Lantern", mine)
+        self.assertNotIn("tom@example.com", mine)
+
+    def test_someone_with_none_live_sees_no_list(self):
+        self.assign(VIGIL, "rhea@example.com")
+
+        self.assertIsNone(self.section(self.tom.get(self.first_world), "my-assignments"))
+        self.assertIsNone(self.section(self.mira.get(self.first_world), "my-assignments"))
+
+
+class KeptOutOfTheFiles(AssignmentTest):
+    def test_no_file_in_the_world_changes(self):
+        before = self.stored_files()
+
+        self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)
+        self.assign(VIGIL, "tom@example.com")
+        self.revoke(VIGIL, self.assignment_ids(VIGIL)[0])
+
+        self.assertEqual(self.stored_files(), before)
+
+    def test_an_export_leaves_them_out(self):
+        before = unzipped(self.mira.get(f"{self.first_world}export/download/").content)
+
+        self.assign(VIGIL, "rhea@example.com")
+
+        self.assertEqual(unzipped(self.mira.get(f"{self.first_world}export/download/").content),
+                         before)
+        self.assertContains(self.mira.get(f"{self.first_world}export/"),
+                            "who is assigned to run each Mod")
+
+
+class TheDatabaseOnItsOwn(AssignmentTest):
+    def test_another_organization_sees_no_assignments(self):
+        self.assign(VIGIL, "rhea@example.com")
+        sign_in("eve@example.com")
+        eve = User.objects.get(email="eve@example.com")
+        with tenancy.acting_as(user=eve):
+            organization = Membership.objects.get().organization_id
+
+        with tenancy.acting_as(user=eve, organization=organization):
+            self.assertEqual(Assignment.objects.count(), 0)
+        with self.in_world():
+            self.assertEqual(Assignment.objects.count(), 1)

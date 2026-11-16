@@ -10,7 +10,7 @@
   {% else %}
     <p>An export is one .zip holding every file of {{ world.name }}, exactly as it stands now, in a folder called <code>{{ folder }}</code>. It is checked by plotcanon before it is handed over. It can be imported into an empty World here, or used as a <a href="https://github.com/vilemaxim/plotcanon">plotcanon</a> World anywhere else, such as a larp-llm repo.</p>
     <p>Everything Canon holds is in the files: every document, every After-Action Report, and every decision on its Canon Changes.</p>
-    <p>What lives only in this app is not in the files: who submitted or decided what and when, Flags and how they were resolved, why a Mod was sent back, who each Mod's Mod Writer is, private links, and people and their roles.</p>
+    <p>What lives only in this app is not in the files: who submitted or decided what and when, Flags and how they were resolved, why a Mod was sent back, who each Mod's Mod Writer is, who is assigned to run each Mod, private links, and people and their roles.</p>
     <p><a class="button" href="{% url 'canon-export-download' world.pk %}">Download {{ folder }}.zip</a></p>
   {% endif %}
 {% endblock %}

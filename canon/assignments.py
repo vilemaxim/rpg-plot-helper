@@ -99,6 +99,15 @@ def is_assigned(mod, person, event=None, on=None):
     return bool(live(world, assignments, on))
 
 
+def live_for(world, person, on=None):
+    """This person's live Assignments in the World, each with the Event it is
+    for (None for one that stands), as `(assignment, event)` pairs."""
+    events = events_of(world)
+    return [(a, events.get(a.event)) for a in
+            of(world).filter(runner=person, revoked_at=None).order_by("mod__name", "pk")
+            if is_live(a, events, on)]
+
+
 def eligible_runner(world, user_id):
     """The person a Plot Master named to run a Mod, from the id a form sent.
     Refused unless they hold the Mod Runner role in this World."""
