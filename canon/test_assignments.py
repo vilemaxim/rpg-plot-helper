@@ -7,9 +7,13 @@ moved far into the future so that they have not ended yet:
 
 Low Tide (`e01-low-tide`) ended in April 2026."""
 
+import datetime
+
 import plotcanon
 
-from canon.models import Assignment
+from accounts.models import User
+from canon import assignments
+from canon.models import Assignment, Document
 from canon.test_reports import ReportTest
 from organizations.tests import sign_in
 
@@ -59,6 +63,10 @@ class AssignmentTest(ReportTest):
     def assignment_ids(self, mod):
         with self.in_world():
             return list(Assignment.objects.filter(mod__slug=mod).values_list("pk", flat=True))
+
+    def stored_assignment(self, pk):
+        with self.in_world():
+            return Assignment.objects.get(pk=pk)
 
     def section(self, page, name):
         """The text of one `<section class="name">` of a page, or None."""
@@ -195,6 +203,112 @@ class RefusedAssignments(AssignmentTest):
         self.assign(VIGIL, "rhea@example.com")
 
         self.assertIn("rhea@example.com", self.live_shown(VIGIL))
+
+
+class Revoking(AssignmentTest):
+    def test_a_plot_master_revokes_a_live_assignment(self):
+        self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)
+        self.assign(VIGIL, "tom@example.com")
+        rhea, tom = self.assignment_ids(VIGIL)
+
+        self.revoke(VIGIL, rhea)
+
+        live = self.live_shown(VIGIL)
+        self.assertNotIn("rhea@example.com", live)
+        self.assertIn("tom@example.com", live)
+
+    def test_it_is_kept_with_who_assigned_and_revoked_it(self):
+        self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)
+        self.revoke(VIGIL, self.assignment_ids(VIGIL)[0])
+
+        past = self.section(self.mira.get(self.mod_page(VIGIL)), "past-assignments")
+
+        self.assertIn("rhea@example.com, for Storm Moon; assigned by mira@example.com on", past)
+        self.assertIn("revoked by mira@example.com on", past)
+
+    def test_past_assignments_are_shown_to_plot_masters_alone(self):
+        self.assign(VIGIL, "rhea@example.com")
+        self.revoke(VIGIL, self.assignment_ids(VIGIL)[0])
+
+        for someone in (self.rhea, self.sam):
+            self.assertIsNone(self.section(someone.get(self.mod_page(VIGIL)),
+                                           "past-assignments"))
+
+    def test_one_already_revoked_is_not_revoked_again(self):
+        self.assign(VIGIL, "rhea@example.com")
+        [assignment] = self.assignment_ids(VIGIL)
+        self.revoke(VIGIL, assignment)
+        when = self.stored_assignment(assignment).revoked_at
+
+        self.revoke(VIGIL, assignment)
+
+        self.assertEqual(self.stored_assignment(assignment).revoked_at, when)
+
+    def test_one_on_another_mod_is_not_revoked_through_this_one(self):
+        self.assign(LEDGER, "rhea@example.com")
+        [assignment] = self.assignment_ids(LEDGER)
+
+        self.revoke(VIGIL, assignment)
+
+        self.assertIn("rhea@example.com", self.live_shown(LEDGER))
+
+
+class WhenAnAssignmentIsLive(AssignmentTest):
+    """`assignments.is_assigned`, which later work asks."""
+
+    def is_assigned(self, email, mod=VIGIL, event=None, on=None):
+        with self.in_world():
+            return assignments.is_assigned(Document.objects.get(slug=mod),
+                                           User.objects.get(email=email), event=event, on=on)
+
+    def test_for_one_event_until_its_last_day_has_passed(self):
+        self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)
+
+        self.assertTrue(self.is_assigned("rhea@example.com"))
+        self.assertTrue(self.is_assigned("rhea@example.com", on=datetime.date(2999, 6, 21)))
+        self.assertFalse(self.is_assigned("rhea@example.com", on=datetime.date(2999, 6, 22)))
+
+    def test_a_one_day_event_ends_with_its_only_day(self):
+        self.assign(VIGIL, "rhea@example.com", event=SECOND_LANTERN)
+
+        self.assertTrue(self.is_assigned("rhea@example.com", on=datetime.date(2999, 7, 11)))
+        self.assertFalse(self.is_assigned("rhea@example.com", on=datetime.date(2999, 7, 12)))
+
+    def test_at_one_event(self):
+        self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)
+
+        self.assertTrue(self.is_assigned("rhea@example.com", event=STORM_MOON))
+        self.assertFalse(self.is_assigned("rhea@example.com", event=SECOND_LANTERN))
+
+    def test_standing_until_revoked_whatever_the_event(self):
+        self.assign(VIGIL, "rhea@example.com")
+
+        self.assertTrue(self.is_assigned("rhea@example.com", event=SECOND_LANTERN,
+                                         on=datetime.date(3000, 1, 1)))
+        self.revoke(VIGIL, self.assignment_ids(VIGIL)[0])
+        self.assertFalse(self.is_assigned("rhea@example.com"))
+
+    def test_only_the_person_and_mod_assigned(self):
+        self.assign(VIGIL, "rhea@example.com")
+
+        self.assertFalse(self.is_assigned("tom@example.com"))
+        self.assertFalse(self.is_assigned("rhea@example.com", mod=LEDGER))
+
+    def test_one_whose_event_has_ended_is_past_on_the_mods_page(self):
+        self.assign(VIGIL, "rhea@example.com", event=SECOND_LANTERN)
+        self.end_event(SECOND_LANTERN)
+
+        self.assertNotIn("rhea@example.com", self.live_shown(VIGIL))
+        past = self.section(self.mira.get(self.mod_page(VIGIL)), "past-assignments")
+        self.assertIn("rhea@example.com, for Second Lantern", past)
+        self.assertIn("ended with the Event", past)
+
+    def end_event(self, slug):
+        """Move an Event's day into the past, as time passing would."""
+        with self.in_world():
+            event = Document.objects.get(slug=slug)
+            event.fields["real_date"] = "2026-07-11"
+            event.save(update_fields=["fields"])
 
 
 class WhoMayAssign(AssignmentTest):
