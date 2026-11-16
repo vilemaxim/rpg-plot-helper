@@ -87,7 +87,7 @@ def interview(request, world_id):
                       {"world": world, "turns": turns, "form": form,
                        "transcript": request.POST.get("transcript", "")})
     said = form.cleaned_data["said"]
-    paused = spending.turn_refused(request.user)
+    paused = spending.turn_refused(request.user, world.organization_id)
     if paused:
         return render(request, "interviews/interview.html",
                       {"world": world, "turns": turns, "form": form, "said": said,
@@ -104,18 +104,21 @@ def interview(request, world_id):
 
     response = StreamingHttpResponse(
         streamed(head, foot, what_follows, llm.provider, system_prompt(world, request.user),
-                 turns, said, lambda messages: sealed(messages, world, request.user)),
+                 turns, said, lambda messages: sealed(messages, world, request.user),
+                 spent=lambda usage: spending.record(world.organization_id, usage)),
         content_type="text/html; charset=utf-8")
     # Ask proxies such as nginx to pass each piece on as it comes.
     response["X-Accel-Buffering"] = "no"
     return response
 
 
-def streamed(head, foot, what_follows, provider, system, turns, said, seal):
+def streamed(head, foot, what_follows, provider, system, turns, said, seal,
+             spent=lambda usage: None):
     """The page for one turn, piece by piece: everything up to the reply, the
     reply as the LLM writes it, then what follows it. A turn that fails is not
     kept: the page carries the conversation as it was before it, with the
-    person's answer ready to send again."""
+    person's answer ready to send again. `spent` is given the tokens the turn
+    used, when the provider reports them, whether or not it is kept."""
     yield head
     pieces, ended = [], None
     asked = [*turns, Message("user", said)]
@@ -126,8 +129,7 @@ def streamed(head, foot, what_follows, provider, system, turns, said, seal):
                 yield escape(event.text)
             elif isinstance(event, Ended):
                 ended = event
-                # The tokens the turn used are `event.usage`, for the limits
-                # slice (#48) to count.
+                spent(event.usage)
         if not "".join(pieces).strip() or ended is None:
             raise ProviderError("The LLM gave no answer.")
     except ProviderError as error:

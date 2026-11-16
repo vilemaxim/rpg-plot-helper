@@ -3,17 +3,27 @@ per Organization per month, set in `interviews.toml`. Through web requests,
 with a fake provider; the tests never call an LLM."""
 
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from unittest import mock
 
-from interviews import config
+from django.db import ProgrammingError, transaction
+from django.test import TransactionTestCase, override_settings
+
+from accounts.models import User
+from interviews import config, spending
+from interviews.models import TokenUsage
+from interviews.providers import Usage
 from interviews.test_interviews import QUESTION, FakeProvider, InterviewTest, hidden
+from organizations import tenancy
+from organizations.models import Membership, World
+from organizations.tests import sign_in
 
 
 def at(*when):
     return datetime(*when, tzinfo=UTC)
 
 
+@override_settings(OPEN_SIGN_UP=True)
 class SpendingTest(InterviewTest):
     @contextmanager
     def limited(self, **limits):
@@ -23,8 +33,20 @@ class SpendingTest(InterviewTest):
 
     @contextmanager
     def on(self, *when):
-        with mock.patch("django.utils.timezone.now", return_value=at(*when)):
+        """Days and months, as the limits see them, are those of `when`.
+        Sign-in sessions keep real time."""
+        with mock.patch("interviews.spending._now", return_value=at(*when)):
             yield
+
+    def another_organization(self):
+        sign_in("olga@example.com")
+        olga = User.objects.get(email="olga@example.com")
+        with tenancy.acting_as(user=olga):
+            return Membership.objects.get().organization_id
+
+    def organization(self):
+        with self.in_world():
+            return World.objects.first().organization_id
 
     def refused_turn(self, said, page, by=None):
         """Send an answer that is expected to be refused, not streamed."""
@@ -72,3 +94,103 @@ class TurnsPerPersonPerDay(SpendingTest):
             self.say("More", page)
 
         self.assertEqual(len(fake.asked), 3)
+
+
+class TokensPerOrganizationPerMonth(SpendingTest):
+    """Each fake turn uses 120 tokens."""
+
+    def test_the_turn_that_crosses_the_cap_completes_and_the_next_is_refused(self):
+        with self.limited(tokens_per_organization_per_month=200), \
+                self.provider(FakeProvider(QUESTION, QUESTION, QUESTION)) as fake:
+            with self.on(2026, 11, 3, 9):
+                first = self.say("Hello")
+                second = self.say("A debt", first)
+            self.assertIn(QUESTION, second.rsplit("A debt", 1)[1])
+            with self.on(2026, 11, 30, 23, 59):
+                refused = self.refused_turn("A lamplighter", second)
+            self.assertEqual(len(fake.asked), 2)
+            with self.on(2026, 12, 1, 0, 1):
+                self.say("A lamplighter", second)
+
+        self.assertEqual(len(fake.asked), 3)
+        self.assertContains(refused, "tokens")
+        self.assertContains(refused, "1 December (UTC)")
+        self.assertContains(refused, f'href="{self.form}"')
+        self.assertEqual(hidden(refused.content.decode(), "transcript"),
+                         hidden(second, "transcript"))
+
+    def test_it_is_shared_by_everyone_in_the_organization(self):
+        with self.limited(tokens_per_organization_per_month=100), \
+                self.provider(FakeProvider(QUESTION)), self.on(2026, 11, 3, 9):
+            self.say("Hello")
+            self.refused_turn("Hello", None, by=self.mira)
+
+    def test_another_organizations_tokens_do_not_count(self):
+        with self.limited(tokens_per_organization_per_month=100), \
+                self.provider(FakeProvider(QUESTION)) as fake, self.on(2026, 11, 3, 9):
+            spending.record(self.another_organization(), Usage(500, 500))
+            self.say("Hello")
+
+        self.assertEqual(len(fake.asked), 1)
+
+
+class FixAttempts(SpendingTest):
+    """A fix attempt is an LLM call the Interview makes without the person,
+    and reports its tokens through `spending.record` (#45)."""
+
+    def test_they_count_toward_the_organizations_tokens(self):
+        with self.limited(tokens_per_organization_per_month=1000), \
+                self.provider(FakeProvider(QUESTION)) as fake, self.on(2026, 11, 3, 9):
+            spending.record(self.organization(), Usage(900, 100))
+            self.refused_turn("Hello", None)
+
+        self.assertEqual(fake.asked, [])
+
+    def test_they_do_not_count_toward_the_persons_turns(self):
+        with self.limited(turns_per_person_per_day=1), \
+                self.provider(FakeProvider(QUESTION)) as fake, self.on(2026, 11, 3, 9):
+            for _ in range(3):
+                spending.record(self.organization(), Usage(10, 10))
+            self.say("Hello")
+
+        self.assertEqual(len(fake.asked), 1)
+
+
+class KeptPerOrganization(SpendingTest):
+    def test_usage_is_hidden_from_other_organizations_by_the_database(self):
+        mine = self.organization()
+        spending.record(mine, Usage(70, 30))
+        theirs = self.another_organization()
+
+        with tenancy.acting_as(organization=theirs):
+            self.assertEqual(TokenUsage.objects.count(), 0)
+        with tenancy.acting_as(organization=mine):
+            self.assertEqual(TokenUsage.objects.get().tokens, 100)
+        with tenancy.acting_as():
+            self.assertEqual(TokenUsage.objects.count(), 0)
+
+    def test_a_row_cannot_be_written_into_another_organization(self):
+        mine = self.organization()
+        theirs = self.another_organization()
+
+        with self.assertRaises(ProgrammingError), transaction.atomic():
+            with tenancy.acting_as(organization=theirs):
+                TokenUsage.objects.create(organization_id=mine, month=date(2026, 11, 1),
+                                          tokens=1)
+
+
+@override_settings(OPEN_SIGN_UP=True)
+class RecordingOutsideARequestsTransaction(TransactionTestCase):
+    """A turn streams after its request's transaction has ended, so its
+    tokens are recorded with no transaction open."""
+
+    def test_the_tokens_are_kept(self):
+        sign_in("mira@example.com")
+        with tenancy.acting_as(user=User.objects.get(email="mira@example.com")):
+            organization = Membership.objects.get().organization_id
+
+        spending.record(organization, Usage(70, 30))
+        spending.record(organization, Usage(1, 2))
+
+        with tenancy.acting_as(organization=organization):
+            self.assertEqual(TokenUsage.objects.get().tokens, 103)
