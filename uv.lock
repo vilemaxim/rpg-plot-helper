@@ -328,8 +328,8 @@ wheels = [
 
 [[package]]
 name = "plotcanon"
-version = "0.11.0"
-source = { git = "https://github.com/vilemaxim/plotcanon?rev=v0.11.0#374e8c07361368ab4341a3f67268107d39060060" }
+version = "0.12.0"
+source = { git = "https://github.com/vilemaxim/plotcanon?rev=v0.12.0#7a955df7732895aaf9028c1e66607d3a4d24a29c" }
 dependencies = [
     { name = "pyyaml" },
 ]
@@ -598,7 +598,7 @@ requires-dist = [
     { name = "markdown", specifier = ">=3.11.3" },
     { name = "nh3", specifier = ">=0.3.7" },
     { name = "openai", specifier = ">=3.51.0" },
-    { name = "plotcanon", git = "https://github.com/vilemaxim/plotcanon?rev=v0.11.0" },
+    { name = "plotcanon", git = "https://github.com/vilemaxim/plotcanon?rev=v0.12.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.9" },
 ]
 

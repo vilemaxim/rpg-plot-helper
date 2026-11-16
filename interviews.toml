@@ -44,6 +44,18 @@ max_tokens = 32000
 # As for a new Mod: how many times the LLM is sent its revision's errors.
 max_fix_attempts = 3
 
+# Writing an After-Action Report: the Mod Runner walks the Path the Stretch
+# took through the Mod's Dry Run, with no LLM, then the LLM asks the rest and
+# writes the report. On or off on its own: leave it out and reports are
+# pasted or uploaded, as before.
+[interviews.report]
+provider = "anthropic"
+model = "claude-opus-5-5"
+effort = "high"
+max_tokens = 32000
+# As for a Mod: how many times the LLM is sent its report's errors.
+max_fix_attempts = 3
+
 # What Interviews may spend, since the deployment pays for every Organization
 # on it. Either may be left out, for no limit. Days and months are UTC.
 # [limits]

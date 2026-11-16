@@ -57,6 +57,7 @@ class Kind(StrEnum):
 
     NEW_MOD = "new-mod"
     REVISE_MOD = "revise-mod"
+    REPORT = "report"
 
 
 class ConfigError(Exception):

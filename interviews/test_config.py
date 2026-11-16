@@ -45,6 +45,16 @@ class ReadingTheConfig(ConfigTest):
         self.assertEqual(interview.model, "claude-opus-5-5")
         self.assertEqual(loaded.providers["anthropic"].key_env, "ANTHROPIC_API_KEY")
 
+    def test_the_committed_file_sets_up_a_report_interview(self):
+        loaded = config.load(Path(settings.BASE_DIR) / "interviews.toml")
+
+        self.assertEqual(loaded.interviews["report"].provider, "anthropic")
+
+    def test_a_report_interview_is_a_kind_the_config_takes(self):
+        loaded = self.load(GOOD.replace("[interviews.new-mod]", "[interviews.report]"))
+
+        self.assertEqual(loaded.interviews["report"].kind, "report")
+
     def test_an_entry_is_read_as_written(self):
         interview = self.load(GOOD).interviews["new-mod"]
 
