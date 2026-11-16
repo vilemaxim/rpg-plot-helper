@@ -122,6 +122,28 @@ class RefusingABadConfig(ConfigTest):
     def test_a_file_that_is_not_toml_says_so(self):
         self.assertIn("interviews.toml", self.refused("[interviews.new-mod\n"))
 
+    def test_a_max_fix_attempts_that_is_not_a_whole_number_of_zero_or_more_is_named(self):
+        for bad in ("-1", '"three"', "1.5", "true"):
+            with self.subTest(bad):
+                self.assertIn("interviews.new-mod.max_fix_attempts",
+                              self.refused(GOOD + f"max_fix_attempts = {bad}\n"))
+
+
+class FixAttempts(ConfigTest):
+    def test_max_fix_attempts_is_three_unless_set(self):
+        self.assertEqual(self.load(GOOD).interviews["new-mod"].max_fix_attempts, 3)
+
+    def test_max_fix_attempts_may_be_set_and_may_be_zero(self):
+        for value in (0, 5):
+            with self.subTest(value):
+                loaded = self.load(GOOD + f"max_fix_attempts = {value}\n")
+                self.assertEqual(loaded.interviews["new-mod"].max_fix_attempts, value)
+
+    def test_the_committed_file_sets_three(self):
+        loaded = config.load(Path(settings.BASE_DIR) / "interviews.toml")
+
+        self.assertEqual(loaded.interviews["new-mod"].max_fix_attempts, 3)
+
 
 class WhetherAnInterviewIsOn(ConfigTest):
     def test_it_is_on_with_an_entry_and_its_providers_key(self):
