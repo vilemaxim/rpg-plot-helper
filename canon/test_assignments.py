@@ -10,6 +10,8 @@ Low Tide (`e01-low-tide`) ended in April 2026."""
 import datetime
 
 import plotcanon
+from django.db import IntegrityError, ProgrammingError, transaction
+from django.utils import timezone
 
 from accounts.models import User
 from canon import assignments
@@ -17,7 +19,7 @@ from canon.models import Assignment, Document
 from canon.test_reports import ReportTest
 from canon.test_exporting import unzipped
 from organizations import tenancy
-from organizations.models import Membership
+from organizations.models import Membership, World
 from organizations.tests import sign_in
 
 VIGIL = "storm-moon-vigil"            # approved
@@ -67,6 +69,16 @@ class AssignmentTest(ReportTest):
         with self.in_world():
             return list(Assignment.objects.filter(mod__slug=mod).values_list("pk", flat=True))
 
+    def set_dates(self, slug, **dates):
+        """Give an Event these dates in place of the ones it has, as time
+        passing or a file with fewer dates would. None leaves one out."""
+        with self.in_world():
+            event = Document.objects.get(slug=slug)
+            for field in ("real_date", "real_date_end"):
+                event.fields.pop(field, None)
+            event.fields.update({k: v for k, v in dates.items() if v is not None})
+            event.save(update_fields=["fields"])
+
     def stored_assignment(self, pk):
         with self.in_world():
             return Assignment.objects.get(pk=pk)
@@ -112,6 +124,14 @@ class Assigning(AssignmentTest):
         # Only people who run Mods are offered.
         self.assertIn(f'<option value="{self.user_id("rhea@example.com")}"', form)
         self.assertNotIn(f'<option value="{self.user_id("sam@example.com")}"', form)
+
+    def test_an_event_with_only_its_last_day_is_offered(self):
+        self.set_dates(STORM_MOON, real_date_end="2999-06-21")
+
+        form = self.section(self.mira.get(self.mod_page(VIGIL)), "assignments")
+
+        self.assertIn(f'<option value="{STORM_MOON}" selected>', form)
+        self.assertIn(f'<option value="{SECOND_LANTERN}"', form)
 
     def test_a_mod_in_progress_can_be_assigned(self):
         self.assign(LEDGER, "rhea@example.com", event=SECOND_LANTERN)
@@ -175,6 +195,16 @@ class RefusedAssignments(AssignmentTest):
 
         self.assertContains(response, "Low Tide has ended")
         self.assertNotIn("rhea@example.com", self.live_shown(VIGIL))
+
+    def test_an_event_with_no_date(self):
+        self.set_dates(SECOND_LANTERN)
+
+        response = self.assign(VIGIL, "rhea@example.com", event=SECOND_LANTERN)
+
+        self.assertContains(response, "Second Lantern has no date")
+        self.assertNotIn("rhea@example.com", self.live_shown(VIGIL))
+        self.assertNotIn(f'<option value="{SECOND_LANTERN}"',
+                         self.section(self.mira.get(self.mod_page(VIGIL)), "assignments"))
 
     def test_an_event_the_world_does_not_have(self):
         response = self.assign(VIGIL, "rhea@example.com", event="no-such-event")
@@ -247,6 +277,22 @@ class Revoking(AssignmentTest):
 
         self.assertEqual(self.stored_assignment(assignment).revoked_at, when)
 
+    def test_revoking_one_already_revoked_says_so(self):
+        self.assign(VIGIL, "rhea@example.com")
+        [assignment] = self.assignment_ids(VIGIL)
+        self.revoke(VIGIL, assignment)
+
+        self.assertContains(self.revoke(VIGIL, assignment), "already revoked")
+
+    def test_revoking_one_whose_event_has_ended_says_so(self):
+        self.assign(VIGIL, "rhea@example.com", event=SECOND_LANTERN)
+        self.set_dates(SECOND_LANTERN, real_date="2026-07-11")
+
+        response = self.revoke(VIGIL, self.assignment_ids(VIGIL)[0])
+
+        self.assertContains(response, "Second Lantern has ended")
+        self.assertIsNone(self.stored_assignment(self.assignment_ids(VIGIL)[0]).revoked_at)
+
     def test_one_on_another_mod_is_not_revoked_through_this_one(self):
         self.assign(LEDGER, "rhea@example.com")
         [assignment] = self.assignment_ids(LEDGER)
@@ -299,19 +345,22 @@ class WhenAnAssignmentIsLive(AssignmentTest):
 
     def test_one_whose_event_has_ended_is_past_on_the_mods_page(self):
         self.assign(VIGIL, "rhea@example.com", event=SECOND_LANTERN)
-        self.end_event(SECOND_LANTERN)
+        self.set_dates(SECOND_LANTERN, real_date="2026-07-11")
 
         self.assertNotIn("rhea@example.com", self.live_shown(VIGIL))
         past = self.section(self.mira.get(self.mod_page(VIGIL)), "past-assignments")
         self.assertIn("rhea@example.com, for Second Lantern", past)
         self.assertIn("ended with the Event", past)
 
-    def end_event(self, slug):
-        """Move an Event's day into the past, as time passing would."""
-        with self.in_world():
-            event = Document.objects.get(slug=slug)
-            event.fields["real_date"] = "2026-07-11"
-            event.save(update_fields=["fields"])
+    def test_not_once_they_no_longer_run_mods_here(self):
+        self.assign(VIGIL, "rhea@example.com")
+
+        self.take("rhea@example.com", "mod-runner")
+
+        self.assertFalse(self.is_assigned("rhea@example.com"))
+        self.assertNotIn("rhea@example.com", self.live_shown(VIGIL))
+        past = self.section(self.mira.get(self.mod_page(VIGIL)), "past-assignments")
+        self.assertIn("no longer a Mod Runner here", past)
 
 
 class WhoMayAssign(AssignmentTest):
@@ -396,14 +445,70 @@ class KeptOutOfTheFiles(AssignmentTest):
 
 
 class TheDatabaseOnItsOwn(AssignmentTest):
-    def test_another_organization_sees_no_assignments(self):
+    """Eve has an Organization and World of her own."""
+
+    def setUp(self):
+        super().setUp()
         self.assign(VIGIL, "rhea@example.com")
         sign_in("eve@example.com")
-        eve = User.objects.get(email="eve@example.com")
-        with tenancy.acting_as(user=eve):
-            organization = Membership.objects.get().organization_id
+        self.eve = User.objects.get(email="eve@example.com")
+        with tenancy.acting_as(user=self.eve):
+            self.eves = Membership.objects.get().organization_id
+        with tenancy.acting_as(user=self.eve, organization=self.eves):
+            self.eves_world = World.objects.get()
+        with self.in_world():
+            self.miras = Membership.objects.filter(user__email="mira@example.com") \
+                .get().organization_id
+            self.vigil = Document.objects.get(slug=VIGIL)
+            self.rhea_user = User.objects.get(email="rhea@example.com")
 
-        with tenancy.acting_as(user=eve, organization=organization):
+    def as_eve(self):
+        return tenancy.acting_as(user=self.eve, organization=self.eves)
+
+    def an_assignment(self, **fields):
+        """Eve writes an Assignment to Mira's Mod, in her own World unless
+        `fields` say otherwise."""
+        return Assignment.objects.create(**{
+            "organization_id": self.eves, "world_id": self.eves_world.pk,
+            "mod_id": self.vigil.pk, "runner_id": self.eve.pk, "assigned_at": timezone.now(),
+            **fields})
+
+    def test_another_organization_sees_no_assignments(self):
+        with self.as_eve():
+            self.assertEqual(Assignment.objects.count(), 0)
+        with tenancy.acting_as():
             self.assertEqual(Assignment.objects.count(), 0)
         with self.in_world():
             self.assertEqual(Assignment.objects.count(), 1)
+
+    def test_another_organization_cannot_change_or_delete_one(self):
+        with self.as_eve():
+            changed = Assignment.objects.update(revoked_at=timezone.now())
+            deleted, _ = Assignment.objects.all().delete()
+
+        self.assertEqual((changed, deleted), (0, 0))
+        with self.in_world():
+            self.assertIsNone(Assignment.objects.get().revoked_at)
+
+    def test_one_cannot_be_written_into_another_organization(self):
+        with self.assertRaises(ProgrammingError), transaction.atomic():
+            with self.as_eve():
+                self.an_assignment(organization_id=self.miras, world_id=self.vigil.world_id,
+                                   runner_id=self.rhea_user.pk)
+
+    def test_one_cannot_point_at_another_organizations_world(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with self.as_eve():
+                self.an_assignment(world_id=self.vigil.world_id)
+
+    def test_one_cannot_point_at_another_organizations_mod(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with self.as_eve():
+                self.an_assignment()
+
+    def test_one_cannot_name_someone_outside_the_organization(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with self.in_world():
+                Assignment.objects.create(
+                    organization_id=self.miras, world_id=self.vigil.world_id, mod=self.vigil,
+                    runner=self.eve, assigned_at=timezone.now())

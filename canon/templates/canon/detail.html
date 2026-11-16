@@ -92,7 +92,7 @@
       {% if live_assignments %}
         <ul class="live-assignments">
           {% for row in live_assignments %}
-            <li>{{ row.assignment.runner.email }}, {% if row.assignment.event %}for {{ row.event }}{% else %}until revoked{% endif %}{% if may_decide %}; assigned{% if row.assignment.assigned_by %} by {{ row.assignment.assigned_by.email }}{% endif %} on {{ row.assignment.assigned_at|date:"j F Y" }}.
+            <li>{% include "canon/assignment.html" with who=may_decide %}{% if may_decide %}.
               <form method="post" action="{% url 'canon-revoke-assignment' world.pk document.slug row.assignment.pk %}" class="inline">
                 {% csrf_token %}<button type="submit">Revoke</button>
               </form>{% endif %}
@@ -125,7 +125,7 @@
       <h2>Past Assignments</h2>
       <ul>
         {% for row in past_assignments %}
-          <li>{{ row.assignment.runner.email }}, {% if row.assignment.event %}for {{ row.event }}{% else %}until revoked{% endif %}; assigned{% if row.assignment.assigned_by %} by {{ row.assignment.assigned_by.email }}{% endif %} on {{ row.assignment.assigned_at|date:"j F Y" }}{% if row.assignment.revoked_at %}, revoked{% if row.assignment.revoked_by %} by {{ row.assignment.revoked_by.email }}{% endif %} on {{ row.assignment.revoked_at|date:"j F Y" }}{% else %}, ended with the Event{% endif %}.</li>
+          <li>{% include "canon/assignment.html" with who=True %}, {% if row.assignment.revoked_at %}revoked{% if row.assignment.revoked_by %} by {{ row.assignment.revoked_by.email }}{% endif %} on {{ row.assignment.revoked_at|date:"j F Y" }}{% else %}{{ row.ended }}{% endif %}.</li>
         {% endfor %}
       </ul>
     </section>

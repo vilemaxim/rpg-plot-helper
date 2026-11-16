@@ -3,8 +3,8 @@
     <h2>Your Assignments</h2>
     <p>The Mods a Plot Master has assigned you to run.</p>
     <ul>
-      {% for assignment, event in assignments %}
-        <li><a href="{% url 'canon-detail' world.pk 'mods' assignment.mod.slug %}">{{ assignment.mod.name }}</a>, {% if assignment.event %}for {{ event.name }}{% else %}until revoked{% endif %}</li>
+      {% for row in assignments %}
+        <li><a href="{% url 'canon-detail' world.pk 'mods' row.assignment.mod.slug %}">{{ row.assignment.mod.name }}</a>, {% if row.assignment.event %}for {{ row.event }}{% else %}until revoked{% endif %}</li>
       {% endfor %}
     </ul>
   </section>

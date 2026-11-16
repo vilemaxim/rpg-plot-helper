@@ -4,10 +4,10 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import plotcanon
 from django.conf import settings
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.mail import send_mail
 from django.db import transaction
 from django.template.loader import render_to_string
-from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -18,8 +18,8 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from organizations.forms import DryRunStructureForm
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import (approving, assignments, deciding, dry_runs, exporting, intake, interludes, links, resolving,
-               submitting, world_settings, writers)
+from . import (approving, assignments, deciding, dry_runs, exporting, intake, interludes, links,
+               resolving, submitting, world_settings, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
@@ -754,19 +754,11 @@ def assignments_shown(request, world, mod):
     """What a Mod's page shows of its Assignments: the live ones to every
     World role, the revoked and ended ones to Plot Masters alone, and to
     them the form to assign someone."""
-    events = assignments.events_of(world)
-    every = list(assignments.of(world).filter(mod=mod))
+    rows = assignments.shown(world, assignments.assignments_in(world).filter(mod=mod))
     plot_master = is_plot_master(request, world)
-
-    def row(assignment):
-        event = events.get(assignment.event)
-        return {"assignment": assignment,
-                "event": event.name if event else assignment.event}
-
-    live = [a for a in every if assignments.is_live(a, events)]
     return {
-        "live_assignments": [row(a) for a in live],
-        "past_assignments": [row(a) for a in every if a not in live] if plot_master else [],
+        "live_assignments": [row for row in rows if row.live],
+        "past_assignments": [row for row in rows if not row.live] if plot_master else [],
         "may_assign": plot_master and submitting.can_be_reported_on(mod),
         "mod_runners": assignments.may_run_mods_in(world) if plot_master else [],
         "events_to_come": assignments.events_to_come(world) if plot_master else [],
@@ -802,8 +794,13 @@ def revoke_assignment(request, world_id, slug, assignment_id):
     world = world_or_404(request, world_id)
     plot_master_or_403(request, world)
     mod = mod_or_404(world, slug)
-    if assignments.revoke(world, mod, assignment_id, request.user):
-        messages.success(request, "The Assignment is revoked.")
+    try:
+        revoked = assignments.revoke(world, mod, assignment_id, request.user)
+    except assignments.AssignmentRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, f"{revoked.runner.email}'s Assignment to {mod.name} is "
+                                  f"revoked.")
     return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
 
 
