@@ -103,7 +103,15 @@ class RefusingABadConfig(ConfigTest):
         self.assertIn("interviews.new-mod.max_tokenz", message)
 
     def test_an_unknown_top_level_key_is_named(self):
-        self.assertIn("limits", self.refused(GOOD + "\n[limits]\nturns = 3\n"))
+        self.assertIn("budget", self.refused(GOOD + "\n[budget]\nturns = 3\n"))
+
+    def test_an_unknown_limit_is_named(self):
+        self.assertIn("limits.turns", self.refused(GOOD + "\n[limits]\nturns = 3\n"))
+
+    def test_a_limit_that_is_not_a_positive_number_is_named(self):
+        message = self.refused(GOOD + "\n[limits]\nturns_per_person_per_day = 0\n")
+
+        self.assertIn("limits.turns_per_person_per_day", message)
 
     def test_an_unknown_kind_of_interview_is_named(self):
         self.assertIn("interviews.new-report",
@@ -122,6 +130,21 @@ class RefusingABadConfig(ConfigTest):
 
     def test_a_file_that_is_not_toml_says_so(self):
         self.assertIn("interviews.toml", self.refused("[interviews.new-mod\n"))
+
+
+class ReadingTheLimits(ConfigTest):
+    def test_both_limits_are_read_as_written(self):
+        limits = self.load(GOOD + "\n[limits]\nturns_per_person_per_day = 40\n"
+                                  "tokens_per_organization_per_month = 5000000\n").limits
+
+        self.assertEqual((limits.turns_per_person_per_day,
+                          limits.tokens_per_organization_per_month), (40, 5000000))
+
+    def test_a_missing_limit_means_no_limit(self):
+        limits = self.load(GOOD + "\n[limits]\nturns_per_person_per_day = 40\n").limits
+
+        self.assertIsNone(limits.tokens_per_organization_per_month)
+        self.assertIsNone(self.load(GOOD).limits.turns_per_person_per_day)
 
 
 class WhetherAnInterviewIsOn(ConfigTest):
