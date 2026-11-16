@@ -41,22 +41,41 @@ class AnthropicProvider(Provider):
         return arguments
 
     def stream_turn(self, system, messages):
+        stream = None
         try:
             with self.client.messages.stream(**self.request(system, messages)) as stream:
                 for text in stream.text_stream:
                     yield Text(text)
                 final = stream.get_final_message()
         except anthropic.RateLimitError:
-            raise ProviderError("The LLM is busy just now. Try again in a minute.") from None
+            raise ProviderError("The LLM is busy just now. Try again in a minute.",
+                                usage=_so_far(stream)) from None
         except anthropic.APIStatusError as error:
             if error.status_code >= 500:
-                raise ProviderError("The LLM's provider had a fault. Try again.") from None
+                raise ProviderError("The LLM's provider had a fault. Try again.",
+                                    usage=_so_far(stream)) from None
             raise ProviderError(f"The LLM's provider turned the request down: "
-                                f"{error.message}") from None
+                                f"{error.message}", usage=_so_far(stream)) from None
         except anthropic.APIConnectionError:
             raise ProviderError("The LLM's provider could not be reached. "
-                                "Try again.") from None
+                                "Try again.", usage=_so_far(stream)) from None
+        usage = _usage(final)
         if final.stop_reason == "refusal":
-            raise ProviderError("The LLM declined to answer that. Try putting it another way.")
-        usage = Usage(final.usage.input_tokens or 0, final.usage.output_tokens or 0)
+            raise ProviderError("The LLM declined to answer that. Try putting it another way.",
+                                usage=usage)
         yield Ended(usage, cut_off=final.stop_reason == "max_tokens")
+
+
+def _usage(message):
+    return Usage(message.usage.input_tokens or 0, message.usage.output_tokens or 0)
+
+
+def _so_far(stream):
+    """The tokens a stream that failed had reported, or None if it had not
+    started."""
+    if stream is None:
+        return None
+    try:
+        return _usage(stream.current_message_snapshot)
+    except AssertionError:  # no message started yet
+        return None

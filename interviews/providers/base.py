@@ -57,7 +57,13 @@ class Ended:
 class ProviderError(Exception):
     """The provider could not give a whole turn: it refused, failed or could
     not be reached. `str()` is a sentence for the person in the Interview;
-    whatever was streamed before it is not a good turn."""
+    whatever was streamed before it is not a good turn. `usage` is the tokens
+    the provider reported for the call before it failed, if any: they are
+    spent all the same."""
+
+    def __init__(self, message, *, usage=None):
+        super().__init__(message)
+        self.usage = usage
 
 
 class Provider(ABC):

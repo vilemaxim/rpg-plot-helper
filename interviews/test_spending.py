@@ -12,7 +12,7 @@ from django.test import TransactionTestCase, override_settings
 from accounts.models import User
 from interviews import config, spending
 from interviews.models import TokenUsage
-from interviews.providers import Usage
+from interviews.providers import ProviderError, Usage
 from canon.test_mod_submissions import NEW, a_mod
 from interviews.test_interviews import (BROKEN, QUESTION, FakeProvider, InterviewTest, fenced,
                                         hidden)
@@ -167,6 +167,27 @@ class FixAttempts(SpendingTest):
         self.assertEqual(len(fake.asked), 3)
         with tenancy.acting_as(organization=self.organization()):
             self.assertEqual(TokenUsage.objects.get().tokens, 3 * Usage(100, 20).total)
+
+
+class FailedCalls(SpendingTest):
+    """A call that fails, or is refused, after the provider has reported its
+    tokens still spent them."""
+
+    def test_the_tokens_a_failed_call_reported_are_recorded(self):
+        failed = ProviderError("The LLM declined to answer that.", usage=Usage(300, 40))
+        with self.provider(FakeProvider(failed)), self.on(2026, 11, 3, 9):
+            page = self.say("Hello")
+
+        self.assertIn("declined", page)
+        with tenancy.acting_as(organization=self.organization()):
+            self.assertEqual(TokenUsage.objects.get().tokens, 340)
+
+    def test_a_failure_with_no_tokens_reported_records_none(self):
+        with self.provider(FakeProvider(ProviderError("Busy."))), self.on(2026, 11, 3, 9):
+            self.say("Hello")
+
+        with tenancy.acting_as(organization=self.organization()):
+            self.assertFalse(TokenUsage.objects.exists())
 
 
 class KeptPerOrganization(SpendingTest):

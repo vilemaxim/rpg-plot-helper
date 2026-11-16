@@ -9,7 +9,7 @@ import httpx2
 from django.test import SimpleTestCase
 
 from interviews.config import InterviewSettings
-from interviews.providers import ADAPTERS, Ended, Message, ProviderError, Text
+from interviews.providers import ADAPTERS, Ended, Message, ProviderError, Text, Usage
 
 SETTINGS = InterviewSettings(kind="new-mod", provider="anthropic", model="claude-opus-5-5",
                              effort="high", max_tokens=32000)
@@ -19,9 +19,11 @@ class FakeClient:
     """Answers `messages.stream(...)` with `pieces`, then a final message, or
     raises `error`. Keeps what it was asked."""
 
-    def __init__(self, pieces=(), stop_reason="end_turn", error=None):
+    def __init__(self, pieces=(), stop_reason="end_turn", error=None, failure=None):
         self.asked = None
         self.pieces, self.stop_reason, self.error = pieces, stop_reason, error
+        # Raised once `pieces` have streamed, as an error event mid-stream is.
+        self.failure = failure
         self.messages = self
 
     @contextmanager
@@ -29,9 +31,16 @@ class FakeClient:
         self.asked = arguments
         if self.error:
             raise self.error
-        final = SimpleNamespace(stop_reason=self.stop_reason,
-                                usage=SimpleNamespace(input_tokens=120, output_tokens=7))
-        yield SimpleNamespace(text_stream=iter(self.pieces), get_final_message=lambda: final)
+        usage = SimpleNamespace(input_tokens=120, output_tokens=7)
+        final = SimpleNamespace(stop_reason=self.stop_reason, usage=usage)
+
+        def text_stream():
+            yield from self.pieces
+            if self.failure:
+                raise self.failure
+
+        yield SimpleNamespace(text_stream=text_stream(), get_final_message=lambda: final,
+                              current_message_snapshot=SimpleNamespace(usage=usage))
 
 
 def adapter(client, settings=SETTINGS):
@@ -85,10 +94,27 @@ class AnthropicAdapter(SimpleTestCase):
         self.assertIsInstance(events[-1], Ended)
         self.assertTrue(events[-1].cut_off)
 
-    def test_a_refusal_is_not_a_good_turn(self):
-        with self.assertRaises(ProviderError):
+    def test_a_refusal_is_not_a_good_turn_but_its_tokens_are_reported(self):
+        with self.assertRaises(ProviderError) as refused:
             list(adapter(FakeClient(["I"], stop_reason="refusal"))
                  .stream_turn("S", [Message("user", "Hello")]))
+
+        self.assertEqual(refused.exception.usage, Usage(120, 7))
+
+    def test_a_failure_mid_stream_reports_the_tokens_used_so_far(self):
+        failure = status_error(anthropic.InternalServerError, 529)
+        with self.assertRaises(ProviderError) as failed:
+            list(adapter(FakeClient(["Half a"], failure=failure))
+                 .stream_turn("S", [Message("user", "Hello")]))
+
+        self.assertEqual(failed.exception.usage, Usage(120, 7))
+
+    def test_a_failure_before_the_stream_starts_reports_no_tokens(self):
+        error = status_error(anthropic.RateLimitError, 429)
+        with self.assertRaises(ProviderError) as failed:
+            list(adapter(FakeClient(error=error)).stream_turn("S", [Message("user", "Hello")]))
+
+        self.assertIsNone(failed.exception.usage)
 
     def test_provider_failures_become_provider_errors(self):
         request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")

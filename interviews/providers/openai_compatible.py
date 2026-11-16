@@ -56,7 +56,7 @@ class OpenAICompatibleProvider(Provider):
         return arguments
 
     def stream_turn(self, system, messages):
-        usage, finish_reason = Usage(), None
+        usage, finish_reason = None, None
         try:
             with self.client.chat.completions.create(**self.request(system, messages)) as stream:
                 for chunk in stream:
@@ -68,15 +68,18 @@ class OpenAICompatibleProvider(Provider):
                             yield Text(choice.delta.content)
                         finish_reason = choice.finish_reason or finish_reason
         except openai.RateLimitError:
-            raise ProviderError("The LLM is busy just now. Try again in a minute.") from None
+            raise ProviderError("The LLM is busy just now. Try again in a minute.",
+                                usage=usage) from None
         except openai.APIStatusError as error:
             if error.status_code >= 500:
-                raise ProviderError("The LLM's provider had a fault. Try again.") from None
+                raise ProviderError("The LLM's provider had a fault. Try again.",
+                                    usage=usage) from None
             raise ProviderError(f"The LLM's provider turned the request down: "
-                                f"{error.message}") from None
+                                f"{error.message}", usage=usage) from None
         except openai.APIConnectionError:
             raise ProviderError("The LLM's provider could not be reached. "
-                                "Try again.") from None
+                                "Try again.", usage=usage) from None
         if finish_reason == "content_filter":
-            raise ProviderError("The LLM declined to answer that. Try putting it another way.")
-        yield Ended(usage, cut_off=finish_reason == "length")
+            raise ProviderError("The LLM declined to answer that. Try putting it another way.",
+                                usage=usage)
+        yield Ended(usage or Usage(), cut_off=finish_reason == "length")

@@ -148,10 +148,18 @@ class OpenAICompatibleAdapter(SimpleTestCase):
         self.assertIsInstance(events[-1], Ended)
         self.assertTrue(events[-1].cut_off)
 
-    def test_a_filtered_answer_is_not_a_good_turn(self):
-        with FakeEndpoint(finish_reason="content_filter") as endpoint, \
-                self.assertRaises(ProviderError):
+    def test_a_filtered_answer_is_not_a_good_turn_but_its_tokens_are_reported(self):
+        with FakeEndpoint(finish_reason="content_filter", usage=(120, 7)) as endpoint, \
+                self.assertRaises(ProviderError) as filtered:
             turn(endpoint)
+
+        self.assertEqual(filtered.exception.usage, Usage(120, 7))
+
+    def test_a_failure_before_any_tokens_are_reported_reports_none(self):
+        with FakeEndpoint(status=500) as endpoint, self.assertRaises(ProviderError) as failed:
+            turn(endpoint)
+
+        self.assertIsNone(failed.exception.usage)
 
     def test_endpoint_failures_become_provider_errors(self):
         for status in (400, 404, 429, 500):

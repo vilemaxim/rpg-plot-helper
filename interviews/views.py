@@ -248,7 +248,7 @@ def streamed(head, foot, what_follows, provider, system, turns, said, seal, chec
 
     `spent` is given the tokens each LLM call used, the person's turn and
     each fix attempt alike, when the provider reports them, whether or not
-    the turn is kept."""
+    the turn is kept or the call fails."""
     yield head
     asked = [*turns, Message("user", said)]
     conversation, fixes = asked, 0
@@ -281,13 +281,18 @@ def one_turn(provider, system, messages, shown, spent=lambda usage: None):
     """Stream one reply from the LLM, as `shown` lets the person read it.
     Returns the whole reply and its `Ended`."""
     pieces, ended = [], None
-    for event in provider.stream_turn(system, messages):
-        if isinstance(event, Text):
-            pieces.append(event.text)
-            yield escape(shown.feed(event.text))
-        elif isinstance(event, Ended):
-            ended = event
-            spent(event.usage)
+    try:
+        for event in provider.stream_turn(system, messages):
+            if isinstance(event, Text):
+                pieces.append(event.text)
+                yield escape(shown.feed(event.text))
+            elif isinstance(event, Ended):
+                ended = event
+                spent(event.usage)
+    except ProviderError as error:
+        if error.usage is not None:
+            spent(error.usage)
+        raise
     yield escape(shown.end())
     if not "".join(pieces).strip() or ended is None:
         raise ProviderError("The LLM gave no answer.")
