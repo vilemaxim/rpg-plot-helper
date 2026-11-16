@@ -63,16 +63,28 @@ _Avoid_: Username, login
 **Mod Runner**:
 The role of running a Mod and reporting what happened in it. A solo GM is the Mod Runner of every Mod they run.
 
+**Assignment**:
+A Plot Master's choice of one Mod Runner to run a Mod, for one Event or until the Plot Master revokes it. A Mod can have several at once.
+_Avoid_: Booking, slot, run
+
 **Event**:
 One real-world gathering of play, such as a LARP weekend or a tabletop night. An Event contains the Mods run at it.
 _Avoid_: Session, game
 
 **After-Action Report**:
-A Mod Runner's account of what happened during one continuous stretch of playing a Mod, listing the changes to Canon it proposes. One is filed every time play stops, so a Mod can have several.
+A Mod Runner's account of what happened during one Stretch of a Mod, listing the changes to Canon it proposes and saying how the Stretch ended.
 _Avoid_: Mod report, AAR
 
+**Stretch**:
+One continuous stretch of play of a Mod by one group, ending when play stops. A Mod is played in one or more Stretches, and when its players are split into groups, several run at once.
+_Avoid_: Part, session, segment
+
+**Debrief**:
+What someone who took part in a Mod, whatever their part, thinks plot should know about it. It belongs to the Mod and its Event, and proposes no changes to Canon; a Plot Master reads it beside the After-Action Reports.
+_Avoid_: Player report, extra report
+
 **Interview**:
-A conversation in which the app's LLM asks a Mod Writer or Mod Runner questions and writes their Mod or After-Action Report from the answers. The person reads what it wrote and submits it themselves.
+A conversation in which the app's LLM asks someone questions and writes their Mod, After-Action Report or Debrief from the answers. The person reads what it wrote and submits it themselves.
 _Avoid_: Chat, assistant, wizard
 
 **Plot Master**:
@@ -80,7 +92,7 @@ The role that approves Mods and proposed changes into a World's Canon. Several p
 _Avoid_: Plot lead, canon keeper
 
 **Private link**:
-A link to one Mod that lets whoever holds it read the Mod, download it as its file or for Twine and play its Dry Run, with no account. Filing an After-Action Report needs an account with the Mod Runner role in the Mod's World. A Plot Master creates one for a Mod Runner.
+A link to one Mod that lets whoever holds it read the Mod, download it as its file or for Twine and play its Dry Run, with no account. Filing an After-Action Report needs an account with a role in the Mod's World. A Plot Master creates one for a Mod Runner.
 _Avoid_: Share link, guest link
 
 **Interlude**:
@@ -93,6 +105,13 @@ Who may know a fact in Canon: public, player-known or GM-only.
 **PC**:
 A player's character, held only as a stub: a name, who plays them, and their ties to NPCs, factions and Plots. Character sheets and the player roster live outside this system.
 _Avoid_: Character, player (for the character)
+
+**Player**:
+A person who plays a PC, and the role that lets them file Debriefs.
+
+**Cast member**:
+A person who plays NPCs in Mods, and the role that lets them file Debriefs. An NPC is the character in Canon; the Cast member is the person playing them.
+_Avoid_: NPC (for the person), crew
 
 **Feature**:
 An NPC, faction, location, PC or Plot that a Mod relies on. A Mod lists its Features.
