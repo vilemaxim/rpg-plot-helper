@@ -88,8 +88,12 @@ What someone who took part in a Mod, whatever their part, thinks plot should kno
 _Avoid_: Player report, extra report
 
 **Reconciliation**:
-The app's LLM checking a draft Mod against the whole World's Canon and reporting what conflicts, for a Plot Master to read before approving the Mod or sending it back.
+The app's LLM checking a draft Mod against the whole World's Canon, and against the other Mods waiting for approval, and reporting what conflicts, for a Plot Master to read before approving the Mod or sending it back.
 _Avoid_: Canon check, review
+
+**World review**:
+The app's LLM looking across a whole World for drift, dormant Plots and chances to bring recurring NPCs and Plots back, for the plot team.
+_Avoid_: Audit, health check
 
 **Interview**:
 A conversation in which the app's LLM asks someone questions and writes their Mod, After-Action Report or Debrief from the answers. The person reads what it wrote and submits it themselves.
