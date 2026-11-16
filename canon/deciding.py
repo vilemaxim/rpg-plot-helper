@@ -93,12 +93,17 @@ def contradiction(entity, other, which):
         f"{which}. Reject this change, or correct its report.")
 
 
+def event_of(change):
+    """The Event at which a Canon Change happened: its report's."""
+    return change.report.fields.get("event")
+
+
 def as_change(change):
     """A change as plotcanon takes it, or None for no change."""
     if change is None:
         return None
     return plotcanon.Change(before=change.before, after=change.after,
-                            event=change.report.fields.get("event"),
+                            event=event_of(change),
                             replaced=change.replaced or None)
 
 
@@ -172,7 +177,7 @@ def unapplied(entity, change, field, previous, following, ordering, remaining):
         return plotcanon.unapplied(
             entity.text, field, as_change(change),
             previous=as_change(previous), following=as_change(following),
-            remaining_events=[other.report.fields.get("event") for other in remaining],
+            remaining_events=[event_of(other) for other in remaining],
             event_ordinal=ordering.event_ordinal)
     except plotcanon.ChangeRefused as refusal:
         raise refused(refusal, entity, field, change, previous, following) from None
