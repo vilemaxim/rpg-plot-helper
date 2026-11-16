@@ -15,7 +15,6 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from organizations.forms import DryRunStructureForm
-from interviews import config as interviews
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
 from . import (approving, deciding, dry_runs, exporting, intake, interludes, links, resolving,
@@ -259,7 +258,6 @@ def detail(request, world_id, kind, slug):
         "approved_by": document.approved_by,
         "approved_at": document.approved_at,
         "may_revise": draft and may_revise(request, world, document),
-        "revise_interview_on": interviews.llm_for("revise-mod") is not None,
         "writer": writers.writer_of(document) if doc_type == "mod" else None,
         "may_reassign": draft and is_plot_master(request, world),
         "mod_links": ModLink.objects.filter(organization=world.organization, world=world,

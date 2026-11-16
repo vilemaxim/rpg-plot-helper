@@ -40,13 +40,12 @@ from canon.views import documents_of, is_draft, may_revise, mod_or_404, to_saved
 from organizations.views import may_write_mods, world_or_404
 
 from . import config, conversation, fixing, spending
+from .config import Kind
 from .conversation import Tampered, mod_file_in, opened, sealed
 from .providers import Ended, Message, ProviderError, Text
 
 log = logging.getLogger(__name__)
 
-KIND = "new-mod"
-REVISE = "revise-mod"
 SURFACE = "web"
 # Where the streamed reply and what follows it go in the rendered page.
 REPLY, AFTER = "<!--interview:reply-->", "<!--interview:after-->"
@@ -129,7 +128,7 @@ def interview_or_404(request, world_id):
     if not may_write_mods(request, world) or not documents_of(world).exists():
         raise Http404("No such page")
     conversation.forget_idle()
-    return Interviewing(KIND, world, config.llm_for(KIND))
+    return Interviewing(Kind.NEW_MOD, world, config.llm_for(Kind.NEW_MOD))
 
 
 def revise_interview_or_404(request, world_id, slug):
@@ -143,7 +142,7 @@ def revise_interview_or_404(request, world_id, slug):
     if mod is None or not may_revise(request, world, mod):
         raise Http404("No such page")
     conversation.forget_idle()
-    return Interviewing(REVISE, world, config.llm_for(REVISE), mod)
+    return Interviewing(Kind.REVISE_MOD, world, config.llm_for(Kind.REVISE_MOD), mod)
 
 
 @never_cache

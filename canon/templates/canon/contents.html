@@ -1,3 +1,4 @@
+{% load interviews %}
 {% if total %}
   <h2>Canon</h2>
   <ul class="kinds">
@@ -12,6 +13,7 @@
     <p><a href="{% url 'canon-export' world.pk %}">Export this World as a .zip of its files</a></p>
   {% endif %}
   {% if may_write_mods %}
+    {% new_mod_interviews_on as interviews_on %}
     {% if interviews_on %}
       <p><a href="{% url 'interview' world.pk %}">Write a Mod</a> with an LLM, or <a href="{% url 'canon-submit-mod' world.pk %}">paste or upload one</a> your own LLM wrote</p>
     {% else %}

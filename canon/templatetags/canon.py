@@ -1,8 +1,6 @@
 from django import template
 from django.db.models import Count
 
-from interviews import config as interviews
-
 from ..kinds import KINDS
 from .. import writers
 from ..models import CanonChange, Document, Flag
@@ -32,5 +30,4 @@ def world_contents(world, is_plot_master=False, may_write_mods=False):
     flags = Flag.objects.open_in(world).count()
     return {"world": world, "kinds": [k for k in kinds if k[2]], "total": sum(counts.values()),
             "is_plot_master": is_plot_master, "may_write_mods": may_write_mods,
-            "interviews_on": may_write_mods and interviews.llm_for("new-mod") is not None,
             "pending": pending, "flags": flags}

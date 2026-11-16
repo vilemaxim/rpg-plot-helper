@@ -40,6 +40,7 @@ matching dataclass.
 import os
 import tomllib
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 from django.conf import settings
@@ -49,9 +50,13 @@ from .providers import ADAPTERS
 DEFAULT_MAX_TOKENS = 32000
 DEFAULT_MAX_FIX_ATTEMPTS = 3
 
-# The kinds of Interview plotcanon has instructions for
-# (`plotcanon.interview_instructions`), which does not export the list.
-KINDS = ("new-mod", "revise-mod")
+class Kind(StrEnum):
+    """The kinds of Interview: those plotcanon has instructions for
+    (`plotcanon.interview_instructions`), which does not export the list.
+    The value is plotcanon's name for it, and the config's."""
+
+    NEW_MOD = "new-mod"
+    REVISE_MOD = "revise-mod"
 
 
 class ConfigError(Exception):
@@ -185,9 +190,9 @@ def _checked(raw, where):
     interviews = {}
     for kind, table in _tables(raw, "interviews", refuse).items():
         prefix = f"interviews.{kind}"
-        if kind not in KINDS:
+        if kind not in Kind:
             refuse(prefix, f"is not a kind of Interview. Known: "
-                           f"{_listed(KINDS)}")
+                           f"{_listed(Kind)}")
         values = _values(table, prefix, INTERVIEW_KEYS, refuse)
         for key in REQUIRED_INTERVIEW_KEYS:
             if key not in values:
@@ -204,7 +209,7 @@ def _checked(raw, where):
         if not adapter.check_effort(effort):
             refuse(f"{prefix}.effort", f"is `{effort}`, which {provider} does not take. "
                                        f"It takes {_listed(adapter.efforts)}")
-        interviews[kind] = InterviewSettings(kind=kind, **values)
+        interviews[Kind(kind)] = InterviewSettings(kind=Kind(kind), **values)
 
     limits = raw.get("limits", {})
     if not isinstance(limits, dict):
@@ -254,6 +259,11 @@ def configure():
 def current():
     """The config the app started with."""
     return _current if _current is not None else configure()
+
+
+def is_on(kind):
+    """Whether this kind of Interview is on (`llm_for`)."""
+    return llm_for(kind) is not None
 
 
 def llm_for(kind, loaded=None):
