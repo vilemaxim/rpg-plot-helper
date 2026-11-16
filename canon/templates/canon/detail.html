@@ -86,6 +86,50 @@
       {% endif %}
     </section>
   {% endif %}
+  {% if live_assignments or may_assign %}
+    <section class="assignments">
+      <h2>Assignments</h2>
+      {% if live_assignments %}
+        <ul class="live-assignments">
+          {% for row in live_assignments %}
+            <li>{{ row.assignment.runner.email }}, {% if row.assignment.event %}for {{ row.event }}{% else %}until revoked{% endif %}{% if may_decide %}; assigned{% if row.assignment.assigned_by %} by {{ row.assignment.assigned_by.email }}{% endif %} on {{ row.assignment.assigned_at|date:"j F Y" }}.
+              <form method="post" action="{% url 'canon-revoke-assignment' world.pk document.slug row.assignment.pk %}" class="inline">
+                {% csrf_token %}<button type="submit">Revoke</button>
+              </form>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>Nobody is assigned to run it.</p>
+      {% endif %}
+      {% if may_assign %}
+        <form method="post" action="{% url 'canon-assign' world.pk document.slug %}" class="assign">
+          {% csrf_token %}
+          <label for="assign-runner">Assign a Mod Runner</label>
+          <select id="assign-runner" name="user" required>
+            <option value="">Choose someone</option>
+            {% for someone in mod_runners %}<option value="{{ someone.pk }}">{{ someone.email }}</option>{% endfor %}
+          </select>
+          <label for="assign-event">for</label>
+          <select id="assign-event" name="event">
+            {% for event in events_to_come %}<option value="{{ event.slug }}"{% if forloop.first %} selected{% endif %}>{{ event.name }}</option>{% endfor %}
+            <option value="">Until revoked</option>
+          </select>
+          <button type="submit">Assign</button>
+        </form>
+      {% endif %}
+    </section>
+  {% endif %}
+  {% if past_assignments %}
+    <section class="past-assignments">
+      <h2>Past Assignments</h2>
+      <ul>
+        {% for row in past_assignments %}
+          <li>{{ row.assignment.runner.email }}, {% if row.assignment.event %}for {{ row.event }}{% else %}until revoked{% endif %}; assigned{% if row.assignment.assigned_by %} by {{ row.assignment.assigned_by.email }}{% endif %} on {{ row.assignment.assigned_at|date:"j F Y" }}{% if row.assignment.revoked_at %}, revoked{% if row.assignment.revoked_by %} by {{ row.assignment.revoked_by.email }}{% endif %} on {{ row.assignment.revoked_at|date:"j F Y" }}{% else %}, ended with the Event{% endif %}.</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
   {% if may_reassign %}
     <form method="post" action="{% url 'canon-reassign' world.pk document.slug %}" class="reassign">
       {% csrf_token %}

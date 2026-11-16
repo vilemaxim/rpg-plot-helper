@@ -289,3 +289,39 @@ class ModLink(models.Model):
 
     def __str__(self):
         return self.label or f"link {self.pk}"
+
+
+class Assignment(models.Model):
+    """A Plot Master's choice of one Mod Runner to run a Mod, for one Event or
+    until a Plot Master revokes it. A Mod can have several at once.
+
+    `event` is the id of the Event it is for, or empty for one that stands
+    until revoked. One for an Event stops being live once that Event's last
+    day has passed; nothing has to run to end it. A revoked or ended one is
+    kept as history. Kept here, never in the Mod's file (ADR-0001). Who is
+    live is `assignments.py`'s to say.
+    """
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="assignments")
+    mod = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="assignments")
+    runner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                               related_name="+")
+    event = models.CharField(max_length=200, blank=True)
+    assigned_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name="+")
+    assigned_at = models.DateTimeField()
+    revoked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["assigned_at", "pk"]
+        constraints = [
+            # One unrevoked Assignment per person, Mod and Event, and one
+            # standing one. One for an Event that has ended stays unrevoked,
+            # but no new one can be made for that Event.
+            models.UniqueConstraint(fields=["mod", "runner", "event"],
+                                    condition=models.Q(revoked_at=None),
+                                    name="one_live_assignment_per_runner_and_event"),
+        ]

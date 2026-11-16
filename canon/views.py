@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.core.mail import send_mail
 from django.db import transaction
 from django.template.loader import render_to_string
+from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -17,7 +18,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from organizations.forms import DryRunStructureForm
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import (approving, deciding, dry_runs, exporting, intake, interludes, links, resolving,
+from . import (approving, assignments, deciding, dry_runs, exporting, intake, interludes, links, resolving,
                submitting, world_settings, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
@@ -260,6 +261,7 @@ def detail(request, world_id, kind, slug):
         "may_revise": draft and may_revise(request, world, document),
         "writer": writers.writer_of(document) if doc_type == "mod" else None,
         "may_reassign": draft and is_plot_master(request, world),
+        **(assignments_shown(request, world, document) if doc_type == "mod" else {}),
         "mod_links": ModLink.objects.filter(organization=world.organization, world=world,
                                             mod=document).select_related("created_by")
         if doc_type == "mod" and is_plot_master(request, world) else None,
@@ -745,6 +747,63 @@ def reassign(request, world_id, slug):
         messages.error(request, str(refused))
     else:
         messages.success(request, f"{mod.name} is reassigned.")
+    return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+
+
+def assignments_shown(request, world, mod):
+    """What a Mod's page shows of its Assignments: the live ones to every
+    World role, the revoked and ended ones to Plot Masters alone, and to
+    them the form to assign someone."""
+    events = assignments.events_of(world)
+    every = list(assignments.of(world).filter(mod=mod))
+    plot_master = is_plot_master(request, world)
+
+    def row(assignment):
+        event = events.get(assignment.event)
+        return {"assignment": assignment,
+                "event": event.name if event else assignment.event}
+
+    live = [a for a in every if assignments.is_live(a, events)]
+    return {
+        "live_assignments": [row(a) for a in live],
+        "past_assignments": [row(a) for a in every if a not in live] if plot_master else [],
+        "may_assign": plot_master and submitting.can_be_reported_on(mod),
+        "mod_runners": assignments.may_run_mods_in(world) if plot_master else [],
+        "events_to_come": assignments.events_to_come(world) if plot_master else [],
+    }
+
+
+def plot_master_or_403(request, world):
+    """Refuse anyone in the World who is not a Plot Master of it."""
+    if not is_plot_master(request, world):
+        raise PermissionDenied("Only a Plot Master of this World can do that.")
+
+
+@require_POST
+def assign(request, world_id, slug):
+    """Assign a Mod Runner to a Mod, for one Event or until revoked. For the
+    World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    plot_master_or_403(request, world)
+    mod = mod_or_404(world, slug)
+    try:
+        assignment = assignments.assign(world, mod, request.POST.get("user", ""),
+                                        request.POST.get("event", ""), request.user)
+    except assignments.AssignmentRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, f"{assignment.runner.email} is assigned to {mod.name}.")
+    return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+
+
+@require_POST
+def revoke_assignment(request, world_id, slug, assignment_id):
+    """Revoke an Assignment. For the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    plot_master_or_403(request, world)
+    mod = mod_or_404(world, slug)
+    if assignments.revoke(world, mod, assignment_id, request.user):
+        messages.success(request, "The Assignment is revoked.")
     return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
 
 
