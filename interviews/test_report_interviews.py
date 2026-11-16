@@ -182,6 +182,19 @@ class TheWalk(WalkingThePath):
         self.assertIn(">Begin</button>", page)
         self.assertEqual(fake.asked, [])
 
+    def test_the_walk_cannot_be_skipped_by_beginning_with_no_path(self):
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            response = self.rhea.post(self.report_interview(BELL), {"transcript": ""})
+            again = self.rhea.post(self.report_interview(BELL),
+                                   {"said": "Hello", "transcript": ""})
+
+        for skipped in (response, again):
+            self.assertRedirects(skipped, self.walk(BELL), fetch_redirect_response=False)
+        self.assertEqual(fake.asked, [])
+        with self.provider(FakeProvider()):
+            self.assertRedirects(self.rhea.get(self.report_interview(BELL)), self.walk(BELL),
+                                 fetch_redirect_response=False)
+
     def test_play_cannot_stop_at_the_premise(self):
         with self.provider(FakeProvider()):
             response = self.rhea.post(self.walk(BELL), {})
@@ -297,11 +310,26 @@ class AModWithNoDryRun(WalkingThePath):
         filed = self.stored("aa-storm-moon-vigil")
         self.assertNotIn("path", filed.fields)
 
+    def test_a_report_given_a_path_goes_back_to_the_llm_and_is_not_filed(self):
+        with_path = VIGIL.text.replace("finished: false\n",
+                                       "finished: false\npath:\n  - The vigil\n")
+        with self.provider(FakeProvider(fenced(with_path), fenced(with_path)),
+                           max_fix_attempts=1) as fake:
+            page = self.begin(NO_DRY_RUN, "")
+            response = self.rhea.post(f"{self.report_interview(NO_DRY_RUN)}submit/",
+                                      {"text": file_in(page), "finished": "false",
+                                       "transcript": hidden(page, "transcript")})
+
+        self.assertEqual(len(fake.asked), 2)
+        self.assertIn("path", fake.asked[1][1][-1].text)
+        self.assertContains(response, "Nothing was saved.")
+        self.assertFalse(self.exists("aa-storm-moon-vigil"))
+
 
 class FilingTheReport(WalkingThePath):
-    def write(self, choices, report):
+    def write(self, choices, report, max_fix_attempts=None):
         """Walk, begin, and have the LLM give `report`. The page it gives."""
-        with self.provider(FakeProvider(fenced(report))):
+        with self.provider(FakeProvider(fenced(report)), max_fix_attempts=max_fix_attempts):
             return self.begin(BELL, self.stop_at(BELL, choices))
 
     def file(self, page, finished=None, text=None):
@@ -312,15 +340,51 @@ class FilingTheReport(WalkingThePath):
         with self.provider(FakeProvider()):
             return self.rhea.post(f"{self.report_interview(BELL)}submit/", data, follow=True)
 
-    def test_reaching_an_ending_proposes_finished(self):
-        page = self.write(TO_SILENCED, a_report(PATH_TO_SILENCED, "true"))
+    def test_reaching_an_ending_proposes_finished_whatever_the_llm_wrote(self):
+        page = self.write(TO_SILENCED, a_report(PATH_TO_SILENCED, "false"))
 
         self.assertIn('name="finished" value="true" checked', page)
+        self.assertNotIn('name="finished" value="false" checked', page)
 
-    def test_stopping_at_a_scene_proposes_not_finished(self):
-        page = self.write([0], a_report([{"hook": SISTER}, DESCENT], "false"))
+    def test_stopping_at_a_scene_proposes_not_finished_whatever_the_llm_wrote(self):
+        page = self.write([0], a_report([{"hook": SISTER}, DESCENT], "true"))
 
         self.assertIn('name="finished" value="false" checked', page)
+        self.assertNotIn('name="finished" value="true" checked', page)
+
+    def test_the_path_proposes_finished_when_the_llm_left_it_out_or_wrote_nonsense(self):
+        left_out = a_report(PATH_TO_SILENCED, "true").replace("finished: true\n", "")
+        for report in (left_out, a_report(PATH_TO_SILENCED, "yes")):
+            with self.subTest(report=report[:200]):
+                page = self.write(TO_SILENCED, report, max_fix_attempts=0)
+                self.assertIn('name="finished" value="true" checked', page)
+                self.assertNotIn('name="finished" value="false" checked', page)
+
+    def test_a_path_other_than_the_one_walked_goes_back_to_the_llm(self):
+        # Valid to plotcanon, but not where the Mod Runner said play stopped.
+        further = a_report([{"hook": SISTER}, DESCENT, "The bell"], "false")
+        walked = a_report([{"hook": SISTER}, DESCENT], "false")
+        with self.provider(FakeProvider(fenced(further), fenced(walked))) as fake:
+            page = self.begin(BELL, self.stop_at(BELL, [0]))
+
+        self.assertIn(FIXING, page)
+        self.assertIn("path", fake.asked[1][1][-1].text)
+        self.assertEqual(file_in(page), walked)
+
+    def test_a_path_other_than_the_one_walked_is_not_filed(self):
+        page = self.write([0], a_report([{"hook": SISTER}, DESCENT], "false"))
+        response = self.file(page, "false",
+                             text=a_report([{"hook": SISTER}, DESCENT, "The bell"], "false"))
+
+        self.assertContains(response, "Nothing was saved.")
+        self.assertFalse(self.exists("aa-the-bell-beneath"))
+
+    def test_a_report_with_no_path_is_not_filed_when_a_path_was_walked(self):
+        page = self.write([0], a_report([{"hook": SISTER}, DESCENT], "false"))
+        response = self.file(page, "false", text=a_report(None, "false"))
+
+        self.assertContains(response, "Nothing was saved.")
+        self.assertFalse(self.exists("aa-the-bell-beneath"))
 
     def test_the_report_is_filed_through_the_same_path_as_a_pasted_one(self):
         page = self.write(TO_SILENCED, a_report(PATH_TO_SILENCED, "true"))

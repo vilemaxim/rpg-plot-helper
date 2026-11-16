@@ -29,17 +29,40 @@ class NoSuchWalk(Exception):
 
 
 @dataclass(frozen=True)
+class Walked:
+    """A Path walked, as a report Interview keeps it (`Interview.walk`): its
+    `path`, the steps plotcanon wrote for the report's `path`, and where play
+    had stopped on the Mod before it (`last_stop`)."""
+
+    path: tuple
+    last_stop: plotcanon.LastStop
+
+    def to_json(self):
+        return {"path": list(self.path),
+                "last_stop": {"passage": self.last_stop.passage,
+                              "known": self.last_stop.known}}
+
+    @classmethod
+    def from_json(cls, kept):
+        """The Path kept as `to_json` wrote it, or None for none."""
+        if kept is None:
+            return None
+        return cls(tuple(kept["path"]), plotcanon.LastStop(**kept["last_stop"]))
+
+
+@dataclass(frozen=True)
 class Walk:
     """A walk so far: where it `starts` (a scene's name, or None for the
-    Premise), the `choices` taken, the passage it has reached (`here`), and
-    the `steps` of the Path it makes."""
+    Premise), `start_given` as the address gives it ("" for the default),
+    the `choices` taken, each by its place among its passage's, the passage
+    it has reached (`here`), and the `steps` of the Path it makes."""
 
     stop: plotcanon.LastStop
     starts: str | None
     start_given: str
-    choices: tuple
-    here: object
-    steps: list
+    choices: tuple[int, ...]
+    here: plotcanon.Passage
+    steps: tuple
 
     def address(self, choices=None, start=None):
         """The address of a walk, relative to the walk's page: this one, or
@@ -85,10 +108,9 @@ class Walk:
             return self.address((), "")
         return None
 
-    def kept(self):
-        """The walk as a report Interview keeps it (`Interview.walk`)."""
-        return {"path": self.steps,
-                "last_stop": {"passage": self.stop.passage, "known": self.stop.known}}
+    def walked(self):
+        """The Path, for a report Interview to start from."""
+        return Walked(self.steps, self.stop)
 
 
 def default_start(stop):
@@ -97,7 +119,7 @@ def default_start(stop):
     return stop.passage if stop.known and stop.passage else None
 
 
-def walk(story, stop, query):
+def walk_from(story, stop, query):
     """The walk an address names, from its `from` and `choice` values in
     `query` (a `QueryDict`). Raises `NoSuchWalk` for one that cannot be
     taken."""
@@ -128,7 +150,7 @@ def walk(story, stop, query):
         steps = plotcanon.path_steps(story, taken, continues_from=stop, start=starts)
     except ValueError:
         raise NoSuchWalk from None
-    return Walk(stop, starts, given, picked, here, steps)
+    return Walk(stop, starts, given, picked, here, tuple(steps))
 
 
 def scenes_to_pick_up_at(story, stop):

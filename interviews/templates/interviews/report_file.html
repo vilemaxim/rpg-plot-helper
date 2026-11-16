@@ -1,0 +1,20 @@
+{% load interviews %}
+<section>
+  <h2>The report</h2>
+  <p>Read it through, and say below whether {{ mod.name }} is finished{% if finished %}: the Path you walked says {% if finished == "true" %}it is{% else %}it is not{% endif %}{% endif %}. Filing it checks it against {{ world.name }}; its Canon Changes then wait for a Plot Master to decide them, and nothing in Canon changes until one does. To change it, tell the LLM below, or edit it here.</p>
+  <form method="post" action="{{ urls.submit }}">
+    {% csrf_token %}
+    <input type="hidden" name="transcript" value="{{ transcript }}">
+    <label for="report-file">The report</label>
+    <textarea name="text" id="report-file" rows="18" spellcheck="false">
+{{ file }}</textarea>
+    {% with in_file=file|finished_in %}{% firstof finished in_file as chosen %}
+    <fieldset>
+      <legend>Is {{ mod.name }} finished?</legend>
+      <label><input type="radio" name="finished" value="true"{% if chosen == "true" %} checked{% endif %}> Yes: play reached an ending, and there is nothing left to run</label>
+      <label><input type="radio" name="finished" value="false"{% if chosen != "true" %} checked{% endif %}> No: there is more to play at a later Event</label>
+    </fieldset>
+    {% endwith %}
+    <button type="submit">File the report</button>
+  </form>
+</section>

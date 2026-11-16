@@ -73,13 +73,29 @@ class AnswerForm(forms.Form):
 
 @dataclass
 class Interviewing:
-    """One kind of Interview in a World, as its pages run it: a new Mod, or a
-    revision of the draft `mod`. `llm` is None when that kind is off."""
+    """One kind of Interview in a World, as its pages run it. As it stands, a
+    new Mod; a revision of a draft (`Revising`) and a report (`Reporting`, in
+    `reporting`) change what differs. `llm` is None when that kind is off.
+
+    The words its pages use for it are here, so the templates never ask
+    which kind they show: its `title`, what is `pasted` instead, the
+    `intro` shown before its first turn and the `file_template` the file it
+    gives is shown in."""
 
     kind: Kind
     world: World
     llm: Llm | None
     mod: Document | None = None
+
+    pasted = "a Mod file"
+    intro = "interviews/intro_new_mod.html"
+    file_template = "interviews/mod_file.html"
+    # What submitting the file does, in the words under it.
+    on_submit = "saves it"
+
+    @property
+    def title(self):
+        return "Write a Mod"
 
     def urls(self):
         """Its pages' addresses (`PAGES`), by what each is for."""
@@ -89,31 +105,35 @@ class Interviewing:
 
     def context(self, turns=()):
         """What every page of it is rendered with, at these turns."""
-        return {"world": self.world, "mod": self.mod, "kind": self.kind,
+        return {"world": self.world, "mod": self.mod, "title": self.title,
+                "pasted": self.pasted, "intro": self.intro,
+                "file_template": self.file_template, "on_submit": self.on_submit,
                 "urls": self.urls(), "begins": self.opener is not None and not turns}
 
-    def carry_on(self, transcript, person):
-        """Take up what is kept with the Interview `transcript` names besides
-        its turns. Raises `Tampered`."""
+    def in_progress(self, person):
+        """The person's Interview of this kind in progress, as the transcript
+        for its page and its turns, or `("", [])` (`conversation.in_progress`),
+        with what else is kept with it taken up."""
+        return conversation.in_progress(self.world, person, self.kind, self.mod)
+
+    def opened(self, transcript, person):
+        """The turns of the Interview a page's transcript names
+        (`conversation.opened`), with what else is kept with it taken up.
+        Raises `Tampered`."""
+        return opened(transcript, self.world, person, self.mod)
 
     def system_prompt(self, person):
         """plotcanon's instructions for this Interview, given only what this
-        person may read in the World; for a revision, also the draft, why it
-        was sent back and its Flags (`flags_for_the_llm`)."""
-        world = access.readable_files(self.world, person)
-        if self.mod is None:
-            return plotcanon.interview_instructions(self.kind, SURFACE, world=world)
+        person may read in the World."""
         return plotcanon.interview_instructions(
-            self.kind, SURFACE, world=world, draft=self.mod.text,
-            sent_back_reason=self.mod.sent_back_reason,
-            flags=flags_for_the_llm(self.world, self.mod, person))
+            self.kind, SURFACE, world=access.readable_files(self.world, person))
 
     @property
     def opener(self):
-        """The first message, sent on the person's behalf, that a revise
-        Interview opens with, so the LLM speaks first; None for a new
-        Mod, where the person does."""
-        return None if self.mod is None else plotcanon.interview_revise_opener()
+        """The first message, sent on the person's behalf, that the Interview
+        opens with, so the LLM speaks first; None for a new Mod, where the
+        person does."""
+        return None
 
     def shown(self, turns):
         """The turns as the person reads them: without the opener, which is
@@ -123,9 +143,7 @@ class Interviewing:
     def check(self, text):
         """A function that checks the file as its intake would, saving
         nothing, for `fixing.problems`."""
-        if self.mod is None:
-            return lambda: intake.check_new_mod(self.world, text)
-        return lambda: intake.check_revision(self.world, self.mod, text)
+        return lambda: intake.check_new_mod(self.world, text)
 
     def file_form(self, data):
         """The form the file the LLM gave is submitted in."""
@@ -137,9 +155,7 @@ class Interviewing:
 
     def take_in(self, text, person):
         """Submit the file through the intake a pasted one goes through."""
-        if self.mod is None:
-            return intake.submit_mod(self.world, text, person)
-        return intake.revise(self.world, self.mod, text, person)
+        return intake.submit_mod(self.world, text, person)
 
     def taken_in(self, request, saved, form):
         """Where the person goes once the file is in."""
@@ -152,6 +168,36 @@ class Interviewing:
     def to_start(self):
         """The Interview's page, to start it afresh."""
         return redirect(self.urls()["turn"])
+
+
+@dataclass
+class Revising(Interviewing):
+    """A revise Interview of the draft `mod`: the LLM is also given the
+    draft, why it was sent back and its Flags, and speaks first."""
+
+    pasted = "a revised file"
+    intro = "interviews/intro_revise.html"
+    on_submit = "replaces the draft, which keeps its history,"
+
+    @property
+    def title(self):
+        return f"Revise {self.mod.name}"
+
+    def system_prompt(self, person):
+        return plotcanon.interview_instructions(
+            self.kind, SURFACE, world=access.readable_files(self.world, person),
+            draft=self.mod.text, sent_back_reason=self.mod.sent_back_reason,
+            flags=flags_for_the_llm(self.world, self.mod, person))
+
+    @property
+    def opener(self):
+        return plotcanon.interview_revise_opener()
+
+    def check(self, text):
+        return lambda: intake.check_revision(self.world, self.mod, text)
+
+    def take_in(self, text, person):
+        return intake.revise(self.world, self.mod, text, person)
 
 
 def interview_or_404(request, world_id):
@@ -184,7 +230,7 @@ def revise_interview_or_404(request, world_id, slug):
     if not may_revise(request, world, mod):
         raise Http404("No such page")
     conversation.forget_idle()
-    return Interviewing(Kind.REVISE_MOD, world, config.llm_for(Kind.REVISE_MOD), mod)
+    return Revising(Kind.REVISE_MOD, world, config.llm_for(Kind.REVISE_MOD), mod)
 
 
 @never_cache
@@ -247,8 +293,7 @@ def a_turn(request, interviewing):
     world, mod, llm = interviewing.world, interviewing.mod, interviewing.llm
     person = request.user
     if request.method == "GET":
-        transcript, turns = conversation.in_progress(world, person, interviewing.kind, mod)
-        interviewing.carry_on(transcript, person)
+        transcript, turns = interviewing.in_progress(person)
         replies = [turn.text for turn in turns if turn.role == "assistant"]
         return render(request, "interviews/interview.html",
                       {**interviewing.context(turns), "form": AnswerForm(),
@@ -257,8 +302,7 @@ def a_turn(request, interviewing):
     transcript = request.POST.get("transcript", "")
     form = AnswerForm(request.POST)
     try:
-        turns = opened(transcript, world, person, mod)
-        interviewing.carry_on(transcript, person)
+        turns = interviewing.opened(transcript, person)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
     base = interviewing.context(turns)
@@ -377,8 +421,7 @@ def submitted(request, interviewing):
     world, mod = interviewing.world, interviewing.mod
     transcript = request.POST.get("transcript", "")
     try:
-        turns = opened(transcript, world, request.user, mod)
-        interviewing.carry_on(transcript, request.user)
+        turns = interviewing.opened(transcript, request.user)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
     form = interviewing.file_form(request.POST)

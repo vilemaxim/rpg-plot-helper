@@ -1,0 +1,11 @@
+{% if path %}
+  <section>
+    <h2>The Path you walked</h2>
+    <ol class="path">
+      {% for step in path %}<li>{% if step.hook %}Hook: {{ step.hook }}{% elif step.contest %}{{ step.contest }}: {{ step.result }}{% else %}{{ step }}{% endif %}</li>{% endfor %}
+    </ol>
+    <p><a href="{% url 'report-walk' world.pk mod.slug %}">Walk it again</a></p>
+  </section>
+{% endif %}
+<p>An LLM asks you what happened when {{ mod.name }} was run, and writes the After-Action Report with you. It knows the Mod{% if path %}, the Path you walked,{% endif %} and what you may read in {{ world.name }}. When it gives you the report, read it, say whether the Mod is finished, then file it: it is checked against {{ world.name }}, and its Canon Changes wait for a Plot Master to decide them. Nothing is filed until you press File.</p>
+<p>Press Begin, and the LLM starts{% if path %} by going through the Path with you{% else %} by asking what happened and where play stopped{% endif %}. The conversation is kept for you alone, so you can leave and come back to it, until you file the report or 30 days pass without a word.</p>

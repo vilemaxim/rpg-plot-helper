@@ -1,4 +1,3 @@
-{% load interviews %}{% if kind == "report" %}{% firstof "a report" as pasted %}{% elif mod %}{% firstof "a revised file" as pasted %}{% else %}{% firstof "a Mod file" as pasted %}{% endif %}
 {% if paused %}
   <div class="refused">
     <p><strong>This Interview is paused.</strong> {{ paused }} Your conversation is kept: send your answer again then. Or <a href="{{ urls.paste }}">paste or upload {{ pasted }}</a> your own LLM wrote.</p>
@@ -27,56 +26,21 @@
     <pre>{{ problems }}</pre>
   </div>
 {% endif %}
-{% if file and kind == "report" %}
-  <section>
-    <h2>The report</h2>
-    <p>Read it through, and say below whether {{ mod.name }} is finished. Filing it checks it against {{ world.name }}; its Canon Changes then wait for a Plot Master to decide them, and nothing in Canon changes until one does. To change it, tell the LLM below, or edit it here.</p>
-    <form method="post" action="{{ urls.submit }}">
-      {% csrf_token %}
-      <input type="hidden" name="transcript" value="{{ transcript }}">
-      <label for="report-file">The report</label>
-      <textarea name="text" id="report-file" rows="18" spellcheck="false">
-{{ file }}</textarea>
-      {% with finished=file|finished_in %}
-      <fieldset>
-        <legend>Is {{ mod.name }} finished?</legend>
-        <label><input type="radio" name="finished" value="true"{% if finished == "true" %} checked{% endif %}> Yes: play reached an ending, and there is nothing left to run</label>
-        <label><input type="radio" name="finished" value="false"{% if finished != "true" %} checked{% endif %}> No: there is more to play at a later Event</label>
-      </fieldset>
-      {% endwith %}
-      <button type="submit">File the report</button>
-    </form>
-  </section>
-{% elif file %}
-  <section>
-    <h2>The Mod file</h2>
-    <p>Read it through. Submitting it checks it against {{ world.name }} and {% if mod %}replaces the draft, which keeps its history,{% else %}saves it{% endif %} as a draft for a Plot Master to approve. To change it, tell the LLM below, or edit it here.</p>
-    <form method="post" action="{{ urls.submit }}">
-      {% csrf_token %}
-      <input type="hidden" name="transcript" value="{{ transcript }}">
-      <label for="mod-file">The Mod file</label>
-      <textarea name="text" id="mod-file" rows="18" spellcheck="false">
-{{ file }}</textarea>
-      <button type="submit">Submit the Mod</button>
-    </form>
-  </section>
+{% if file %}
+  {% include file_template %}
 {% endif %}
-{% if begins %}
 <form method="post" action="{{ urls.turn }}">
   {% csrf_token %}
   <input type="hidden" name="transcript" value="{{ transcript }}">
-  <button type="submit">Begin</button>
+  {% if begins %}
+    <button type="submit">Begin</button>
+  {% else %}
+    <div class="field">
+      {{ form.said.errors }}
+      <label for="said">Your answer</label>
+      <textarea name="said" id="said" rows="5" required>{{ said }}</textarea>
+    </div>
+    <button type="submit">Send</button>
+  {% endif %}
 </form>
-{% else %}
-<form method="post" action="{{ urls.turn }}">
-  {% csrf_token %}
-  <input type="hidden" name="transcript" value="{{ transcript }}">
-  <div class="field">
-    {{ form.said.errors }}
-    <label for="said">Your answer</label>
-    <textarea name="said" id="said" rows="5" required>{{ said }}</textarea>
-  </div>
-  <button type="submit">Send</button>
-</form>
-{% endif %}
 <p>Rather paste or upload {{ pasted }} your own LLM wrote? <a href="{{ urls.paste }}">Paste or upload it instead</a>.</p>

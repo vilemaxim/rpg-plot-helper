@@ -202,17 +202,21 @@ def unreadable(text, noun, doc_type, called):
     return None
 
 
-def submit(world, mod, text, user):
+def submit(world, mod, text, user, *, agrees=None):
     """File a report on `mod`, a stored Mod of `world`, as `user`. Returns the
     report's `Document`. Raises `ReportRefused`, having saved nothing, if it
-    cannot be."""
+    cannot be.
+
+    `agrees`, if given, is called with the report as plotcanon read it once
+    it is otherwise fit to file, and raises `ReportRefused` if the report
+    does not agree with what its caller knows: a report Interview's Path."""
     with transaction.atomic():
         # One submission at a time per World: each is checked against the
         # World as stored, and must not be checked against a World another
         # submission is in the middle of changing.
         World.objects.select_for_update().get(pk=world.pk)
         mod = Document.objects.get(pk=mod.pk)
-        files, report, whole = checked_in(world, mod, text)
+        files, report, whole = checked_in(world, mod, text, agrees)
         row = new_row(world, whole.world.get(report.id), whole.world,
                       submitted_by=user, submitted_at=timezone.now())
         row.save()
@@ -223,15 +227,15 @@ def submit(world, mod, text, user):
     return row
 
 
-def check(world, mod, text):
+def check(world, mod, text, *, agrees=None):
     """Check a report on `mod` the way `submit` would, saving nothing: raises
     `ReportRefused` if it would be refused now. Used to check the report an
     LLM writes in an Interview before the person sees it."""
     with transaction.atomic():
-        checked_in(world, Document.objects.get(pk=mod.pk), text)
+        checked_in(world, Document.objects.get(pk=mod.pk), text, agrees)
 
 
-def checked_in(world, mod, text):
+def checked_in(world, mod, text, agrees=None):
     """The World's files with the report filed on `mod` as `submit` would
     file it, the report as plotcanon read it, and plotcanon's report on that
     World. Raises `ReportRefused` if it cannot be filed."""
@@ -271,6 +275,9 @@ def checked_in(world, mod, text):
     if report.fields.get("mod") != mod.slug:
         raise ReportRefused(f"That report is for the Mod `{report.fields.get('mod')}`, "
                             f"not for {mod.name}. File it from that Mod's page.")
+
+    if agrees is not None:
+        agrees(report)
 
     files[path] = text
     state = state_after(mod, report)

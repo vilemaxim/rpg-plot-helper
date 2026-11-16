@@ -1,0 +1,12 @@
+<section>
+  <h2>The Mod file</h2>
+  <p>Read it through. Submitting it checks it against {{ world.name }} and {{ on_submit }} as a draft for a Plot Master to approve. To change it, tell the LLM below, or edit it here.</p>
+  <form method="post" action="{{ urls.submit }}">
+    {% csrf_token %}
+    <input type="hidden" name="transcript" value="{{ transcript }}">
+    <label for="mod-file">The Mod file</label>
+    <textarea name="text" id="mod-file" rows="18" spellcheck="false">
+{{ file }}</textarea>
+    <button type="submit">Submit the Mod</button>
+  </form>
+</section>

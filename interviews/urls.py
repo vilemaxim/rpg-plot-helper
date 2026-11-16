@@ -15,7 +15,7 @@ urlpatterns = [
          views.revise_start_over, name="revise-interview-start-over"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/", reporting.interview,
          name="report-interview"),
-    path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/walk/", reporting.walk,
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/walk/", reporting.walk_page,
          name="report-walk"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/submit/", reporting.submit,
          name="report-interview-submit"),
