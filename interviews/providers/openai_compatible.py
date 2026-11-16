@@ -11,7 +11,7 @@ left out otherwise.
 
 import openai
 
-from .base import Ended, Provider, ProviderError, Text, Usage
+from .base import DECLINED, Ended, Provider, ProviderError, Text, Usage
 
 # Sent in place of a key to an endpoint that needs none. The `openai` package
 # would otherwise read OPENAI_API_KEY from the environment and send that to
@@ -25,19 +25,14 @@ class OpenAICompatibleProvider(Provider):
     # `reasoning_effort` as the `openai` package types it. An endpoint may take
     # fewer of these.
     efforts = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+    sdk_errors = (openai.RateLimitError, openai.APIStatusError, openai.APIConnectionError)
 
     def __init__(self, api_key, settings, *, base_url, client=None):
-        super().__init__(api_key, settings)
+        super().__init__(api_key, settings, client=client)
         self.base_url = base_url
-        # Made at the first turn, so asking whether Interviews are on is cheap.
-        self._client = client
 
-    @property
-    def client(self):
-        if self._client is None:
-            self._client = openai.OpenAI(api_key=self.api_key or NO_KEY,
-                                         base_url=self.base_url)
-        return self._client
+    def make_client(self):
+        return openai.OpenAI(api_key=self.api_key or NO_KEY, base_url=self.base_url)
 
     def request(self, system, messages):
         """The arguments one turn is asked for with."""
@@ -57,7 +52,7 @@ class OpenAICompatibleProvider(Provider):
 
     def stream_turn(self, system, messages):
         usage, finish_reason = None, None
-        try:
+        with self.failures_as_provider_errors(lambda: usage):
             with self.client.chat.completions.create(**self.request(system, messages)) as stream:
                 for chunk in stream:
                     if chunk.usage:
@@ -67,19 +62,6 @@ class OpenAICompatibleProvider(Provider):
                         if choice.delta and choice.delta.content:
                             yield Text(choice.delta.content)
                         finish_reason = choice.finish_reason or finish_reason
-        except openai.RateLimitError:
-            raise ProviderError("The LLM is busy just now. Try again in a minute.",
-                                usage=usage) from None
-        except openai.APIStatusError as error:
-            if error.status_code >= 500:
-                raise ProviderError("The LLM's provider had a fault. Try again.",
-                                    usage=usage) from None
-            raise ProviderError(f"The LLM's provider turned the request down: "
-                                f"{error.message}", usage=usage) from None
-        except openai.APIConnectionError:
-            raise ProviderError("The LLM's provider could not be reached. "
-                                "Try again.", usage=usage) from None
         if finish_reason == "content_filter":
-            raise ProviderError("The LLM declined to answer that. Try putting it another way.",
-                                usage=usage)
+            raise ProviderError(DECLINED, usage=usage)
         yield Ended(usage or Usage(), cut_off=finish_reason == "length")

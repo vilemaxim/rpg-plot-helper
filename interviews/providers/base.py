@@ -13,8 +13,9 @@ naming another stops the app at startup instead of failing at the first turn.
 """
 
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import ClassVar, Iterator, Literal, Sequence
+from typing import Any, Callable, ClassVar, Iterator, Literal, Sequence
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,14 @@ class ProviderError(Exception):
         self.usage = usage
 
 
+# What the person reads when a provider fails, whichever it is.
+BUSY = "The LLM is busy just now. Try again in a minute."
+FAULT = "The LLM's provider had a fault. Try again."
+TURNED_DOWN = "The LLM's provider turned the request down: {}"
+UNREACHABLE = "The LLM's provider could not be reached. Try again."
+DECLINED = "The LLM declined to answer that. Try putting it another way."
+
+
 class Provider(ABC):
     """An LLM provider, as an Interview sees it.
 
@@ -82,10 +91,49 @@ class Provider(ABC):
     takes_base_url: ClassVar[bool] = False
     #: The `effort` values this provider accepts. Empty: it takes none.
     efforts: ClassVar[tuple[str, ...]] = ()
+    #: The SDK's exceptions for being rate limited, for any other answer
+    #: with an HTTP status (with `status_code` and `message`), and for not
+    #: reaching the provider at all, which `failures_as_provider_errors`
+    #: turns into `ProviderError`s.
+    sdk_errors: ClassVar[tuple[type[Exception], type[Exception], type[Exception]] | None] = None
 
-    def __init__(self, api_key, settings):
+    def __init__(self, api_key, settings, *, client=None):
         self.api_key = api_key
         self.settings = settings
+        # `client` is for tests, which never reach a real provider. Otherwise
+        # it is made at the first turn, so asking whether Interviews are on is
+        # cheap.
+        self._client = client
+
+    @property
+    def client(self) -> Any:
+        """The provider SDK's client, made with the key at first use."""
+        if self._client is None:
+            self._client = self.make_client()
+        return self._client
+
+    def make_client(self) -> Any:
+        """Make the provider SDK's client. An adapter that uses one says how."""
+        raise NotImplementedError
+
+    @contextmanager
+    def failures_as_provider_errors(self, usage: Callable[[], Usage | None] = lambda: None):
+        """Turn the SDK's failures in the block into `ProviderError`s, each
+        carrying the tokens `usage()` says the call had reported."""
+        if self.sdk_errors is None:
+            yield
+            return
+        rate_limited, status_error, unreachable = self.sdk_errors
+        try:
+            yield
+        except rate_limited:
+            raise ProviderError(BUSY, usage=usage()) from None
+        except status_error as error:
+            if error.status_code >= 500:
+                raise ProviderError(FAULT, usage=usage()) from None
+            raise ProviderError(TURNED_DOWN.format(error.message), usage=usage()) from None
+        except unreachable:
+            raise ProviderError(UNREACHABLE, usage=usage()) from None
 
     @classmethod
     def check_effort(cls, effort):
