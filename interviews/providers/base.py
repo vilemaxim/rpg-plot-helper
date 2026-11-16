@@ -1,12 +1,14 @@
 """The provider adapter interface: the one thing an Interview talks to.
 
 An Interview never calls an LLM provider's SDK itself (ADR-0008). It hands a
-`Provider` the system prompt and the conversation so far, and reads back one
-assistant turn as it streams: `Text` pieces, then one `Ended` with the tokens
+`Provider` the system prompt and the conversation so far, and reads back the
+LLM's next turn as it streams: `Text` pieces, then one `Ended` with the tokens
 the turn used. Each provider has its own adapter, a subclass of `Provider`
-registered in `interviews.providers.ADAPTERS`; the Anthropic one is in
-`anthropic.py`, and an OpenAI-compatible one goes beside it without any change
-to Interview code.
+registered in `interviews.providers.ADAPTERS`, in its own file
+(`anthropic.py`, `openai_compatible.py`); another goes beside them without
+any change to Interview code. An adapter names its SDK's client and
+exceptions, and `Provider` makes the client and turns those exceptions into
+`ProviderError`s.
 
 An adapter also says which `effort` values it accepts, so that a config
 naming another stops the app at startup instead of failing at the first turn.
@@ -41,7 +43,7 @@ class Usage:
 
 @dataclass(frozen=True)
 class Text:
-    """A piece of the assistant's reply, in the order it was written."""
+    """A piece of the LLM's reply, in the order it was written."""
 
     text: str
 
@@ -143,6 +145,6 @@ class Provider(ABC):
 
     @abstractmethod
     def stream_turn(self, system: str, messages: Sequence[Message]) -> Iterator[Text | Ended]:
-        """Stream one assistant turn: `Text` pieces as they arrive, then
+        """Stream the LLM's next turn: `Text` pieces as they arrive, then
         exactly one `Ended`. `messages` starts with the person's and ends with
         the person's. Raises `ProviderError` if no whole turn can be had."""
