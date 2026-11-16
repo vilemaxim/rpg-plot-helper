@@ -79,33 +79,48 @@ def submit_mod(world, text, user):
     """Take in a new Mod as a draft. Returns a `SavedMod`: its `Document`
     and plotcanon's warnings about it, as text to paste into an LLM. Raises
     `ModRefused`, having saved nothing, if it cannot be."""
+    with transaction.atomic():
+        whole, slug, warnings = _new_mod_checked(world, text)
+        row = new_row(world, whole.world.get(slug), whole.world,
+                      submitted_by=user, submitted_at=timezone.now())
+        row.save()
+    return SavedMod(row, warnings)
+
+
+def check_new_mod(world, text):
+    """Check a new Mod the way `submit_mod` would, saving nothing: raises
+    `ModRefused` if it would be refused now. Used to check the file an LLM
+    writes in an Interview before the person sees it."""
+    with transaction.atomic():
+        _new_mod_checked(world, text)
+
+
+def _new_mod_checked(world, text):
+    """Everything `submit_mod` checks, inside its transaction: the World as
+    plotcanon reads it with the Mod in it, the Mod's id, and its warnings."""
     screened(text)
     slug = said(text, "id")
     if not slug or not SLUG.fullmatch(slug) or len(slug) > 200:
         raise ModRefused("That Mod has no id that can be used. Give it one of lower-case "
                          "letters, digits and hyphens, such as `id: the-lamplighters-debt`.")
     text = taken_in(text)
-    with transaction.atomic():
-        # One change at a time per World, each checked against the World as
-        # stored.
-        World.objects.select_for_update().get(pk=world.pk)
-        existing = Document.objects.filter(world=world, slug=slug).first()
-        if existing is not None:
-            if existing.kind == MOD and existing.fields.get("state") == states().draft:
-                raise ModRefused(f"{existing.name} is already a draft with the id `{slug}`. "
-                                 f"To change it, revise it from its page.")
-            raise ModRefused(f"{world.name} already has something with the id `{slug}`: "
-                             f"{existing.name}. Give the Mod an id of its own.")
-        files = files_of(world)
-        path = mod_path(states().draft, slug)
-        if path in files:
-            raise ModRefused(f"{world.name} already has a file at `{path}`. Give the Mod an "
-                             f"id of its own.")
-        whole, warnings = checked(files, path, text)
-        row = new_row(world, whole.world.get(slug), whole.world,
-                      submitted_by=user, submitted_at=timezone.now())
-        row.save()
-    return SavedMod(row, warnings)
+    # One change at a time per World, each checked against the World as
+    # stored.
+    World.objects.select_for_update().get(pk=world.pk)
+    existing = Document.objects.filter(world=world, slug=slug).first()
+    if existing is not None:
+        if existing.kind == MOD and existing.fields.get("state") == states().draft:
+            raise ModRefused(f"{existing.name} is already a draft with the id `{slug}`. "
+                             f"To change it, revise it from its page.")
+        raise ModRefused(f"{world.name} already has something with the id `{slug}`: "
+                         f"{existing.name}. Give the Mod an id of its own.")
+    files = files_of(world)
+    path = mod_path(states().draft, slug)
+    if path in files:
+        raise ModRefused(f"{world.name} already has a file at `{path}`. Give the Mod an "
+                         f"id of its own.")
+    whole, warnings = checked(files, path, text)
+    return whole, slug, warnings
 
 
 def revise(world, mod, text, user):

@@ -103,8 +103,9 @@ class WritingAModInAnInterview(InterviewTest):
         self.assertEqual([(m.role, m.text) for m in messages], [("user", "Hello")])
 
     def test_a_refused_file_shows_the_intakes_errors_and_keeps_the_conversation(self):
+        # A file the person edited by hand, or submitted with its errors.
         broken = a_mod(**{"type: mod": "type: nonsense"})
-        with self.provider(FakeProvider(fenced(broken))):
+        with self.provider(FakeProvider(QUESTION)):
             page = self.say("Write it")
             response = self.sam.post(f"{self.interview}submit/",
                                      {"text": broken, "transcript": hidden(page, "transcript")})
@@ -224,3 +225,27 @@ class WhatTheLlmMayRead(InterviewTest):
             sam = get_user_model().objects.get(email="sam@example.com")
             self.assertEqual(set(access.readable_documents(world, sam)),
                              set(Document.objects.filter(world=world)))
+
+
+BROKEN = a_mod(**{"type: mod": "type: nonsense"})
+FIXING = "is fixing it"
+
+
+def file_in(page):
+    """The Mod file a page offers to submit, or None."""
+    found = re.search(r'<textarea name="text"[^>]*>\n?(.*?)</textarea>', page, re.S)
+    return html.unescape(found.group(1)) if found else None
+
+
+class FixingTheLlmsFile(InterviewTest):
+    def test_a_file_with_errors_goes_back_to_the_llm_and_the_person_sees_only_the_fixed_one(self):
+        with self.provider(FakeProvider(fenced(BROKEN), fenced(a_mod()))) as fake:
+            page = self.say("Write it")
+
+        self.assertEqual(len(fake.asked), 2)
+        sent = fake.asked[1][1]
+        self.assertEqual([m.role for m in sent], ["user", "assistant", "user"])
+        self.assertIn("nonsense", sent[2].text)
+        self.assertEqual(page.count(FIXING), 1)
+        self.assertEqual(file_in(page), a_mod())
+        self.assertNotIn("nonsense", page)

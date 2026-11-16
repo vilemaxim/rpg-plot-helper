@@ -10,6 +10,8 @@ Today everyone who may open a World reads all of it: anyone with a role in
 it, and its Organization's Admins. Anyone else reads nothing.
 """
 
+import re
+
 from organizations.models import Membership, WorldRole
 
 from .models import Document
@@ -33,3 +35,33 @@ def readable_files(world, person):
     if not documents.exists():
         return {}
     return {**dict(documents.values_list("path", "text")), **settings_file_of(world)}
+
+
+HIDDEN = "another document"
+NOT_SHOWN = ("There are more errors, about documents only a Plot Master may read. "
+             "Ask one to look at it.")
+
+
+def readable_findings(world, person, findings):
+    """plotcanon's findings, one to a line, or any message about the World, as
+    this person may read them: the rule the report page applies for a private
+    link (`canon.runner_views.own_findings`), with what they may read taken
+    from `readable_documents`. A finding about a document they may not read is
+    left out, and saying so ends the text; any other mention of one, by path,
+    id or name, reads "another document"."""
+    hidden = (Document.objects.filter(organization=world.organization, world=world)
+              .exclude(pk__in=readable_documents(world, person).values("pk"))
+              .values_list("path", "slug", "name"))
+    paths = {path for path, _, _ in hidden}
+    words = sorted({word for row in hidden for word in row if word}, key=len, reverse=True)
+    mention = (re.compile("|".join(rf"(?<![\w/-]){re.escape(word)}(?![\w/-])"
+                                   for word in words)) if words else None)
+    lines, left_out = [], False
+    for line in findings.splitlines():
+        if any(f" {path}: " in line for path in paths):
+            left_out = True
+            continue
+        lines.append(mention.sub(HIDDEN, line) if mention else line)
+    if left_out:
+        lines.append(NOT_SHOWN)
+    return "\n".join(lines)
