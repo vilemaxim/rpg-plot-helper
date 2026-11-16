@@ -28,3 +28,12 @@ provider = "anthropic"
 model = "claude-opus-5-5"
 effort = "high"
 max_tokens = 32000
+
+# Revising a draft a Plot Master sent back: the Interview starts from the
+# draft, why it was sent back and its open Flags. On or off on its own: leave
+# it out and drafts are revised by pasting or uploading a file, as before.
+[interviews.revise-mod]
+provider = "anthropic"
+model = "claude-opus-5-5"
+effort = "high"
+max_tokens = 32000
