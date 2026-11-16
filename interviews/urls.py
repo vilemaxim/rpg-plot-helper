@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import reporting, views
 
 urlpatterns = [
     path("worlds/<uuid:world_id>/interview/", views.interview, name="interview"),
@@ -13,4 +13,12 @@ urlpatterns = [
          name="revise-interview-submit"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/interview/start-over/",
          views.revise_start_over, name="revise-interview-start-over"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/", reporting.interview,
+         name="report-interview"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/walk/", reporting.walk,
+         name="report-walk"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/submit/", reporting.submit,
+         name="report-interview-submit"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/start-over/",
+         reporting.start_over, name="report-interview-start-over"),
 ]

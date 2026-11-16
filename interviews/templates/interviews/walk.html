@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}The Path — Report on {{ mod.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a>{% if not walk.at_start %} · <a href="{{ walk.back }}">Back a step</a> · <a href="./">Start over</a>{% endif %}</p>
+  <h1>Report on {{ mod.name }}: the Path</h1>
+  <p>Walk the way play went through the Mod's Dry Run: the Hook taken, each scene, each Contest's result, and where play stopped. No LLM is involved, and nothing is kept until you say where play stopped. The LLM then writes the report with you from this Path.</p>
+  {% if walk.at_start and walk.starts %}
+    <p class="warning">The last report on {{ mod.name }} says play stopped at <strong>{{ walk.starts }}</strong>, so this Stretch picks up there. <a href="{{ walk.from_a_hook }}">Start from a Hook instead</a>.</p>
+  {% elif walk.from_the_stop %}
+    <p><a href="{{ walk.from_the_stop }}">Pick up where the last report's Path stopped instead</a>.</p>
+  {% endif %}
+  <section class="passage">
+    <h2>{{ walk.here.name }}{% if walk.here.kind == "ending" %} <span class="state">Ending</span>{% endif %}</h2>
+    {{ prose }}
+  </section>
+  {% if walk.stoppable %}
+    <form method="post">
+      {% csrf_token %}
+      {% if walk.start_given %}<input type="hidden" name="{{ names.from }}" value="{{ walk.start_given }}">{% endif %}
+      {% for choice in walk.choices %}<input type="hidden" name="{{ names.choice }}" value="{{ choice }}">{% endfor %}
+      <button type="submit">{% if walk.here.kind == "ending" %}Play ended here{% else %}Play stopped here{% endif %}</button>
+    </form>
+  {% endif %}
+  {% with ways_on=walk.ways_on %}
+  {% if ways_on %}
+    <h3>{% if walk.at_premise %}Which Hook did they take?{% else %}What happened next?{% endif %}</h3>
+    <ul class="choices">
+      {% for way in ways_on %}<li><a href="{{ way.url }}">{{ way.label }}</a></li>{% endfor %}
+    </ul>
+  {% elif walk.here.kind == "ending" %}
+    <p>This is how it ends.</p>
+  {% endif %}
+  {% endwith %}
+  {% if scenes %}
+    <h3>Or pick up at a scene</h3>
+    <p>There is an earlier report on {{ mod.name }}, but it does not say where play stopped. If this Stretch picked up part way through, start at the scene it picked up at.</p>
+    <ul class="choices">
+      {% for scene in scenes %}<li><a href="{{ scene.url }}">{{ scene.label }}</a></li>{% endfor %}
+    </ul>
+  {% endif %}
+  <p>Rather paste or upload a report your own LLM wrote? <a href="{{ urls.paste }}">Paste or upload it instead</a>.</p>
+{% endblock %}

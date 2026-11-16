@@ -91,6 +91,23 @@ def sealed(messages, world, person, kind, transcript="", mod=None):
         return transcript or _reference(interview, world, person)
 
 
+def walked(walk, world, person, kind, mod):
+    """Start a report Interview on `mod` from the Path the person walked
+    (`walk`, as `Interview.walk` holds it), with no turns yet, in place of
+    any other of theirs on it. Returns the transcript for its page."""
+    Interview.objects.filter(world=world, person=person, kind=kind, mod=mod).delete()
+    interview = Interview.objects.create(organization_id=world.organization_id, world=world,
+                                         person=person, kind=kind, mod=mod, walk=walk)
+    return _reference(interview, world, person)
+
+
+def walk_of(transcript, world, person, mod=None):
+    """The walk kept with the Interview a page's transcript names, or None:
+    for no transcript, or an Interview with no Path walked. Raises
+    `Tampered`."""
+    return _interview(transcript, world, person, mod).walk if transcript else None
+
+
 def opened(transcript, world, person, mod=None):
     """The turns of the Interview a page's transcript names, as `Message`s.
     An empty transcript is a new Interview. Raises `Tampered`."""

@@ -22,7 +22,8 @@ class TokenUsage(models.Model):
 
 class Interview(models.Model):
     """One person's Interview in a World, kept so that it survives a reload
-    (ADR-0008): its kind, the draft it revises if any, and its turns so far,
+    (ADR-0008): its kind, the draft it revises or the Mod it reports on, the
+    Path walked for a report, and its turns so far,
     each `{"role", "text"}`, the latest file being in the last reply that
     holds one. It goes when its Mod is
     submitted, when its person starts over, or after `IDLE_FOR` without
@@ -34,10 +35,16 @@ class Interview(models.Model):
     person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                related_name="+")
     kind = models.CharField(max_length=40)
-    # The draft a revise Interview (#47) is about; None for a new Mod.
+    # The draft a revise Interview (#47) is about, or the Mod a report
+    # Interview (#43) reports on; None for a new Mod.
     mod = models.ForeignKey("canon.Document", null=True, blank=True, on_delete=models.CASCADE,
                             related_name="+")
     turns = models.JSONField(default=list, blank=True)
+    # A report Interview's walk (#43): the Path walked through its Mod's Dry
+    # Run, as plotcanon's `path` steps, and where play had stopped before it,
+    # `{"path": [...], "last_stop": {"passage": ..., "known": ...}}`. None
+    # when no Path was walked.
+    walk = models.JSONField(null=True, blank=True)
     started_at = models.DateTimeField(auto_now_add=True)
     active_at = models.DateTimeField(auto_now=True)
 

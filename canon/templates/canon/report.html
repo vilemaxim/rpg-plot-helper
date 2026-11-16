@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load interviews %}
 
 {% block title %}Report on {{ mod.name }} — RPG Plot Helper{% endblock %}
 
@@ -16,6 +17,12 @@
           <pre>{{ errors }}</pre>
         {% endif %}
       </div>
+    {% endif %}
+    {% report_interviews_on as report_interview_on %}
+    {% if report_interview_on %}
+      <p><a class="button" href="{% url 'report-interview' world.pk mod.slug %}">Write the report with an LLM</a></p>
+      <p>Walk the way play went through {{ mod.name }}'s Dry Run, if it has one, then answer an LLM's questions while it writes the report with you.</p>
+      <h2>Or paste or upload a report</h2>
     {% endif %}
     <p>Paste the report file your LLM produced, or choose it. It is checked against {{ world.name }} first. If it is valid it is saved, each Canon Change in it is listed as waiting to be decided, and {{ mod.name }} becomes in progress if it was played and has more to come, or finished if the report says the Mod finished. Nothing in Canon changes until a Plot Master approves it.</p>
     <form method="post" enctype="multipart/form-data">
