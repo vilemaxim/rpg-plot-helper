@@ -18,7 +18,6 @@ own with `organizations.tenancy.acting_as`.
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
 import plotcanon
 from django import forms
@@ -33,14 +32,15 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from canon import access, intake
 from canon.forms import ModForm
-from canon.models import Flag
+from canon.models import Document, Flag
 from canon.presenting import wording
 from canon.storing import one_to_a_line
 from canon.views import documents_of, is_draft, may_revise, mod_or_404, to_saved_mod
+from organizations.models import World
 from organizations.views import may_write_mods, world_or_404
 
 from . import config, conversation, fixing, spending
-from .config import Kind
+from .config import Kind, Llm
 from .conversation import Tampered, mod_file_in, opened, sealed
 from .providers import Ended, Message, ProviderError, Text
 
@@ -62,15 +62,13 @@ class Interviewing:
     """One kind of Interview in a World, as its pages run it: a new Mod, or a
     revision of the draft `mod`. `llm` is None when that kind is off."""
 
-    kind: str
-    world: Any
-    llm: Any
-    mod: Any = None
+    kind: Kind
+    world: World
+    llm: Llm | None
+    mod: Document | None = None
 
     def context(self):
         """What every page of it is rendered with."""
-        if self.mod is None:
-            return {"world": self.world}
         return {"world": self.world, "mod": self.mod}
 
     def system_prompt(self, person):
@@ -84,11 +82,6 @@ class Interviewing:
             self.kind, SURFACE, world=world, draft=self.mod.text,
             sent_back_reason=self.mod.sent_back_reason,
             flags=flags_for_the_llm(self.world, self.mod, person))
-
-    def problems(self, person, text):
-        """What the intake would refuse in this file, as the person may read
-        it (`fixing.problems`)."""
-        return fixing.problems(self.world, person, text, self.mod)
 
     @property
     def opener(self):
@@ -243,11 +236,10 @@ def a_turn(request, interviewing):
         return middle + render_to_string("interviews/after.html", {**after, **context})
 
     response = StreamingHttpResponse(
-        streamed(head, foot, what_follows, llm.provider, interviewing.system_prompt(person),
+        streamed(head, foot, what_follows, llm, interviewing.system_prompt(person),
                  turns, said,
                  lambda kept: sealed(kept, world, person, interviewing.kind, transcript, mod),
-                 check=lambda text: interviewing.problems(person, text),
-                 max_fix_attempts=llm.settings.max_fix_attempts,
+                 check=lambda text: fixing.problems(world, person, text, mod),
                  spent=lambda usage: spending.record(world.organization_id, usage)),
         content_type="text/html; charset=utf-8")
     # Ask proxies such as nginx to pass each piece on as it comes.
@@ -255,17 +247,18 @@ def a_turn(request, interviewing):
     return response
 
 
-def streamed(head, foot, what_follows, provider, system, turns, said, seal, check=None,
-             max_fix_attempts=0, spent=lambda usage: None):
+def streamed(head, foot, what_follows, llm, system, turns, said, seal, check=None,
+             spent=lambda usage: None):
     """The page for one turn, piece by piece: everything up to the reply, the
     reply as the LLM writes it, then what follows it. A turn that fails is not
     kept: the page carries the conversation as it was before it, with the
     person's answer ready to send again.
 
     A Mod file in the reply is held back and `check`ed (`fixing`): if it has
-    problems, they go back to the LLM, up to `max_fix_attempts` times, and its
-    next reply follows a note saying so. The conversation kept is the
-    person's answer and the last reply; the fixing in between is the app's.
+    problems, they go back to the LLM, up to the `llm`'s `max_fix_attempts`
+    times, and its next reply follows a note saying so. The conversation
+    kept is the person's answer and the last reply; the fixing in between is
+    the app's.
 
     `spent` is given the tokens each LLM call used, the person's turn and
     each fix attempt alike, when the provider reports them, whether or not
@@ -276,11 +269,12 @@ def streamed(head, foot, what_follows, provider, system, turns, said, seal, chec
     try:
         while True:
             shown = fixing.FilesHeldBack()
-            reply, ended = yield from one_turn(provider, system, conversation, shown, spent)
+            reply, ended = yield from one_turn(llm.provider, system, conversation, shown,
+                                               spent)
             file = mod_file_in(reply)
             problems = check(file) if file and check else None
             # Errors the person may not read at all are none to send back.
-            if not problems or fixes == max_fix_attempts:
+            if not problems or fixes == llm.settings.max_fix_attempts:
                 break
             fixes += 1
             yield render_to_string("interviews/fixing.html")

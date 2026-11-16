@@ -45,7 +45,7 @@ from pathlib import Path
 
 from django.conf import settings
 
-from .providers import ADAPTERS
+from .providers import ADAPTERS, Provider
 
 DEFAULT_MAX_TOKENS = 32000
 DEFAULT_MAX_FIX_ATTEMPTS = 3
@@ -111,7 +111,7 @@ class Llm:
     to its provider with."""
 
     settings: InterviewSettings
-    provider: object  # a providers.Provider
+    provider: Provider
 
 
 def _text(value):
