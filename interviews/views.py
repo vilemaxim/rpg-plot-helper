@@ -240,10 +240,19 @@ def revise_interview_or_404(request, world_id, slug):
 
 
 def flags_for_the_llm(world, mod):
-    """The draft's open Flags as plotcanon takes them: the Feature each
-    touches, and what the change does to it."""
+    """The Flags the revision should answer, as plotcanon takes them: the
+    Feature each touches, and what the change does to it. They are the
+    draft's open Flags and those its latest send-back resolved
+    (`canon.resolving.send_back`), which the Plot Master sent it back over."""
+    flags = Flag.objects.open_in(world).filter(mod=mod)
+    if mod.sent_back_at is not None:
+        # Sending back resolves the Mod's open Flags just after it notes when
+        # it was sent back; an earlier send-back resolved its own before that.
+        flags = flags | Flag.objects.filter(
+            organization=world.organization, world=world, mod=mod,
+            resolution=Flag.Resolution.SENT_BACK, resolved_at__gte=mod.sent_back_at)
     pairs = []
-    for flag in Flag.objects.open_in(world).filter(mod=mod).select_related("change"):
+    for flag in flags.select_related("change").order_by("pk"):
         change = flag.change
         message = wording(change.kind)
         if change.before or change.after:

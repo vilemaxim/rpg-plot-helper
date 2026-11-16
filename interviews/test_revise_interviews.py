@@ -55,6 +55,33 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
             self.assertIn(flag.change.summary, system)
             self.assertIn(f"On `{flag.change.entity}`", system)
 
+    def test_the_flags_its_send_back_resolved_are_in_the_first_prompt(self):
+        flags = self.flags_on(WARRANT)
+        self.assertTrue(flags)
+        self.send_back(WARRANT, reason=REASON)
+        self.assertFalse(self.flags_on(WARRANT))
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.say_about(WARRANT, "Hello")
+
+        system = fake.asked[0][0]
+        for flag in flags:
+            self.assertIn(flag.change.summary, system)
+            self.assertIn(f"On `{flag.change.entity}`", system)
+
+    def test_a_flag_dismissed_before_the_send_back_is_not(self):
+        dismissed, *kept = self.flags_on(WARRANT)
+        self.assertTrue(kept)
+        self.assertNotIn(dismissed.change.entity, [flag.change.entity for flag in kept])
+        self.dismiss(dismissed)
+        self.send_back(WARRANT, reason=REASON)
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.say_about(WARRANT, "Hello")
+
+        system = fake.asked[0][0]
+        self.assertNotIn(f"On `{dismissed.change.entity}`", system)
+        for flag in kept:
+            self.assertIn(f"On `{flag.change.entity}`", system)
+
     def test_submitting_replaces_the_draft_through_the_revise_path(self):
         self.send_back(WARRANT, reason=REASON)
         draft = self.stored(WARRANT).text
