@@ -1,11 +1,11 @@
 {% if paused %}
   <div class="refused">
-    <p><strong>This Interview is paused.</strong> {{ paused }} Your conversation is kept on this page: send your answer again then. Or <a href="{% if mod %}{% url 'canon-revise' world.pk mod.slug %}{% else %}{% url 'canon-submit-mod' world.pk %}{% endif %}">paste or upload a Mod file</a> your own LLM wrote.</p>
+    <p><strong>This Interview is paused.</strong> {{ paused }} Your conversation is kept: send your answer again then. Or <a href="{% if mod %}{% url 'canon-revise' world.pk mod.slug %}{% else %}{% url 'canon-submit-mod' world.pk %}{% endif %}">paste or upload a Mod file</a> your own LLM wrote.</p>
   </div>
 {% endif %}
 {% if failed %}
   <div class="refused">
-    <p><strong>That turn did not finish.</strong> {{ failed }} Nothing from it was kept. Send your answer again.</p>
+    <p><strong>That didn't go through. Try again.</strong> {{ failed }} Nothing from it was kept, and the conversation is as it was before it. Send your answer again, or <a href="{% if mod %}{% url 'canon-revise' world.pk mod.slug %}{% else %}{% url 'canon-submit-mod' world.pk %}{% endif %}">paste or upload a Mod file instead</a>.</p>
   </div>
 {% endif %}
 {% if cut_off %}

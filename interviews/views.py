@@ -34,7 +34,7 @@ from canon.storing import one_to_a_line
 from canon.views import documents_of, is_draft, may_revise, mod_or_404, to_saved_mod
 from organizations.views import may_write_mods, world_or_404
 
-from . import config, fixing, spending
+from . import config, conversation, fixing, spending
 from .conversation import Tampered, mod_file_in, opened, sealed
 from .providers import Ended, Message, ProviderError, Text
 
@@ -59,6 +59,7 @@ def interview_or_404(request, world_id):
     world = world_or_404(request, world_id)
     if not may_write_mods(request, world) or not documents_of(world).exists():
         raise Http404("No such page")
+    conversation.forget_idle()
     return world, config.llm_for(KIND)
 
 
@@ -78,8 +79,11 @@ def interview(request, world_id):
     if llm is None:
         return redirect("canon-submit-mod", world_id=world.pk)
     if request.method == "GET":
+        transcript, turns = conversation.in_progress(world, request.user, KIND)
+        replies = [turn.text for turn in turns if turn.role == "assistant"]
         return render(request, "interviews/interview.html",
-                      {"world": world, "form": AnswerForm(), "transcript": ""})
+                      {"world": world, "form": AnswerForm(), "transcript": transcript,
+                       "turns": turns, "file": mod_file_in(replies[-1]) if replies else None})
     form = AnswerForm(request.POST)
     try:
         turns = opened(request.POST.get("transcript", ""), world, request.user)
@@ -107,7 +111,8 @@ def interview(request, world_id):
 
     response = StreamingHttpResponse(
         streamed(head, foot, what_follows, llm.provider, system_prompt(world, request.user),
-                 turns, said, lambda messages: sealed(messages, world, request.user),
+                 turns, said, lambda messages: sealed(messages, world, request.user, KIND,
+                                                      request.POST.get("transcript", "")),
                  check=lambda text: fixing.problems(world, request.user, text),
                  max_fix_attempts=llm.settings.max_fix_attempts,
                  spent=lambda usage: spending.record(world.organization_id, usage)),
@@ -202,7 +207,18 @@ def submit(request, world_id):
     except intake.ModRefused as refused:
         return render(request, "interviews/interview.html",
                       {**context, "refused": str(refused), "errors": refused.errors})
+    conversation.forget(transcript, world, request.user)
     return to_saved_mod(request, saved, one_to_a_line(form.cleaned_data["twine_warnings"]))
+
+
+@never_cache
+@require_POST
+def start_over(request, world_id):
+    """Abandon the Interview in progress, deleting its turns, and start a new
+    one."""
+    world, _ = interview_or_404(request, world_id)
+    conversation.forget(request.POST.get("transcript", ""), world, request.user)
+    return redirect("interview", world_id=world.pk)
 
 
 # Revising a draft (#47): the same Interview, started from the draft, why it
@@ -219,6 +235,7 @@ def revise_interview_or_404(request, world_id, slug):
     mod = mod_or_404(world, slug)
     if not may_revise(request, world, mod):
         raise Http404("No such page")
+    conversation.forget_idle()
     return world, mod, config.llm_for(REVISE)
 
 
@@ -258,11 +275,14 @@ def revise_interview(request, world_id, slug):
         return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
     base = {"world": world, "mod": mod}
     if request.method == "GET":
+        transcript, turns = conversation.in_progress(world, request.user, REVISE, mod)
+        replies = [turn.text for turn in turns if turn.role == "assistant"]
         return render(request, "interviews/interview.html",
-                      {**base, "form": AnswerForm(), "transcript": ""})
+                      {**base, "form": AnswerForm(), "transcript": transcript,
+                       "turns": turns, "file": mod_file_in(replies[-1]) if replies else None})
     form = AnswerForm(request.POST)
     try:
-        turns = opened(request.POST.get("transcript", ""), world, request.user)
+        turns = opened(request.POST.get("transcript", ""), world, request.user, mod)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
     if not form.is_valid():
@@ -288,7 +308,8 @@ def revise_interview(request, world_id, slug):
     response = StreamingHttpResponse(
         streamed(head, foot, what_follows, llm.provider,
                  revise_system_prompt(world, mod, request.user), turns, said,
-                 lambda kept: sealed(kept, world, request.user),
+                 lambda kept: sealed(kept, world, request.user, REVISE,
+                                     request.POST.get("transcript", ""), mod),
                  spent=lambda usage: spending.record(world.organization_id, usage)),
         content_type="text/html; charset=utf-8")
     response["X-Accel-Buffering"] = "no"
@@ -306,7 +327,7 @@ def revise_submit(request, world_id, slug):
         raise Http404("No such page")
     transcript = request.POST.get("transcript", "")
     try:
-        turns = opened(transcript, world, request.user)
+        turns = opened(transcript, world, request.user, mod)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
     form = ModForm(request.POST)
@@ -321,4 +342,15 @@ def revise_submit(request, world_id, slug):
     except intake.ModRefused as refused:
         return render(request, "interviews/interview.html",
                       {**context, "refused": str(refused), "errors": refused.errors})
+    conversation.forget(transcript, world, request.user, mod)
     return to_saved_mod(request, saved, one_to_a_line(form.cleaned_data["twine_warnings"]))
+
+
+@never_cache
+@require_POST
+def revise_start_over(request, world_id, slug):
+    """Abandon the revise Interview in progress, deleting its turns, and
+    start a new one."""
+    world, mod, _ = revise_interview_or_404(request, world_id, slug)
+    conversation.forget(request.POST.get("transcript", ""), world, request.user, mod)
+    return redirect("revise-interview", world_id=world.pk, slug=mod.slug)
