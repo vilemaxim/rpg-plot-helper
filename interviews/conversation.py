@@ -1,43 +1,108 @@
 """An Interview's conversation, and the Mod file in a reply.
 
-For now a conversation lives only as long as the page (#44): each page carries
-the turns so far in a hidden field, signed for the person and World it was
-made for, so it cannot be edited or carried to another person's Interview.
-Keeping it in Postgres instead (the transcripts slice) replaces `sealed` and
-`opened`; nothing else needs to know where the turns are kept.
+The turns are kept in Postgres (`Interview`, #46), so an Interview survives a
+reload or a dropped connection. Each page carries a reference to its
+Interview in a hidden field, signed for the person and World it was made for,
+so it cannot be edited or carried to another person's Interview; the turns
+themselves never leave the server.
 """
 
 import re
+from datetime import timedelta
 
 from django.core import signing
+from django.utils import timezone
 
+from organizations import tenancy
+
+from .models import Interview
 from .providers import Message
+
+# An Interview with no activity for this long is deleted (ADR-0008).
+IDLE_FOR = timedelta(days=30)
 
 
 class Tampered(Exception):
-    """The transcript sent was not one this app made for this person here."""
+    """The transcript sent was not one this app made for this person here,
+    or its Interview is gone."""
 
 
 def _salt(world, person):
     return f"interviews.transcript:{world.pk}:{person.pk}"
 
 
-def sealed(messages, world, person):
-    """The turns as text for the page to send back with the next answer."""
-    return signing.dumps([[m.role, m.text] for m in messages], salt=_salt(world, person),
-                         compress=True)
+def _reference(interview, world, person):
+    return signing.dumps(interview.pk, salt=_salt(world, person))
+
+
+def _messages(interview):
+    return [Message(turn["role"], turn["text"]) for turn in interview.turns]
+
+
+def _interview(transcript, world, person):
+    """The Interview a page's transcript names. Raises `Tampered`."""
+    try:
+        pk = signing.loads(transcript, salt=_salt(world, person))
+    except signing.BadSignature:
+        raise Tampered from None
+    interview = Interview.objects.filter(pk=pk, world=world, person=person).first()
+    if interview is None:
+        raise Tampered
+    return interview
+
+
+def forget_idle():
+    """Delete the Interviews with no activity for `IDLE_FOR`. Row-level
+    security limits this to the current Organization's. There is no
+    background worker (ADR-0003), so every Interview request does it."""
+    Interview.objects.filter(active_at__lte=timezone.now() - IDLE_FOR).delete()
+
+
+def in_progress(world, person, kind):
+    """The person's latest Interview of this kind in this World, as the
+    transcript for its page and its turns, or `("", [])` if there is none."""
+    interview = (Interview.objects.filter(world=world, person=person, kind=kind)
+                 .order_by("-active_at", "-pk").first())
+    if interview is None:
+        return "", []
+    return _reference(interview, world, person), _messages(interview)
+
+
+def sealed(messages, world, person, kind, transcript=""):
+    """Keep the turns in the Interview the transcript names, or in a new one
+    if it names none, and return the transcript for the page to send back
+    with the next answer. Turns that are already kept are not written again,
+    and no Interview is made for no turns.
+
+    Runs after the request's transaction has ended (from the stream), so it
+    opens its own, as the person in the World's Organization."""
+    with tenancy.acting_as(person, world.organization_id):
+        interview = _interview(transcript, world, person) if transcript else None
+        if interview is None and not messages:
+            return ""
+        if interview is None:
+            interview = Interview(organization_id=world.organization_id, world=world,
+                                  person=person, kind=kind)
+        if interview.pk is None or _messages(interview) != list(messages):
+            interview.turns = [{"role": m.role, "text": m.text} for m in messages]
+            interview.save()
+        return transcript or _reference(interview, world, person)
 
 
 def opened(transcript, world, person):
-    """The turns a page sent back, as `Message`s. An empty transcript is a
-    new Interview. Raises `Tampered`."""
+    """The turns of the Interview a page's transcript names, as `Message`s.
+    An empty transcript is a new Interview. Raises `Tampered`."""
     if not transcript:
         return []
+    return _messages(_interview(transcript, world, person))
+
+
+def forget(transcript, world, person):
+    """Delete the Interview a page's transcript names, if it is still there."""
     try:
-        turns = signing.loads(transcript, salt=_salt(world, person))
-    except signing.BadSignature:
-        raise Tampered from None
-    return [Message(role, text) for role, text in turns]
+        _interview(transcript, world, person).delete()
+    except Tampered:
+        pass
 
 
 # A fenced block: an opening fence of three or more backticks or tildes, an

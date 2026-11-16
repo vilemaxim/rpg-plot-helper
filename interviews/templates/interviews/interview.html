@@ -13,7 +13,14 @@
   <h1>Write a Mod</h1>
   {% if not turns %}
     <p>An LLM asks you about the Mod you have in mind and writes its file with you. It knows what you may read in {{ world.name }}. When it gives you the file, read it, then submit it: it is checked against {{ world.name }} and saved as a draft, which a Plot Master approves before it can be run. Nothing is submitted until you press Submit.</p>
-    <p>Start by telling it about your idea, or just say hello. This conversation lasts as long as this page: leaving it starts over.</p>
+    <p>Start by telling it about your idea, or just say hello. The conversation is kept for you alone, so you can leave and come back to it, until you submit the Mod or 30 days pass without a word.</p>
+  {% elif not streaming and transcript %}
+    <p>Here is your Interview so far. Carry on below, or start a new one.</p>
+    <form method="post" action="{% url 'interview-start-over' world.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="transcript" value="{{ transcript }}">
+      <button type="submit">Start over</button>
+    </form>
   {% endif %}
   {% for turn in turns %}
     <div class="turn {% if turn.role == 'user' %}you{% else %}llm{% endif %}">

@@ -32,6 +32,7 @@ from canon.views import documents_of, to_saved_mod
 from organizations.views import may_write_mods, world_or_404
 
 from . import config
+from . import conversation
 from .conversation import Tampered, mod_file_in, opened, sealed
 from .providers import Ended, Message, ProviderError, Text
 
@@ -56,6 +57,7 @@ def interview_or_404(request, world_id):
     world = world_or_404(request, world_id)
     if not may_write_mods(request, world) or not documents_of(world).exists():
         raise Http404("No such page")
+    conversation.forget_idle()
     return world, config.llm_for(KIND)
 
 
@@ -75,8 +77,11 @@ def interview(request, world_id):
     if llm is None:
         return redirect("canon-submit-mod", world_id=world.pk)
     if request.method == "GET":
+        transcript, turns = conversation.in_progress(world, request.user, KIND)
+        replies = [turn.text for turn in turns if turn.role == "assistant"]
         return render(request, "interviews/interview.html",
-                      {"world": world, "form": AnswerForm(), "transcript": ""})
+                      {"world": world, "form": AnswerForm(), "transcript": transcript,
+                       "turns": turns, "file": mod_file_in(replies[-1]) if replies else None})
     form = AnswerForm(request.POST)
     try:
         turns = opened(request.POST.get("transcript", ""), world, request.user)
@@ -99,7 +104,8 @@ def interview(request, world_id):
 
     response = StreamingHttpResponse(
         streamed(head, foot, what_follows, llm.provider, system_prompt(world, request.user),
-                 turns, said, lambda messages: sealed(messages, world, request.user)),
+                 turns, said, lambda messages: sealed(messages, world, request.user, KIND,
+                                                      request.POST.get("transcript", ""))),
         content_type="text/html; charset=utf-8")
     # Ask proxies such as nginx to pass each piece on as it comes.
     response["X-Accel-Buffering"] = "no"
@@ -164,4 +170,15 @@ def submit(request, world_id):
     except intake.ModRefused as refused:
         return render(request, "interviews/interview.html",
                       {**context, "refused": str(refused), "errors": refused.errors})
+    conversation.forget(transcript, world, request.user)
     return to_saved_mod(request, saved, one_to_a_line(form.cleaned_data["twine_warnings"]))
+
+
+@never_cache
+@require_POST
+def start_over(request, world_id):
+    """Abandon the Interview in progress, deleting its turns, and start a new
+    one."""
+    world, _ = interview_or_404(request, world_id)
+    conversation.forget(request.POST.get("transcript", ""), world, request.user)
+    return redirect("interview", world_id=world.pk)

@@ -1,6 +1,6 @@
 {% if failed %}
   <div class="refused">
-    <p><strong>That turn did not finish.</strong> {{ failed }} Nothing from it was kept. Send your answer again.</p>
+    <p><strong>That didn't go through. Try again.</strong> {{ failed }} Nothing from it was kept, and the conversation is as it was before it. Send your answer again, or <a href="{% url 'canon-submit-mod' world.pk %}">paste or upload a Mod file instead</a>.</p>
   </div>
 {% endif %}
 {% if cut_off %}
