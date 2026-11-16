@@ -128,17 +128,33 @@ def revise(world, mod, text, user):
     draft keeps its history: who submitted it, its Flags, and who sent it back
     and why. Returns a `SavedMod`: the Mod and plotcanon's warnings about it.
     Raises `ModRefused`, having saved nothing, if it cannot be."""
+    with transaction.atomic():
+        mod, whole, warnings = _revision_checked(world, mod, text)
+        parsed_into(mod, whole.world.get(mod.slug), whole.world).save()
+    return SavedMod(mod, warnings)
+
+
+def check_revision(world, mod, text):
+    """Check a revision of a draft the way `revise` would, saving nothing:
+    raises `ModRefused` if it would be refused now. Used to check the file an
+    LLM writes in a revise Interview before the person sees it."""
+    with transaction.atomic():
+        _revision_checked(world, mod, text)
+
+
+def _revision_checked(world, mod, text):
+    """Everything `revise` checks, inside its transaction: the draft as
+    stored, the World as plotcanon reads it with the revision in it, and the
+    revision's warnings."""
     screened(text)
     if said(text, "id") != mod.slug:
         raise ModRefused(f"That file is the Mod `{said(text, 'id')}`, not {mod.name}, "
                          f"whose id is `{mod.slug}`. A revision keeps its Mod's id.")
     text = taken_in(text)
-    with transaction.atomic():
-        World.objects.select_for_update().get(pk=world.pk)
-        mod = Document.objects.get(pk=mod.pk)
-        if mod.fields.get("state") != states().draft:
-            raise ModRefused(f"{mod.name} is not a draft, and only a draft can be revised.")
-        files = files_of(world)
-        whole, warnings = checked(files, mod.path, text)
-        parsed_into(mod, whole.world.get(mod.slug), whole.world).save()
-    return SavedMod(mod, warnings)
+    World.objects.select_for_update().get(pk=world.pk)
+    mod = Document.objects.get(pk=mod.pk)
+    if mod.fields.get("state") != states().draft:
+        raise ModRefused(f"{mod.name} is not a draft, and only a draft can be revised.")
+    files = files_of(world)
+    whole, warnings = checked(files, mod.path, text)
+    return mod, whole, warnings

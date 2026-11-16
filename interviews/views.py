@@ -319,6 +319,8 @@ def revise_interview(request, world_id, slug):
                  revise_system_prompt(world, mod, request.user), turns, said,
                  lambda kept: sealed(kept, world, request.user, REVISE,
                                      request.POST.get("transcript", ""), mod),
+                 check=lambda text: fixing.problems(world, request.user, text, mod),
+                 max_fix_attempts=llm.settings.max_fix_attempts,
                  spent=lambda usage: spending.record(world.organization_id, usage)),
         content_type="text/html; charset=utf-8")
     response["X-Accel-Buffering"] = "no"

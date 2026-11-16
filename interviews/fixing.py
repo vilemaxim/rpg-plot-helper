@@ -21,13 +21,17 @@ from organizations import tenancy
 FILE_SHOWN_BELOW = "[The Mod file is shown below, once it has been checked.]"
 
 
-def problems(world, person, text):
+def problems(world, person, text, mod=None):
     """What is wrong with this Mod file, as the person may read it, or None
-    if the intake would take it in as it stands. Runs in a transaction of its
-    own, as the person, so it can be called while a reply streams."""
+    if the intake would take it in as it stands: as a new Mod, or as a
+    revision of the draft `mod`. Runs in a transaction of its own, as the
+    person, so it can be called while a reply streams."""
     with tenancy.acting_as(person, world.organization):
         try:
-            intake.check_new_mod(world, text)
+            if mod is None:
+                intake.check_new_mod(world, text)
+            else:
+                intake.check_revision(world, mod, text)
         except intake.ModRefused as refused:
             said = "\n".join(part for part in (str(refused), refused.errors) if part)
             return access.readable_findings(world, person, said)

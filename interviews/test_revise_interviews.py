@@ -13,8 +13,8 @@ from canon.test_approving import DAUGHTER
 from canon.test_mod_submissions import NEW, a_mod
 from canon.test_resolving import WARRANT
 from interviews import config
-from interviews.test_interviews import (QUESTION, SETTINGS, FakeProvider, InterviewTest,
-                                        fenced, hidden)
+from interviews.test_interviews import (FIXING, QUESTION, SETTINGS, FakeProvider,
+                                        InterviewTest, fenced, file_in, hidden)
 
 REASON = "The smuggler is dead; rewrite around his partner."
 
@@ -103,7 +103,8 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
     def test_a_revision_with_another_id_is_refused_and_keeps_the_conversation(self):
         self.submit_mod(a_mod())
         other = a_mod(slug="another-mod")
-        with self.provider(FakeProvider(fenced(other))):
+        # Submitted with its errors, once the fix attempts are used up.
+        with self.provider(FakeProvider(fenced(other)), max_fix_attempts=0):
             page = self.say_about(NEW, "Write it", by=self.sam)
             response = self.sam.post(f"{self.revise_interview(NEW)}submit/",
                                      {"text": other, "transcript": hidden(page, "transcript")})
@@ -137,6 +138,52 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
 
         self.assertContains(response, "only a draft")
         self.assertEqual(fake.asked, [])
+
+
+class FixingTheLlmsRevision(ReviseInterviewTest):
+    def setUp(self):
+        super().setUp()
+        self.send_back(WARRANT, reason=REASON)
+        self.draft = self.stored(WARRANT).text
+        self.revised = self.draft.replace("duration_est: 90", "duration_est: 120")
+        self.broken = self.revised.replace("type: mod", "type: nonsense")
+
+    def test_a_revision_with_errors_goes_back_to_the_llm_and_the_person_sees_the_fixed_one(self):
+        with self.provider(FakeProvider(fenced(self.broken), fenced(self.revised))) as fake:
+            page = self.say_about(WARRANT, "Make it longer")
+
+        self.assertEqual(len(fake.asked), 2)
+        sent = fake.asked[1][1]
+        self.assertEqual([m.role for m in sent], ["user", "assistant", "user"])
+        self.assertIn("nonsense", sent[2].text)
+        self.assertEqual(page.count(FIXING), 1)
+        self.assertEqual(file_in(page), self.revised)
+        self.assertNotIn("nonsense", page)
+
+    def test_it_is_checked_as_a_revision_of_its_draft_so_another_id_goes_back(self):
+        other = self.revised.replace(f"id: {WARRANT}", "id: another-mod")
+        with self.provider(FakeProvider(fenced(other), fenced(self.revised))) as fake:
+            page = self.say_about(WARRANT, "Make it longer")
+
+        self.assertEqual(len(fake.asked), 2)
+        self.assertIn("keeps its Mod's id", fake.asked[1][1][2].text)
+        self.assertEqual(file_in(page), self.revised)
+
+    def test_a_good_revision_is_not_sent_back(self):
+        with self.provider(FakeProvider(fenced(self.revised))) as fake:
+            page = self.say_about(WARRANT, "Make it longer")
+
+        self.assertEqual(len(fake.asked), 1)
+        self.assertNotIn(FIXING, page)
+        self.assertEqual(self.stored(WARRANT).text, self.draft)
+
+    def test_after_max_fix_attempts_the_person_sees_the_revision_and_its_errors(self):
+        with self.provider(FakeProvider(*[fenced(self.broken)] * 3), 1) as fake:
+            page = self.say_about(WARRANT, "Make it longer")
+
+        self.assertEqual(len(fake.asked), 2)
+        self.assertEqual(file_in(page), self.broken)
+        self.assertIn("still has errors", page)
 
 
 class WhoMayReviseInAnInterview(ReviseInterviewTest):
@@ -224,3 +271,4 @@ class TheCommittedConfig(SimpleTestCase):
         self.assertEqual(revise.model, "claude-opus-5-5")
         self.assertEqual(revise.effort, "high")
         self.assertEqual(revise.max_tokens, 32000)
+        self.assertEqual(revise.max_fix_attempts, 3)

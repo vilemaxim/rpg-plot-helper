@@ -41,6 +41,8 @@ provider = "anthropic"
 model = "claude-opus-5-5"
 effort = "high"
 max_tokens = 32000
+# As for a new Mod: how many times the LLM is sent its revision's errors.
+max_fix_attempts = 3
 
 # What Interviews may spend, since the deployment pays for every Organization
 # on it. Either may be left out, for no limit. Days and months are UTC.
