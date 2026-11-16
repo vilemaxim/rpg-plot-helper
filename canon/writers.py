@@ -12,13 +12,13 @@ None of this is written into a file: accounts never appear in files
 (ADR-0001). A Mod Writer is someone who may write Mods in the Mod's World.
 """
 
-from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
-from organizations.models import WRITES_MODS, World, WorldRole
+from organizations.models import WRITES_MODS, World
 
 from .models import Document, WriterHandle
+from .roles import chosen, people_holding
 from .submitting import states
 
 
@@ -66,8 +66,7 @@ def is_writer_of(mod, person, handles=None):
 
 def may_write_mods_in(world):
     """The people who may be a Mod Writer in this World, by email."""
-    ids = WorldRole.objects.filter(world=world, role__in=WRITES_MODS).values("user_id")
-    return get_user_model().objects.filter(pk__in=ids).order_by("email")
+    return people_holding(world, *WRITES_MODS)
 
 
 def still_writes(world, person):
@@ -93,12 +92,8 @@ def drafts_of(world, person):
 
 def eligible_writer(world, user_id):
     """The person a Plot Master named to be a Mod Writer here, from the id a
-    form sent. Refused unless they may write Mods in this World, which also
-    keeps the choice inside the World's Organization."""
-    try:
-        person = may_write_mods_in(world).filter(pk=int(user_id)).first()
-    except (TypeError, ValueError):
-        person = None
+    form sent. Refused unless they may write Mods in this World."""
+    person = chosen(may_write_mods_in(world), user_id)
     if person is None:
         raise WriterRefused("That person cannot be the Mod Writer of a Mod here: only "
                             "someone with the Mod Writer or Plot Master role in this World "
