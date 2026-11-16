@@ -10,10 +10,10 @@ A resolved Flag stays on record with how it was resolved, by whom and when.
 import plotcanon
 from django.db import transaction
 from django.utils import timezone
+from plotcanon import editing
 
 from organizations.models import World
 
-from . import editing
 from .models import Document, Flag
 from .storing import files_of, parsed_into
 from .submitting import mod_path, states

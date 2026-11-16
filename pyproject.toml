@@ -21,4 +21,4 @@ dependencies = [
 package = false
 
 [tool.uv.sources]
-plotcanon = { git = "https://github.com/vilemaxim/plotcanon", rev = "v0.10.1" }
+plotcanon = { git = "https://github.com/vilemaxim/plotcanon", rev = "v0.11.0" }

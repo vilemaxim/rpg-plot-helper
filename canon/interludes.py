@@ -23,10 +23,11 @@ import plotcanon
 from django.db import transaction
 from django.utils import timezone
 from django.utils.text import slugify
+from plotcanon import editing
 
 from organizations.models import World
 
-from . import deciding, editing
+from . import deciding
 from .models import CanonChange, Decision, Document
 from .storing import canon_changes_of, files_of, new_row, one_to_a_line, parsed_into
 from .submitting import SLUG, Refused, raise_flags, said, unreadable

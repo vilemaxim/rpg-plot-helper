@@ -14,10 +14,10 @@ about have been dealt with.
 import plotcanon
 from django.db import transaction
 from django.utils import timezone
+from plotcanon import editing
 
 from organizations.models import World
 
-from . import editing
 from .models import Document
 from .storing import SavedMod, files_of, one_to_a_line, parsed_into
 from .submitting import Refused, mod_path, said, states

@@ -18,10 +18,10 @@ import yaml
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from plotcanon import editing
 
 from organizations.models import World
 
-from . import editing
 from .models import CanonChange, Decision, Document, Flag
 from .storing import canon_changes_of, files_of, new_row, one_to_a_line, parsed_into
 

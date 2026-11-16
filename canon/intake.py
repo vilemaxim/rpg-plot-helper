@@ -19,10 +19,10 @@ a draft changes none.
 import plotcanon
 from django.db import transaction
 from django.utils import timezone
+from plotcanon import editing
 
 from organizations.models import World
 
-from . import editing
 from .models import Document
 from .storing import SavedMod, files_of, new_row, one_to_a_line, parsed_into
 from .submitting import SLUG, Refused, mod_path, said, states, unreadable

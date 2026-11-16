@@ -19,10 +19,11 @@ import re
 import plotcanon
 from django.db import transaction
 from django.utils import timezone
+from plotcanon import editing
 
 from organizations.models import World
 
-from . import editing, resolving
+from . import resolving
 from .models import CanonChange, Decision, Document, Flag, Undo
 from .storing import parsed_into
 
@@ -92,57 +93,58 @@ def contradiction(entity, other, which):
         f"{which}. Reject this change, or correct its report.")
 
 
+def as_change(change):
+    """A change as plotcanon takes it, or None for no change."""
+    if change is None:
+        return None
+    return plotcanon.Change(before=change.before, after=change.after,
+                            event=change.report.fields.get("event"),
+                            replaced=change.replaced or None)
+
+
+def refused(refusal, entity, field, change, previous, following):
+    """The Plot Master's reason a decision was turned down, from plotcanon's
+    neutral reason for not applying or undoing the change."""
+    reason = refusal.reason
+    if reason == "factions-out-of-order":
+        return DecisionRefused(
+            f"{described(following)}, a later change to {entity.name}'s factions, is "
+            f"already approved. Changes to factions are decided in the order they "
+            f"happened: reject this change, or correct its report.")
+    if reason == "not-a-member":
+        return DecisionRefused(
+            f"This change contradicts what is already Canon: {entity.name} is not a "
+            f"member of {change.before}. Reject this change, or correct its report.")
+    if reason == "contradicts-previous":
+        return contradiction(entity, previous, "before it")
+    if reason == "contradicts-following":
+        return contradiction(entity, following, "after it")
+    if reason == "contradicts-current":
+        current = entity.fields.get(field)
+        cause = f" since {described(previous)} was approved" if previous else ""
+        return DecisionRefused(
+            f"This change contradicts what is already Canon: {entity.name}'s {field} is "
+            f"{current or 'nothing'}{cause}, and this change expects "
+            f"{change.before or 'nothing'}. Reject this change, or correct its report.")
+    if reason == "followed-on":
+        return DecisionRefused(
+            f"{described(following)} was approved after this change and follows on from "
+            f"it. Undo that one first.")
+    raise refusal
+
+
 def applied(entity, change, field, previous, following, ordering):
     """The entity's file with an approved change applied, or as it was if a
-    later approved change already decides the field. Raises `DecisionRefused`
-    if the change does not follow on from the approved change before it, or
-    lead into the one after it."""
-    def value(text):
-        return text or None
-
-    if field == "factions":
-        # A change to a list of factions takes one out and puts one in, so
-        # where it leaves the list depends on every change before it. They are
-        # decided in the order they happened.
-        if following is not None:
-            raise DecisionRefused(
-                f"{described(following)}, a later change to {entity.name}'s factions, is "
-                f"already approved. Changes to factions are decided in the order they "
-                f"happened: reject this change, or correct its report.")
-        listed = entity.fields.get(field)
-        listed = listed if isinstance(listed, list) else []
-        if change.before and change.before not in listed:
-            raise DecisionRefused(
-                f"This change contradicts what is already Canon: {entity.name} is not a "
-                f"member of {change.before}. Reject this change, or correct its report.")
-        updated = [faction for faction in listed if faction != change.before]
-        if change.after and change.after not in updated:
-            updated.append(change.after)
-        text = editing.set_field(entity.text, field, editing.flow_list(updated))
-    else:
-        if previous is not None and value(previous.after) != value(change.before):
-            raise contradiction(entity, previous, "before it")
-        if following is not None:
-            if value(following.before) != value(change.after):
-                raise contradiction(entity, following, "after it")
-            # A later change already decides the field; this one fits between.
-            return entity.text
-        current = entity.fields.get(field)
-        if value(current) != value(change.before):
-            cause = f" since {described(previous)} was approved" if previous else ""
-            raise DecisionRefused(
-                f"This change contradicts what is already Canon: {entity.name}'s {field} is "
-                f"{current or 'nothing'}{cause}, and this change expects "
-                f"{change.before or 'nothing'}. Reject this change, or correct its report.")
-        text = editing.set_field(entity.text, field, change.after or "null")
-
-    # The entity's state is now as of this change's Event, unless it already
-    # stood at a later one.
-    event = change.report.fields.get("event")
-    as_of = ordering.event_ordinal(entity.fields.get("as_of"))
-    if as_of is None or as_of < (ordering.event_ordinal(event) or 0):
-        text = editing.set_field(text, "as_of", event)
-    return text
+    later approved change already decides the field. The rules are
+    plotcanon's (`plotcanon.applied`). Raises `DecisionRefused` if the change
+    does not follow on from the approved change before it, or lead into the
+    one after it."""
+    try:
+        return plotcanon.applied(entity.text, field, as_change(change),
+                                 previous=as_change(previous), following=as_change(following),
+                                 event_ordinal=ordering.event_ordinal)
+    except plotcanon.ChangeRefused as refusal:
+        raise refused(refusal, entity, field, change, previous, following) from None
 
 
 # plotcanon's warnings that mean an entity's file disagrees with its approved
@@ -160,48 +162,20 @@ def disagreement_in(whole, entity):
 
 
 def unapplied(entity, change, field, previous, following, ordering, remaining):
-    """The entity's file with an approved change taken out. The field goes
-    back to where the approved change before it left it, or to what this one
-    changed it from if there is none; a list of factions goes back to what
-    the approval replaced. "As of" goes back too, if this change was what put
-    it where it is: to what the approval replaced, or to the latest remaining
-    approved change if that is later. `remaining` are the entity's other
-    approved changes that move a field. Raises `DecisionRefused` if a later
-    approved change follows on from this one."""
-    if following is not None:
-        raise DecisionRefused(
-            f"{described(following)} was approved after this change and follows on from "
-            f"it. Undo that one first.")
-    replaced = change.replaced or {}
-    if field == "factions":
-        # Changes to factions are decided in order, so this is the latest.
-        if field in replaced:
-            listed = replaced[field] if isinstance(replaced[field], list) else []
-        else:
-            # Approved before what it replaced was kept: take back out the
-            # faction it put in, and put back the one it took out.
-            listed = entity.fields.get(field)
-            listed = [faction for faction in (listed if isinstance(listed, list) else [])
-                      if faction != change.after or change.after == change.before]
-            if change.before and change.before not in listed:
-                listed.append(change.before)
-        text = editing.set_field(entity.text, field, editing.flow_list(listed))
-    else:
-        restored = previous.after if previous is not None else change.before
-        text = editing.set_field(entity.text, field, restored or "null")
-
-    event = change.report.fields.get("event")
-    if entity.fields.get("as_of") == event:
-        candidates = [other.report.fields.get("event") for other in remaining]
-        if replaced.get("as_of"):
-            candidates.append(replaced["as_of"])
-        # With neither, it stays: the field held its restored value then too.
-        known = [c for c in candidates if ordering.event_ordinal(c) is not None]
-        if known:
-            latest = max(known, key=ordering.event_ordinal)
-            if latest != event:
-                text = editing.set_field(text, "as_of", latest)
-    return text
+    """The entity's file with an approved change taken out, by plotcanon's
+    rules (`plotcanon.unapplied`): the field goes back to where the approved
+    change before it left it, and "as of" goes back if this change put it
+    where it is. `remaining` are the entity's other approved changes that move
+    a field. Raises `DecisionRefused` if a later approved change follows on
+    from this one."""
+    try:
+        return plotcanon.unapplied(
+            entity.text, field, as_change(change),
+            previous=as_change(previous), following=as_change(following),
+            remaining_events=[other.report.fields.get("event") for other in remaining],
+            event_ordinal=ordering.event_ordinal)
+    except plotcanon.ChangeRefused as refusal:
+        raise refused(refusal, entity, field, change, previous, following) from None
 
 
 def cleaned_note(note):
