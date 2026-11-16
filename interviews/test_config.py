@@ -9,6 +9,7 @@ from django.conf import settings
 from django.test import SimpleTestCase
 
 from interviews import config
+from interviews.providers import ADAPTERS
 
 GOOD = """\
 [providers.anthropic]
@@ -144,6 +145,77 @@ class WhetherAnInterviewIsOn(ConfigTest):
 
         with mock.patch.dict(os.environ, {"TEST_ANTHROPIC_KEY": "sk-test"}):
             self.assertIsNone(config.llm_for("new-mod", loaded))
+
+
+OPENROUTER = """\
+[providers.openrouter]
+kind = "openai-compatible"
+base_url = "https://openrouter.ai/api/v1"
+key_env = "TEST_OPENROUTER_KEY"
+
+[interviews.new-mod]
+provider = "openrouter"
+model = "some/model"
+effort = "high"
+"""
+
+
+class AnOpenAICompatibleProvider(ConfigTest):
+    def test_a_new_mod_interview_runs_on_it_with_its_endpoint_and_key(self):
+        loaded = self.load(OPENROUTER)
+
+        with mock.patch.dict(os.environ, {"TEST_OPENROUTER_KEY": "sk-or"}):
+            llm = config.llm_for("new-mod", loaded)
+
+        self.assertIsInstance(llm.provider, ADAPTERS["openai-compatible"])
+        self.assertEqual(llm.provider.base_url, "https://openrouter.ai/api/v1")
+        self.assertEqual(llm.provider.api_key, "sk-or")
+        self.assertEqual(llm.settings.model, "some/model")
+
+    def test_it_is_off_without_its_key(self):
+        loaded = self.load(OPENROUTER)
+
+        with mock.patch.dict(os.environ, {"TEST_OPENROUTER_KEY": ""}):
+            self.assertIsNone(config.llm_for("new-mod", loaded))
+
+    def test_a_local_endpoint_needs_no_key(self):
+        loaded = self.load(OPENROUTER.replace('key_env = "TEST_OPENROUTER_KEY"\n', ""))
+
+        llm = config.llm_for("new-mod", loaded)
+
+        self.assertIsNotNone(llm)
+        self.assertIsNone(llm.provider.api_key)
+
+    def test_a_missing_base_url_is_named(self):
+        message = self.refused(OPENROUTER.replace(
+            'base_url = "https://openrouter.ai/api/v1"\n', ""))
+
+        self.assertIn("providers.openrouter.base_url", message)
+
+    def test_an_unknown_kind_is_named(self):
+        message = self.refused(OPENROUTER.replace('"openai-compatible"', '"litellm"'))
+
+        self.assertIn("providers.openrouter.kind", message)
+        self.assertIn("litellm", message)
+
+    def test_a_base_url_on_a_provider_that_takes_none_is_named(self):
+        message = self.refused(GOOD.replace(
+            'key_env = "TEST_ANTHROPIC_KEY"\n',
+            'key_env = "TEST_ANTHROPIC_KEY"\nbase_url = "https://example.com"\n'))
+
+        self.assertIn("providers.anthropic.base_url", message)
+
+    def test_an_interview_naming_a_provider_with_no_table_is_named(self):
+        message = self.refused(OPENROUTER.replace("[providers.openrouter]",
+                                                  "[providers.elsewhere]"))
+
+        self.assertIn("interviews.new-mod.provider", message)
+        self.assertIn("openrouter", message)
+
+    def test_an_effort_it_does_not_take_is_named(self):
+        message = self.refused(OPENROUTER.replace('effort = "high"', 'effort = "extreme"'))
+
+        self.assertIn("interviews.new-mod.effort", message)
 
 
 class StartingUp(ConfigTest):

@@ -6,9 +6,11 @@ provider, write its adapter beside `anthropic.py` and register it here.
 
 from .anthropic import AnthropicProvider
 from .base import Ended, Message, Provider, ProviderError, Text, Usage
+from .openai_compatible import OpenAICompatibleProvider
 
 ADAPTERS: dict[str, type[Provider]] = {
     "anthropic": AnthropicProvider,
+    "openai-compatible": OpenAICompatibleProvider,
 }
 
 __all__ = ["ADAPTERS", "Ended", "Message", "Provider", "ProviderError", "Text", "Usage"]

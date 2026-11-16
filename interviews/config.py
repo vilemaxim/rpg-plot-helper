@@ -10,6 +10,11 @@ naming the key (ADR-0008).
     [providers.anthropic]
     key_env = "ANTHROPIC_API_KEY"   # the environment variable holding the key
 
+    [providers.openrouter]          # any name: `kind` says which adapter
+    kind = "openai-compatible"      # left out, the table's name is the kind
+    base_url = "https://openrouter.ai/api/v1"
+    key_env = "OPENROUTER_API_KEY"  # optional here, for a local model
+
     [interviews.new-mod]
     provider = "anthropic"
     model = "claude-opus-5-5"
@@ -17,7 +22,8 @@ naming the key (ADR-0008).
     max_tokens = 32000
 
 A kind of Interview is on only if it has an entry here and its provider's key
-is set in the environment: `llm_for(kind)` answers that, and gives the
+is set in the environment (or it names no `key_env`, for an endpoint that
+needs no key): `llm_for(kind)` answers that, and gives the
 provider adapter to talk to. Otherwise it is off, and the paste path takes its
 place.
 
@@ -48,8 +54,14 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class ProviderSettings:
+    """A `[providers.<name>]` table. `kind` names the adapter in
+    `providers.ADAPTERS`; `key_env` is None for an endpoint that needs no key;
+    `base_url` is given for an adapter that `takes_base_url`."""
+
     name: str
-    key_env: str
+    key_env: str | None
+    kind: str = ""
+    base_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -91,7 +103,7 @@ def _positive(value):
 
 
 # Each key a table may hold, with the function that checks its value.
-PROVIDER_KEYS = {"key_env": _text}
+PROVIDER_KEYS = {"kind": _text, "key_env": _text, "base_url": _text}
 INTERVIEW_KEYS = {"provider": _text, "model": _text, "effort": _text,
                   "max_tokens": _positive}
 REQUIRED_INTERVIEW_KEYS = ("provider", "model")
@@ -124,11 +136,24 @@ def _checked(raw, where):
 
     providers = {}
     for name, table in _tables(raw, "providers", refuse).items():
-        if name not in ADAPTERS:
-            refuse(f"providers.{name}", f"is not a provider. Known: {_listed(ADAPTERS)}")
-        values = _values(table, f"providers.{name}", PROVIDER_KEYS, refuse)
+        prefix = f"providers.{name}"
+        values = _values(table, prefix, PROVIDER_KEYS, refuse)
+        kind = values.get("kind", name)
+        if kind not in ADAPTERS:
+            if "kind" in values:
+                refuse(f"{prefix}.kind", f"is `{kind}`, which is not a kind of provider. "
+                                         f"Known: {_listed(ADAPTERS)}")
+            refuse(prefix, f"is not a provider. Known: {_listed(ADAPTERS)}, or say "
+                           f"which with `kind`")
+        adapter = ADAPTERS[kind]
+        if adapter.takes_base_url and "base_url" not in values:
+            refuse(f"{prefix}.base_url", f"is missing. A {kind} provider needs the "
+                                         f"endpoint's address")
+        if not adapter.takes_base_url and "base_url" in values:
+            refuse(f"{prefix}.base_url", f"is not a setting for {kind}")
         providers[name] = ProviderSettings(
-            name, values.get("key_env", ADAPTERS[name].default_key_env))
+            name, values.get("key_env", adapter.default_key_env or None), kind,
+            values.get("base_url"))
 
     interviews = {}
     for kind, table in _tables(raw, "interviews", refuse).items():
@@ -141,16 +166,17 @@ def _checked(raw, where):
             if key not in values:
                 refuse(f"{prefix}.{key}", "is missing")
         provider = values["provider"]
-        if provider not in ADAPTERS:
-            refuse(f"{prefix}.provider", f"is `{provider}`, which is not a provider. "
-                                         f"Known: {_listed(ADAPTERS)}")
         if provider not in providers:
-            refuse(f"providers.{provider}", f"is missing, and {prefix} uses it. Add a "
-                                            f"[providers.{provider}] table saying key_env")
+            if provider in ADAPTERS:
+                refuse(f"providers.{provider}", f"is missing, and {prefix} uses it. Add a "
+                                                f"[providers.{provider}] table saying key_env")
+            refuse(f"{prefix}.provider", f"is `{provider}`, which is not a provider. "
+                                         f"Known: {_listed(providers)}")
+        adapter = ADAPTERS[providers[provider].kind]
         effort = values.get("effort")
-        if not ADAPTERS[provider].check_effort(effort):
+        if not adapter.check_effort(effort):
             refuse(f"{prefix}.effort", f"is `{effort}`, which {provider} does not take. "
-                                       f"It takes {_listed(ADAPTERS[provider].efforts)}")
+                                       f"It takes {_listed(adapter.efforts)}")
         interviews[kind] = InterviewSettings(kind=kind, **values)
     return Config(providers, interviews)
 
@@ -200,13 +226,18 @@ def current():
 
 def llm_for(kind, loaded=None):
     """The LLM for this kind of Interview, or None if that kind is off: it has
-    no entry, or its provider's key is not set in the environment. `loaded`
-    is a `Config`, the one the app started with if not given."""
+    no entry, or its provider names a key that is not set in the environment.
+    `loaded` is a `Config`, the one the app started with if not given."""
     loaded = loaded or current()
     entry = loaded.interviews.get(kind)
     if entry is None:
         return None
-    key = os.environ.get(loaded.providers[entry.provider].key_env, "").strip()
-    if not key:
-        return None
-    return Llm(entry, ADAPTERS[entry.provider](key, entry))
+    provider = loaded.providers[entry.provider]
+    key = None
+    if provider.key_env:
+        key = os.environ.get(provider.key_env, "").strip()
+        if not key:
+            return None
+    adapter = ADAPTERS[provider.kind]
+    options = {"base_url": provider.base_url} if adapter.takes_base_url else {}
+    return Llm(entry, adapter(key, entry, **options))

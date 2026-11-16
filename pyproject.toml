@@ -12,6 +12,7 @@ dependencies = [
     "django-sesame>=3.2.5",
     "markdown>=3.11.3",
     "nh3>=0.3.7",
+    "openai>=3.51.0",
     "plotcanon",
     "psycopg[binary]>=3.3.9",
 ]
