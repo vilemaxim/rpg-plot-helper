@@ -1,8 +1,11 @@
-"""The new-Mod Interview's pages (ADR-0008).
+"""The Interview's pages (ADR-0008): writing a new Mod, or revising a draft.
 
 A Mod Writer, or a Plot Master, answers the LLM's questions until it gives
 them the Mod file, reads it, and submits it through the same intake as a
-pasted file (`canon.intake.submit_mod`). The LLM never submits.
+pasted file (`canon.intake.submit_mod`, or `canon.intake.revise` for a
+draft). The LLM never submits. Both kinds run the same way (`Interviewing`):
+only where they start, what the LLM is told and which intake takes the file
+in differ.
 
 Each turn streams back inside the request that sent the person's answer, as
 one HTML page written while the LLM writes, with no background worker
@@ -14,6 +17,8 @@ own with `organizations.tenancy.acting_as`.
 """
 
 import logging
+from dataclasses import dataclass
+from typing import Any
 
 import plotcanon
 from django import forms
@@ -41,6 +46,7 @@ from .providers import Ended, Message, ProviderError, Text
 log = logging.getLogger(__name__)
 
 KIND = "new-mod"
+REVISE = "revise-mod"
 SURFACE = "web"
 # Where the streamed reply and what follows it go in the rendered page.
 REPLY, AFTER = "<!--interview:reply-->", "<!--interview:after-->"
@@ -52,22 +58,77 @@ class AnswerForm(forms.Form):
     transcript = forms.CharField(required=False, widget=forms.HiddenInput)
 
 
+@dataclass
+class Interviewing:
+    """One kind of Interview in a World, as its pages run it: a new Mod, or a
+    revision of the draft `mod`. `llm` is None when that kind is off."""
+
+    kind: str
+    world: Any
+    llm: Any
+    mod: Any = None
+
+    def context(self):
+        """What every page of it is rendered with."""
+        if self.mod is None:
+            return {"world": self.world}
+        return {"world": self.world, "mod": self.mod}
+
+    def system_prompt(self, person):
+        """plotcanon's instructions for this Interview, given only what this
+        person may read in the World; for a revision, also the draft, why it
+        was sent back and its Flags (`flags_for_the_llm`)."""
+        world = access.readable_files(self.world, person)
+        if self.mod is None:
+            return plotcanon.interview_instructions(self.kind, SURFACE, world=world)
+        return plotcanon.interview_instructions(
+            self.kind, SURFACE, world=world, draft=self.mod.text,
+            sent_back_reason=self.mod.sent_back_reason,
+            flags=flags_for_the_llm(self.world, self.mod))
+
+    def problems(self, person, text):
+        """What the intake would refuse in this file, as the person may read
+        it (`fixing.problems`)."""
+        return fixing.problems(self.world, person, text, self.mod)
+
+    def take_in(self, text, person):
+        """Submit the file through the intake a pasted one goes through."""
+        if self.mod is None:
+            return intake.submit_mod(self.world, text, person)
+        return intake.revise(self.world, self.mod, text, person)
+
+    def to_paste_path(self):
+        """Where the Mod is pasted or uploaded instead, when this kind is off."""
+        if self.mod is None:
+            return redirect("canon-submit-mod", world_id=self.world.pk)
+        return redirect("canon-revise", world_id=self.world.pk, slug=self.mod.slug)
+
+    def to_start(self):
+        """The Interview's page, to start it afresh."""
+        if self.mod is None:
+            return redirect("interview", world_id=self.world.pk)
+        return redirect("revise-interview", world_id=self.world.pk, slug=self.mod.slug)
+
+
 def interview_or_404(request, world_id):
-    """The World and the LLM for a new-Mod Interview in it, for someone who
-    may write Mods there once it has Canon. Anyone else is told there is no
-    such page. The LLM is None when new-Mod Interviews are off."""
+    """A new-Mod Interview in a World, for someone who may write Mods there
+    once it has Canon. Anyone else is told there is no such page."""
     world = world_or_404(request, world_id)
     if not may_write_mods(request, world) or not documents_of(world).exists():
         raise Http404("No such page")
     conversation.forget_idle()
-    return world, config.llm_for(KIND)
+    return Interviewing(KIND, world, config.llm_for(KIND))
 
 
-def system_prompt(world, person):
-    """plotcanon's instructions for a new-Mod Interview, given only what this
-    person may read in the World."""
-    return plotcanon.interview_instructions(
-        KIND, SURFACE, world=access.readable_files(world, person))
+def revise_interview_or_404(request, world_id, slug):
+    """A revise Interview of a draft, for someone who may revise that Mod
+    (`canon.views.may_revise`). Anyone else is told there is no such page."""
+    world = world_or_404(request, world_id)
+    mod = mod_or_404(world, slug)
+    if not may_revise(request, world, mod):
+        raise Http404("No such page")
+    conversation.forget_idle()
+    return Interviewing(REVISE, world, config.llm_for(REVISE), mod)
 
 
 @never_cache
@@ -75,45 +136,96 @@ def system_prompt(world, person):
 def interview(request, world_id):
     """Start an Interview, or take the person's answer and stream the LLM's
     next turn."""
-    world, llm = interview_or_404(request, world_id)
-    if llm is None:
-        return redirect("canon-submit-mod", world_id=world.pk)
+    return a_turn(request, interview_or_404(request, world_id))
+
+
+@never_cache
+@require_POST
+def submit(request, world_id):
+    """Submit the Mod file the LLM gave."""
+    return submitted(request, interview_or_404(request, world_id))
+
+
+@never_cache
+@require_POST
+def start_over(request, world_id):
+    """Abandon the Interview in progress and start a new one."""
+    return started_over(request, interview_or_404(request, world_id))
+
+
+@never_cache
+@require_http_methods(["GET", "POST"])
+def revise_interview(request, world_id, slug):
+    """Start an Interview to revise a draft, or take the person's answer and
+    stream the LLM's next turn."""
+    interviewing = revise_interview_or_404(request, world_id, slug)
+    mod = interviewing.mod
+    if interviewing.llm is not None and not is_draft(mod):
+        notices.error(request, f"{mod.name} is not a draft, and only a draft can be revised.")
+        return redirect("canon-detail", world_id=interviewing.world.pk, kind="mods",
+                        slug=mod.slug)
+    return a_turn(request, interviewing)
+
+
+@never_cache
+@require_POST
+def revise_submit(request, world_id, slug):
+    """Submit the revised file the LLM gave, through the same revise intake as
+    a pasted one, so the id rule and the draft's history hold as they do
+    there."""
+    return submitted(request, revise_interview_or_404(request, world_id, slug))
+
+
+@never_cache
+@require_POST
+def revise_start_over(request, world_id, slug):
+    """Abandon the revise Interview in progress and start a new one."""
+    return started_over(request, revise_interview_or_404(request, world_id, slug))
+
+
+def a_turn(request, interviewing):
+    """The Interview as it stands, or, for an answer, the LLM's next turn
+    streamed back. With its kind off, the paste path instead."""
+    if interviewing.llm is None:
+        return interviewing.to_paste_path()
+    world, mod, llm = interviewing.world, interviewing.mod, interviewing.llm
+    person, base = request.user, interviewing.context()
     if request.method == "GET":
-        transcript, turns = conversation.in_progress(world, request.user, KIND)
+        transcript, turns = conversation.in_progress(world, person, interviewing.kind, mod)
         replies = [turn.text for turn in turns if turn.role == "assistant"]
         return render(request, "interviews/interview.html",
-                      {"world": world, "form": AnswerForm(), "transcript": transcript,
+                      {**base, "form": AnswerForm(), "transcript": transcript,
                        "turns": turns, "file": mod_file_in(replies[-1]) if replies else None})
+    transcript = request.POST.get("transcript", "")
     form = AnswerForm(request.POST)
     try:
-        turns = opened(request.POST.get("transcript", ""), world, request.user)
+        turns = opened(transcript, world, person, mod)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
     if not form.is_valid():
         return render(request, "interviews/interview.html",
-                      {"world": world, "turns": turns, "form": form,
-                       "transcript": request.POST.get("transcript", "")})
+                      {**base, "turns": turns, "form": form, "transcript": transcript})
     said = form.cleaned_data["said"]
-    paused = spending.turn_refused(request.user, world.organization_id)
+    paused = spending.turn_refused(person, world.organization_id)
     if paused:
         return render(request, "interviews/interview.html",
-                      {"world": world, "turns": turns, "form": form, "said": said,
-                       "paused": paused, "transcript": request.POST.get("transcript", "")})
-    asked = [*turns, Message("user", said)]
+                      {**base, "turns": turns, "form": form, "said": said, "paused": paused,
+                       "transcript": transcript})
     page = render_to_string("interviews/interview.html",
-                            {"world": world, "turns": asked, "streaming": True}, request)
+                            {**base, "turns": [*turns, Message("user", said)],
+                             "streaming": True}, request)
     head, rest = page.split(REPLY, 1)
     middle, foot = rest.split(AFTER, 1)
-    after = {"world": world, "csrf_token": get_token(request)}
+    after = {**base, "csrf_token": get_token(request)}
 
     def what_follows(**context):
         return middle + render_to_string("interviews/after.html", {**after, **context})
 
     response = StreamingHttpResponse(
-        streamed(head, foot, what_follows, llm.provider, system_prompt(world, request.user),
-                 turns, said, lambda messages: sealed(messages, world, request.user, KIND,
-                                                      request.POST.get("transcript", "")),
-                 check=lambda text: fixing.problems(world, request.user, text),
+        streamed(head, foot, what_follows, llm.provider, interviewing.system_prompt(person),
+                 turns, said,
+                 lambda kept: sealed(kept, world, person, interviewing.kind, transcript, mod),
+                 check=lambda text: interviewing.problems(person, text),
                  max_fix_attempts=llm.settings.max_fix_attempts,
                  spent=lambda usage: spending.record(world.organization_id, usage)),
         content_type="text/html; charset=utf-8")
@@ -181,62 +293,40 @@ def one_turn(provider, system, messages, shown, spent=lambda usage: None):
     return "".join(pieces), ended
 
 
-@never_cache
-@require_POST
-def submit(request, world_id):
+def submitted(request, interviewing):
     """Submit the Mod file the LLM gave, through the same intake as a pasted
     one. A refusal shows the Interview again, with the intake's errors and the
     conversation as it was."""
-    world, llm = interview_or_404(request, world_id)
-    if llm is None:
+    if interviewing.llm is None:
         raise Http404("No such page")
+    world, mod = interviewing.world, interviewing.mod
     transcript = request.POST.get("transcript", "")
     try:
-        turns = opened(transcript, world, request.user)
+        turns = opened(transcript, world, request.user, mod)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
     form = ModForm(request.POST)
-    context = {"world": world, "turns": turns, "transcript": transcript,
+    context = {**interviewing.context(), "turns": turns, "transcript": transcript,
                "form": AnswerForm(), "file": request.POST.get("text", "")}
     if not form.is_valid():
         return render(request, "interviews/interview.html",
                       {**context, "refused": " ".join(form.errors.get("__all__", []))
                        or "There was no Mod file to submit."})
     try:
-        saved = intake.submit_mod(world, form.cleaned_data["contents"], request.user)
+        saved = interviewing.take_in(form.cleaned_data["contents"], request.user)
     except intake.ModRefused as refused:
         return render(request, "interviews/interview.html",
                       {**context, "refused": str(refused), "errors": refused.errors})
-    conversation.forget(transcript, world, request.user)
+    conversation.forget(transcript, world, request.user, mod)
     return to_saved_mod(request, saved, one_to_a_line(form.cleaned_data["twine_warnings"]))
 
 
-@never_cache
-@require_POST
-def start_over(request, world_id):
+def started_over(request, interviewing):
     """Abandon the Interview in progress, deleting its turns, and start a new
     one."""
-    world, _ = interview_or_404(request, world_id)
-    conversation.forget(request.POST.get("transcript", ""), world, request.user)
-    return redirect("interview", world_id=world.pk)
-
-
-# Revising a draft (#47): the same Interview, started from the draft, why it
-# was sent back and its open Flags, and submitted through the revise intake.
-
-REVISE = "revise-mod"
-
-
-def revise_interview_or_404(request, world_id, slug):
-    """The World, the draft and the LLM for a revise Interview, for someone
-    who may revise that Mod (`canon.views.may_revise`). Anyone else is told
-    there is no such page. The LLM is None when revise Interviews are off."""
-    world = world_or_404(request, world_id)
-    mod = mod_or_404(world, slug)
-    if not may_revise(request, world, mod):
-        raise Http404("No such page")
-    conversation.forget_idle()
-    return world, mod, config.llm_for(REVISE)
+    conversation.forget(request.POST.get("transcript", ""), interviewing.world, request.user,
+                        interviewing.mod)
+    return interviewing.to_start()
 
 
 def flags_for_the_llm(world, mod):
@@ -261,107 +351,3 @@ def flags_for_the_llm(world, mod):
             message += f": {change.summary}"
         pairs.append((change.entity, message))
     return pairs
-
-
-def revise_system_prompt(world, mod, person):
-    """plotcanon's instructions for revising this draft, given only what this
-    person may read in the World."""
-    return plotcanon.interview_instructions(
-        REVISE, SURFACE, world=access.readable_files(world, person), draft=mod.text,
-        sent_back_reason=mod.sent_back_reason, flags=flags_for_the_llm(world, mod))
-
-
-@never_cache
-@require_http_methods(["GET", "POST"])
-def revise_interview(request, world_id, slug):
-    """Start an Interview to revise a draft, or take the person's answer and
-    stream the LLM's next turn."""
-    world, mod, llm = revise_interview_or_404(request, world_id, slug)
-    if llm is None:
-        return redirect("canon-revise", world_id=world.pk, slug=mod.slug)
-    if not is_draft(mod):
-        notices.error(request, f"{mod.name} is not a draft, and only a draft can be revised.")
-        return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
-    base = {"world": world, "mod": mod}
-    if request.method == "GET":
-        transcript, turns = conversation.in_progress(world, request.user, REVISE, mod)
-        replies = [turn.text for turn in turns if turn.role == "assistant"]
-        return render(request, "interviews/interview.html",
-                      {**base, "form": AnswerForm(), "transcript": transcript,
-                       "turns": turns, "file": mod_file_in(replies[-1]) if replies else None})
-    form = AnswerForm(request.POST)
-    try:
-        turns = opened(request.POST.get("transcript", ""), world, request.user, mod)
-    except Tampered:
-        return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
-    if not form.is_valid():
-        return render(request, "interviews/interview.html",
-                      {**base, "turns": turns, "form": form,
-                       "transcript": request.POST.get("transcript", "")})
-    said = form.cleaned_data["said"]
-    paused = spending.turn_refused(request.user, world.organization_id)
-    if paused:
-        return render(request, "interviews/interview.html",
-                      {**base, "turns": turns, "form": form, "said": said, "paused": paused,
-                       "transcript": request.POST.get("transcript", "")})
-    page = render_to_string("interviews/interview.html",
-                            {**base, "turns": [*turns, Message("user", said)],
-                             "streaming": True}, request)
-    head, rest = page.split(REPLY, 1)
-    middle, foot = rest.split(AFTER, 1)
-    after = {**base, "csrf_token": get_token(request)}
-
-    def what_follows(**context):
-        return middle + render_to_string("interviews/after.html", {**after, **context})
-
-    response = StreamingHttpResponse(
-        streamed(head, foot, what_follows, llm.provider,
-                 revise_system_prompt(world, mod, request.user), turns, said,
-                 lambda kept: sealed(kept, world, request.user, REVISE,
-                                     request.POST.get("transcript", ""), mod),
-                 check=lambda text: fixing.problems(world, request.user, text, mod),
-                 max_fix_attempts=llm.settings.max_fix_attempts,
-                 spent=lambda usage: spending.record(world.organization_id, usage)),
-        content_type="text/html; charset=utf-8")
-    response["X-Accel-Buffering"] = "no"
-    return response
-
-
-@never_cache
-@require_POST
-def revise_submit(request, world_id, slug):
-    """Submit the revised file the LLM gave through the same revise intake as
-    a pasted one, so the id rule and the draft's history hold as they do there.
-    A refusal shows the Interview again, with the intake's errors."""
-    world, mod, llm = revise_interview_or_404(request, world_id, slug)
-    if llm is None:
-        raise Http404("No such page")
-    transcript = request.POST.get("transcript", "")
-    try:
-        turns = opened(transcript, world, request.user, mod)
-    except Tampered:
-        return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
-    form = ModForm(request.POST)
-    context = {"world": world, "mod": mod, "turns": turns, "transcript": transcript,
-               "form": AnswerForm(), "file": request.POST.get("text", "")}
-    if not form.is_valid():
-        return render(request, "interviews/interview.html",
-                      {**context, "refused": " ".join(form.errors.get("__all__", []))
-                       or "There was no Mod file to submit."})
-    try:
-        saved = intake.revise(world, mod, form.cleaned_data["contents"], request.user)
-    except intake.ModRefused as refused:
-        return render(request, "interviews/interview.html",
-                      {**context, "refused": str(refused), "errors": refused.errors})
-    conversation.forget(transcript, world, request.user, mod)
-    return to_saved_mod(request, saved, one_to_a_line(form.cleaned_data["twine_warnings"]))
-
-
-@never_cache
-@require_POST
-def revise_start_over(request, world_id, slug):
-    """Abandon the revise Interview in progress, deleting its turns, and
-    start a new one."""
-    world, mod, _ = revise_interview_or_404(request, world_id, slug)
-    conversation.forget(request.POST.get("transcript", ""), world, request.user, mod)
-    return redirect("revise-interview", world_id=world.pk, slug=mod.slug)
