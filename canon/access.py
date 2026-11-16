@@ -57,9 +57,8 @@ NOT_SHOWN = ("There are more errors, about documents only a Plot Master may read
 
 def readable_findings(world, person, findings):
     """plotcanon's findings, one to a line, or any message about the World, as
-    this person may read them: the rule the report page applies for a private
-    link (`canon.runner_views.own_findings`), with what they may read taken
-    from `readable_documents`. A finding about a document they may not read is
+    this person may read them, with what they may read taken from
+    `readable_documents`. A finding about a document they may not read is
     left out, and saying so ends the text; any other mention of one, by path,
     id or name, reads "another document"."""
     hidden = (Document.objects.filter(organization=world.organization, world=world)

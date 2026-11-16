@@ -1,13 +1,13 @@
-"""Private links that let a Mod Runner read one Mod, take it offline and file
-a report on it, with no account. Through web requests, with plotcanon's
-sample World and script."""
+"""Private links that let a Mod Runner read one Mod, take it offline and play
+its Dry Run, with no account. Through web requests, with plotcanon's sample
+World and script."""
 
 import re
 
 from django.test import override_settings
 
-from canon.models import CanonChange, Document, ModLink
-from canon.test_reports import LEDGER_2, VIGIL, VIGIL_2
+from canon.models import Document, ModLink
+from canon.test_reports import VIGIL, VIGIL_2
 from canon.test_resolving import WARRANT, ResolvingTest
 from organizations import tenancy
 
@@ -26,11 +26,6 @@ class LinkTest(ResolvingTest):
         response = (by or self.mira).post(self.links_page(mod), {"label": label}, follow=True)
         found = re.search(r"http://testserver(/run/[\w-]+/)", response.content.decode())
         return found.group(1) if found else response
-
-    def file(self, link, scripted, text=None):
-        return self.client.post(f"{link}report/",
-                                {"text": scripted.text if text is None else text},
-                                follow=True)
 
     def turn_off(self, mod, link_row, by=None):
         return (by or self.mira).post(f"{self.links_page(mod)}{link_row.pk}/off/", follow=True)
@@ -68,6 +63,21 @@ class CreatingALink(LinkTest):
         self.assertEqual(sam.post(self.links_page(VIGIL_MOD), {"label": "x"}).status_code, 404)
         self.assertEqual(self.link_rows(), [])
 
+    def test_what_it_does_is_told_without_filing(self):
+        response = self.mira.post(self.links_page(VIGIL_MOD), {"label": "Rhea"}, follow=True)
+        mod_page = self.mira.get(self.mod_page(VIGIL_MOD))
+
+        for page in (response, mod_page):
+            self.assertContains(page, "Dry Run")
+            self.assertNotContains(page, "file a report")
+            self.assertNotContains(page, "file reports")
+
+    def test_it_is_shown_once_and_kept_in_no_cookie(self):
+        secret = self.create_link(VIGIL_MOD).removeprefix("/run/").removesuffix("/")
+
+        self.assertNotIn(secret, str(self.mira.cookies))
+        self.assertNotIn(secret, str(dict(self.mira.session)))
+
     def test_a_mod_that_cannot_be_run_gets_no_link(self):
         response = self.create_link("blood-on-the-salt-stair")    # finished
 
@@ -101,115 +111,45 @@ class UsingALink(LinkTest):
         self.assertEqual(response.content.decode(), self.stored(VIGIL_MOD).text)
         self.assertIn(f'filename="{VIGIL_MOD}.md"', response["Content-Disposition"])
 
-    def test_a_report_filed_through_it_is_saved_and_says_so(self):
-        response = self.file(self.link, VIGIL)
+    def test_it_files_no_report(self):
+        report = f"{self.link}report/"
 
-        self.assertContains(response, "Report filed")
-        with self.in_world():
-            report = Document.objects.select_related("filed_through") \
-                .get(slug="aa-storm-moon-vigil")
-            self.assertIsNone(report.submitted_by_id)
-            self.assertEqual(report.filed_through.label, "Rhea, Saturday night")
-            self.assertTrue(CanonChange.objects.filter(report=report,
-                                                       decision="proposed").exists())
-        page = self.mira.get(f"{self.first_world}reports/aa-storm-moon-vigil/")
-        self.assertContains(page, "private link for Rhea, Saturday night")
-
-    def test_an_invalid_report_saves_nothing_and_shows_its_errors(self):
-        response = self.file(self.link, VIGIL, text=VIGIL.text.replace("finished: false", "finished: maybe"))
-
-        self.assertContains(response, "Nothing was saved.")
-        self.assertContains(response, "finished: maybe")
+        self.assertEqual(self.client.get(report).status_code, 404)
+        self.assertEqual(self.client.post(report, {"text": VIGIL.text}).status_code, 404)
         with self.in_world():
             self.assertFalse(Document.objects.filter(slug="aa-storm-moon-vigil").exists())
+        self.assertEqual(self.state_shown(VIGIL_MOD), "Approved")
 
-    def test_a_report_on_another_mod_is_refused(self):
-        response = self.file(self.link, LEDGER_2)
+    def test_its_page_says_a_report_is_filed_by_signing_in(self):
+        page = self.client.get(self.link)
 
-        self.assertContains(response, "Nothing was saved.")
-        with self.in_world():
-            self.assertFalse(Document.objects.filter(slug="aa-the-tax-collectors-ledger-2")
-                             .exists())
+        self.assertNotContains(page, 'href="report/"')
+        self.assertNotContains(page, "<textarea")
+        self.assertContains(page, "sign in")
+        self.assertNotContains(page, "/sign-in/")
 
     def test_once_its_mod_is_finished_it_opens_nothing(self):
-        self.file(self.link, VIGIL)
-        self.file(self.link, VIGIL_2)
+        self.submit(VIGIL)
+        self.submit(VIGIL_2)
 
         self.assertEqual(self.client.get(self.link).status_code, 404)
         self.assertEqual(self.client.get(f"{self.link}file/").status_code, 404)
 
 
-class WhatARefusedReportShows(LinkTest):
-    def setUp(self):
-        super().setUp()
-        self.link = self.create_link(VIGIL_MOD)
+class AReportFiledThroughALinkBefore(LinkTest):
+    """Reports were once filed through a link, and keep the link they came
+    through."""
 
-    def test_no_other_documents_path_is_shown(self):
-        named = VIGIL.text.replace("id: aa-storm-moon-vigil", "id: harrow-dunmore")
-
-        response = self.file(self.link, VIGIL, text=named)
-
-        self.assertContains(response, "Nothing was saved.")
-        self.assertContains(response, "another document")
-        self.assertNotContains(response, "canon/npcs/")
-
-    def test_the_link_is_shown_once_and_kept_in_no_cookie(self):
-        secret = self.create_link(VIGIL_MOD).removeprefix("/run/").removesuffix("/")
-
-        self.assertNotIn(secret, str(self.mira.cookies))
-        self.assertNotIn(secret, str(dict(self.mira.session)))
-
-
-class AtAnEventTheModDoesNotListThroughALink(LinkTest):
-    """A Mod Runner with a link files at an Event the Mod does not list yet."""
-
-    def setUp(self):
-        super().setUp()
-        self.link = self.create_link(VIGIL_MOD)
-
-    def file_at(self, event):
-        return self.file(self.link, VIGIL, text=VIGIL.text.replace(
-            "event: e03-storm-moon\n", f"event: {event}\n"))
-
-    def test_an_event_of_the_mods_campaign_is_added_to_it(self):
-        response = self.file_at("e01-low-tide")
-
-        self.assertContains(response, "Report filed")
-        self.assertEqual(self.stored(VIGIL_MOD).fields["events"],
-                         ["e03-storm-moon", "e01-low-tide"])
+    def test_still_says_so(self):
+        self.create_link(VIGIL_MOD)
+        self.submit(VIGIL)
         with self.in_world():
-            report = Document.objects.select_related("filed_through") \
-                .get(slug="aa-storm-moon-vigil")
-            self.assertEqual(report.fields["event"], "e01-low-tide")
-            self.assertEqual(report.filed_through.label, "Rhea, Saturday night")
+            Document.objects.filter(slug="aa-storm-moon-vigil") \
+                .update(filed_through=ModLink.objects.get(), submitted_by=None)
 
-    def test_an_event_of_another_campaign_is_refused_saying_why(self):
-        before = self.stored(VIGIL_MOD).text
+        page = self.mira.get(f"{self.first_world}reports/aa-storm-moon-vigil/")
 
-        response = self.file_at("e04-second-lantern")
-
-        self.assertContains(response, "Nothing was saved.")
-        for said in ("e04-second-lantern", "Second Lantern", "tideward",
-                     "the report&#x27;s `event`"):
-            self.assertContains(response, said)
-        self.assertEqual(self.stored(VIGIL_MOD).text, before)
-        with self.in_world():
-            self.assertFalse(Document.objects.filter(slug="aa-storm-moon-vigil").exists())
-
-
-@override_settings(MOD_LINK_REPORTS_ALLOWED=2)
-class ReportsThroughOneLink(LinkTest):
-    def test_are_limited_whether_or_not_they_are_saved(self):
-        link = self.create_link(VIGIL_MOD)
-        self.file(link, VIGIL, text="nonsense")
-        self.file(link, VIGIL, text="nonsense")
-
-        response = self.client.post(f"{link}report/", {"text": VIGIL.text})
-
-        self.assertEqual(response.status_code, 429)
-        with self.in_world():
-            self.assertFalse(Document.objects.filter(slug="aa-storm-moon-vigil").exists())
-        self.assertEqual(self.client.get(link).status_code, 200)
+        self.assertContains(page, "Filed through the private link for Rhea, Saturday night")
 
 
 class FlagsOnALinkedMod(LinkTest):
@@ -232,7 +172,6 @@ class TurningALinkOff(LinkTest):
         self.turn_off(VIGIL_MOD, self.row)
 
         self.assertEqual(self.client.get(self.link).status_code, 404)
-        self.assertEqual(self.file(self.link, VIGIL).status_code, 404)
         self.assertContains(self.mira.get(self.mod_page(VIGIL_MOD)), "Turned off")
 
     def test_someone_who_is_not_a_plot_master_cannot(self):

@@ -523,6 +523,15 @@ class WhoMaySubmit(ReportTest):
         self.assertContains(response, "Submitted by sam@example.com")
         self.assertEqual(self.sam.get(self.pending).status_code, 200)
 
+    def test_every_role_in_the_world_can(self):
+        for role, scripted in (("mod-writer", VIGIL), ("mod-runner", VIGIL_2)):
+            with self.subTest(role=role):
+                self.give("sam@example.com", role)
+
+                response = self.submit(scripted, by=self.sam)
+
+                self.assertContains(response, "Submitted by sam@example.com")
+
     def test_someone_with_no_role_in_the_world_cannot(self):
         for browser in (self.sam, self.eve):
             self.assertEqual(browser.get(self.report_form("storm-moon-vigil")).status_code, 404)

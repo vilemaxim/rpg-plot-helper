@@ -24,7 +24,7 @@ urlpatterns = [
     path("run/<str:secret>/dry-run/", runner_views.dry_run, name="run-dry-run"),
     path("run/<str:secret>/file/", runner_views.mod_file, name="run-mod-file"),
     path("run/<str:secret>/twee/", runner_views.mod_twee, name="run-mod-twee"),
-    path("run/<str:secret>/report/", runner_views.report, name="run-report"),
+    path("run/<str:secret>/<path:rest>", runner_views.nothing_here),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/links/", views.create_link,
          name="canon-create-link"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/links/<int:link_id>/off/",

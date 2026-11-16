@@ -1,7 +1,9 @@
 """The pages a private link opens, for a Mod Runner with no account.
 
 Each shows one Mod and nothing else in its World: no page here links to
-another, and every one of them starts from the link (`links.opened`).
+another, and every one of them starts from the link (`links.opened`). None
+of them files anything: an After-Action Report is filed by someone signed in
+with a role in the World.
 """
 
 from functools import wraps
@@ -10,10 +12,9 @@ from django.contrib.auth.decorators import login_not_required
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
 from django.utils.http import content_disposition_header
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET
 
-from . import links, submitting
-from .forms import ReportForm
+from . import links
 from .models import Document, Flag
 from .presenting import Index, render_markdown
 from .views import dry_run_page_or_404, flags_shown, state_of, twee_download
@@ -87,49 +88,9 @@ def mod_twee(request, link):
     return twee_download(link.mod)
 
 
-def own_findings(world, errors, text):
-    """plotcanon's findings on a refused report, as a link holder may see
-    them: only those about the report itself, with any other document's path
-    taken out. plotcanon checks the report against the whole World, and the
-    World beyond this Mod is not theirs to see."""
-    path = submitting.path_for(text)
-    others = sorted(Document.objects.filter(organization=world.organization, world=world)
-                    .values_list("path", flat=True), key=len, reverse=True)
-    lines = []
-    for line in errors.splitlines():
-        if f" {path}: " not in line:
-            continue
-        for other in others:
-            line = line.replace(other, "another document")
-        lines.append(line)
-    return "\n".join(lines)
-
-
-@through_a_link
-@require_http_methods(["GET", "POST"])
-def report(request, link):
-    """File an After-Action Report on the Mod, pasted or uploaded."""
-    if request.method == "GET":
-        return page(request, link, "canon/run_report.html", form=ReportForm())
-    try:
-        links.count_report(link)
-    except links.TooMany as refused:
-        return refused_for_now(str(refused))
-    form = ReportForm(request.POST, request.FILES)
-    if not form.is_valid():
-        return page(request, link, "canon/run_report.html", form=form)
-    text = form.cleaned_data["contents"]
-    try:
-        submitting.submit(link.world, link.mod, text, None, filed_through=link)
-    except submitting.ReportRefused as refused:
-        errors = own_findings(link.world, refused.errors, text) if refused.errors else ""
-        if refused.errors and not errors:
-            errors = ("It does not fit the World as it stands, in a way only a Plot Master "
-                      "can see. Ask one to look at it.")
-        return page(request, link, "canon/run_report.html",
-                    form=ReportForm(initial={"text": text}), refused=str(refused),
-                    errors=errors)
-    mod = Document.objects.get(organization=link.organization_id, world=link.world,
-                               pk=link.mod.pk)
-    return page(request, link, "canon/run_filed.html",
-                more_to_come=submitting.can_be_reported_on(mod))
+@login_not_required
+def nothing_here(request, secret, rest):
+    """Any other address under a link, such as the report page links once
+    had: not found, and not sent to sign-in, which would carry the secret
+    along in its address. It opens no link, so it counts as no guess."""
+    raise Http404("No such page")

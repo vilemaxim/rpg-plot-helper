@@ -110,12 +110,9 @@ TWINE_MAX_FILE_BYTES = 5_000_000
 
 # Private links to a Mod for Mod Runners (canon/links.py): how many links
 # that open nothing one address may present, and for how many seconds those
-# failures count, before it is refused; and how many reports may be sent
-# through one link in a window, whether or not they are saved.
+# failures count, before it is refused.
 MOD_LINK_FAILURES_ALLOWED = 20
 MOD_LINK_FAILURE_WINDOW = 15 * 60
-MOD_LINK_REPORTS_ALLOWED = 10
-MOD_LINK_REPORT_WINDOW = 60 * 60
 
 # Sign-in links (accounts/views.py): how many one address may be sent, and
 # one requester may ask for, in how many seconds. A person who is over a limit

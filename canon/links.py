@@ -1,17 +1,17 @@
 """Private links to one Mod, for Mod Runners with no account.
 
 A Plot Master creates a link for a Mod and sends it to whoever runs it. Anyone
-holding the link can read the Mod, download its file, see its open Flags and
-file an After-Action Report on it, and nothing else in the World. A link works
-while its Mod can take a report (approved or in progress) and until a Plot
-Master turns it off.
+holding the link can read the Mod, download its file or for Twine, play its
+Dry Run and see its open Flags, and nothing else in the World. It files
+nothing: an After-Action Report needs an account with a role in the World. A
+link works while its Mod can be run (approved or in progress) and until a
+Plot Master turns it off.
 
 The secret in a link is long and random, and only its hash is kept, so it is
 shown once, when it is created. Guessing a secret is not practical, and is
 limited anyway: an address that presents too many secrets no link has is
 refused for a while. A link that has stopped working is not a guess, so
-reloading one does not count. Reports sent through one link are limited too,
-since each is checked against the whole World with the World locked.
+reloading one does not count.
 """
 
 import secrets
@@ -94,13 +94,3 @@ def opened(request, secret):
     link = ModLink.objects.select_related("mod", "world", "world__organization") \
         .get(organization_id=link.organization_id, pk=link.pk)
     return link if works(link) else None
-
-
-def count_report(link):
-    """Count a report sent through this link, saved or not. Raises `TooMany`
-    once the link has sent its share for now. Counted before it is checked,
-    so reports sent at the same moment cannot all slip under the limit."""
-    if not limits.take("mod-link-reports", link.pk, settings.MOD_LINK_REPORTS_ALLOWED,
-                       settings.MOD_LINK_REPORT_WINDOW):
-        raise TooMany("Too many reports have been sent through this link lately. Try again "
-                      "later, or ask a Plot Master.")
