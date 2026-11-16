@@ -9,6 +9,7 @@ from unittest import mock
 from django.conf import settings
 from django.test import SimpleTestCase
 
+from canon import access
 from canon.test_approving import DAUGHTER
 from canon.test_mod_submissions import NEW, a_mod
 from canon.test_resolving import WARRANT
@@ -22,6 +23,12 @@ REASON = "The smuggler is dead; rewrite around his partner."
 class ReviseInterviewTest(InterviewTest):
     def revise_interview(self, mod):
         return f"{self.mod_page(mod)}interview/"
+
+    def reading_all_but(self, narrowed):
+        """The person reads what `narrowed` leaves of what they read now."""
+        everything = access.readable_documents
+        return mock.patch.object(access, "readable_documents",
+                                 lambda world, person: narrowed(everything(world, person)))
 
     def say_about(self, mod, text, page=None, by=None):
         """Send the person's answer in the revise Interview of `mod`, and read
@@ -54,6 +61,43 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         for flag in flags:
             self.assertIn(flag.change.summary, system)
             self.assertIn(f"On `{flag.change.entity}`", system)
+
+    def test_a_flag_on_a_feature_the_person_may_not_read_is_left_out(self):
+        hidden, *kept = self.flags_on(WARRANT)
+        self.assertTrue(kept)
+        self.assertNotIn(hidden.change.entity, [flag.change.entity for flag in kept])
+        self.send_back(WARRANT, reason=REASON)
+        with self.provider(FakeProvider(QUESTION)) as fake, self.reading_all_but(
+                lambda documents: documents.exclude(slug=hidden.change.entity)):
+            self.say_about(WARRANT, "Hello")
+
+        system = fake.asked[0][0]
+        self.assertNotIn(f"On `{hidden.change.entity}`", system)
+        for flag in kept:
+            self.assertIn(f"On `{flag.change.entity}`", system)
+
+    def test_a_flag_from_a_report_the_person_may_not_read_is_left_out(self):
+        flags = self.flags_on(DAUGHTER)
+        report = flags[0].change.report_id
+        with self.provider(FakeProvider(QUESTION)) as fake, self.reading_all_but(
+                lambda documents: documents.exclude(pk=report)):
+            self.say_about(DAUGHTER, "Hello")
+
+        system = fake.asked[0][0]
+        for flag in flags:
+            shown = f"On `{flag.change.entity}`" in system
+            self.assertEqual(shown, flag.change.report_id != report, flag.change.entity)
+
+    def test_a_draft_the_person_may_not_read_has_no_revise_interview(self):
+        self.send_back(WARRANT, reason=REASON)
+        with self.provider(FakeProvider(QUESTION)) as fake, self.reading_all_but(
+                lambda documents: documents.exclude(slug=WARRANT)):
+            self.assertEqual(self.mira.get(self.revise_interview(WARRANT)).status_code, 404)
+            response = self.mira.post(self.revise_interview(WARRANT),
+                                      {"said": "Hello", "transcript": ""})
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(fake.asked, [])
 
     def test_the_flags_its_send_back_resolved_are_in_the_first_prompt(self):
         flags = self.flags_on(WARRANT)

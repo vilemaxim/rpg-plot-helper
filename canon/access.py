@@ -37,6 +37,19 @@ def readable_files(world, person):
     return {**dict(documents.values_list("path", "text")), **settings_file_of(world)}
 
 
+def readable_flags(world, person, flags):
+    """Those of `flags` (a queryset) this person may read in full: on a Mod
+    they may read, raised by a Canon Change from a report they may read, about
+    a Feature they may read. Any other is left out whole, as a finding about a
+    document they may not read is (`readable_findings`)."""
+    readable = readable_documents(world, person)
+    hidden = (Document.objects.filter(organization=world.organization, world=world)
+              .exclude(pk__in=readable.values("pk")).values("slug"))
+    return (flags.filter(mod__in=readable.values("pk"),
+                         change__report__in=readable.values("pk"))
+            .exclude(change__entity__in=hidden))
+
+
 HIDDEN = "another document"
 NOT_SHOWN = ("There are more errors, about documents only a Plot Master may read. "
              "Ask one to look at it.")

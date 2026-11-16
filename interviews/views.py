@@ -84,7 +84,7 @@ class Interviewing:
         return plotcanon.interview_instructions(
             self.kind, SURFACE, world=world, draft=self.mod.text,
             sent_back_reason=self.mod.sent_back_reason,
-            flags=flags_for_the_llm(self.world, self.mod))
+            flags=flags_for_the_llm(self.world, self.mod, person))
 
     def problems(self, person, text):
         """What the intake would refuse in this file, as the person may read
@@ -122,10 +122,13 @@ def interview_or_404(request, world_id):
 
 def revise_interview_or_404(request, world_id, slug):
     """A revise Interview of a draft, for someone who may revise that Mod
-    (`canon.views.may_revise`). Anyone else is told there is no such page."""
+    (`canon.views.may_revise`) and read it (`canon.access`): the draft the
+    LLM is given is the one they read. Anyone else is told there is no such
+    page."""
     world = world_or_404(request, world_id)
-    mod = mod_or_404(world, slug)
-    if not may_revise(request, world, mod):
+    mod = access.readable_documents(world, request.user).filter(
+        pk=mod_or_404(world, slug).pk).first()
+    if mod is None or not may_revise(request, world, mod):
         raise Http404("No such page")
     conversation.forget_idle()
     return Interviewing(REVISE, world, config.llm_for(REVISE), mod)
@@ -339,11 +342,12 @@ def started_over(request, interviewing):
     return interviewing.to_start()
 
 
-def flags_for_the_llm(world, mod):
+def flags_for_the_llm(world, mod, person):
     """The Flags the revision should answer, as plotcanon takes them: the
     Feature each touches, and what the change does to it. They are the
     draft's open Flags and those its latest send-back resolved
-    (`canon.resolving.send_back`), which the Plot Master sent it back over."""
+    (`canon.resolving.send_back`), which the Plot Master sent it back over,
+    as far as the person may read them (`canon.access.readable_flags`)."""
     flags = Flag.objects.open_in(world).filter(mod=mod)
     if mod.sent_back_at is not None:
         # Sending back resolves the Mod's open Flags just after it notes when
@@ -352,6 +356,7 @@ def flags_for_the_llm(world, mod):
             organization=world.organization, world=world, mod=mod,
             resolution=Flag.Resolution.SENT_BACK, resolved_at__gte=mod.sent_back_at)
     pairs = []
+    flags = access.readable_flags(world, person, flags)
     for flag in flags.select_related("change").order_by("pk"):
         change = flag.change
         message = wording(change.kind)
