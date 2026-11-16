@@ -11,7 +11,7 @@ import plotcanon
 
 from canon import access
 from canon.test_mod_submissions import NEW, SubmissionTest, a_mod
-from interviews import config
+from interviews import config, fixing
 from interviews.providers import Ended, Provider, ProviderError, Text, Usage
 
 SETTINGS = config.InterviewSettings(kind="new-mod", provider="anthropic", model="fake-model")
@@ -252,6 +252,25 @@ class FixingTheLlmsFile(InterviewTest):
         self.assertEqual(page.count(FIXING), 1)
         self.assertEqual(file_in(page), a_mod())
         self.assertNotIn("nonsense", page)
+
+    def test_the_errors_go_back_in_plotcanons_fix_request(self):
+        with self.provider(FakeProvider(fenced(BROKEN), fenced(a_mod()))) as fake, \
+                mock.patch.object(plotcanon, "interview_fix_request",
+                                  side_effect=lambda errors: f"PLOTCANON FIX\n{errors}"):
+            self.say("Write it")
+
+        fix = fake.asked[1][1][2].text
+        self.assertTrue(fix.startswith("PLOTCANON FIX\n"))
+        self.assertIn("nonsense", fix)
+
+    def test_errors_the_person_may_not_read_at_all_do_not_go_back(self):
+        with self.provider(FakeProvider(fenced(BROKEN), fenced(a_mod()))) as fake, \
+                mock.patch.object(fixing, "problems", return_value=""):
+            page = self.say("Write it")
+
+        self.assertEqual(len(fake.asked), 1)
+        self.assertNotIn(FIXING, page)
+        self.assertEqual(file_in(page), BROKEN)
 
     def test_after_max_fix_attempts_the_person_sees_the_file_and_its_errors(self):
         for attempts in (3, 1, 0):

@@ -258,12 +258,13 @@ def streamed(head, foot, what_follows, provider, system, turns, said, seal, chec
             reply, ended = yield from one_turn(provider, system, conversation, shown, spent)
             file = mod_file_in(reply)
             problems = check(file) if file and check else None
-            if problems is None or fixes == max_fix_attempts:
+            # Errors the person may not read at all are none to send back.
+            if not problems or fixes == max_fix_attempts:
                 break
             fixes += 1
             yield render_to_string("interviews/fixing.html")
             conversation = [*conversation, Message("assistant", reply),
-                            Message("user", fixing.fix_request(problems))]
+                            Message("user", plotcanon.interview_fix_request(problems))]
     except ProviderError as error:
         yield what_follows(failed=str(error), said=said, transcript=seal(turns))
     except Exception:  # noqa: BLE001 - the page has started; say so rather than stop dead

@@ -2,8 +2,8 @@
 
 As soon as the LLM gives a Mod file, the app checks it the way the intake
 would, saving nothing (`problems`). A file with errors goes back to the LLM
-with them (`fix_request`), up to the Interview's `max_fix_attempts`, without
-asking the person; they see a note that it is being fixed, and then the file
+with them, in plotcanon's words (`plotcanon.interview_fix_request`), up to
+the Interview's `max_fix_attempts`, without asking the person; they see a note that it is being fixed, and then the file
 once it is good, or once the attempts are used up, with its errors. The
 errors either of them sees are only what the person may read in the World
 (`canon.access.readable_findings`).
@@ -36,16 +36,6 @@ def problems(world, person, text, mod=None):
             said = "\n".join(part for part in (str(refused), refused.errors) if part)
             return access.readable_findings(world, person, said)
     return None
-
-
-def fix_request(problems):
-    """The message that sends a file's problems back to the LLM. It comes
-    from the app, not the person."""
-    return ("This message is from the app, not the person. It checked the Mod file you "
-            "gave and cannot take it in as it is:\n\n"
-            f"{problems}\n\n"
-            "Fix these and give the whole file again, in one code block. The person has "
-            "not seen the file yet, so do not ask them about these errors.")
 
 
 # A line that opens or closes a fenced block, as `conversation.FENCE` reads
