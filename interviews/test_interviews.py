@@ -390,6 +390,6 @@ class HoldingTheFileBack(InterviewTest):
         with self.provider(FakeProvider(fenced(a_mod()))):
             page = self.say("Write it")
 
-        self.assertIn("Here it is.\n\n[The Mod file is shown below", page)
+        self.assertIn("Here it is.\n\n[The file is shown below", page)
         self.assertIn("checked.]\n\nTell me what to change.", page)
         self.assertEqual(page.count("id: the-lamplighters-debt"), 1)

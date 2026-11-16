@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if mod %}Revise {{ mod.name }}{% else %}Write a Mod{% endif %} — {{ world.name }} — RPG Plot Helper{% endblock %}
+{% block title %}{% if kind == "report" %}Report on {{ mod.name }}{% elif mod %}Revise {{ mod.name }}{% else %}Write a Mod{% endif %} — {{ world.name }} — RPG Plot Helper{% endblock %}
 
 {% block content %}
   <style>
@@ -9,17 +9,30 @@
     .turn .who { margin: 0 0 .25rem; font-weight: 600; font-size: .9em; }
     .turn .said { white-space: pre-wrap; overflow-wrap: anywhere; }
   </style>
-  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
-  <h1>{% if mod %}Revise {{ mod.name }}{% else %}Write a Mod{% endif %}</h1>
-  {% if mod and not turns %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a>{% if kind == "report" %} › <a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a>{% endif %}</p>
+  <h1>{% if kind == "report" %}Report on {{ mod.name }}{% elif mod %}Revise {{ mod.name }}{% else %}Write a Mod{% endif %}</h1>
+  {% if kind == "report" and path %}
+    <section>
+      <h2>The Path you walked</h2>
+      <ol class="path">
+        {% for step in path %}<li>{% if step.hook %}Hook: {{ step.hook }}{% elif step.contest %}{{ step.contest }}: {{ step.result }}{% else %}{{ step }}{% endif %}</li>{% endfor %}
+      </ol>
+      {% if not turns %}<p><a href="{% url 'report-walk' world.pk mod.slug %}">Walk it again</a></p>{% endif %}
+    </section>
+  {% endif %}
+  {% if kind == "report" and not turns %}
+    <p>An LLM asks you what happened when {{ mod.name }} was run, and writes the After-Action Report with you. It knows the Mod{% if path %}, the Path you walked,{% endif %} and what you may read in {{ world.name }}. When it gives you the report, read it, say whether the Mod is finished, then file it: it is checked against {{ world.name }}, and its Canon Changes wait for a Plot Master to decide them. Nothing is filed until you press File.</p>
+    <p>Press Begin, and the LLM starts{% if path %} by going through the Path with you{% else %} by asking what happened and where play stopped{% endif %}. The conversation is kept for you alone, so you can leave and come back to it, until you file the report or 30 days pass without a word.</p>
+  {% elif mod and not turns %}
     <p>An LLM works through this draft with you, starting from why it was sent back and any open Flags on it, and writes the revised file. It knows the draft and what you may read in {{ world.name }}. When it gives you the file, read it, then submit it: it replaces the draft, which keeps its id and its history, and a Plot Master approves it before it can be run. Nothing is submitted until you press Submit.</p>
     <p>Press Begin, and the LLM starts with why the draft was sent back and each Flag on it. The conversation is kept for you alone, so you can leave and come back to it, until you submit the revised file or 30 days pass without a word.</p>
   {% elif not turns %}
     <p>An LLM asks you about the Mod you have in mind and writes its file with you. It knows what you may read in {{ world.name }}. When it gives you the file, read it, then submit it: it is checked against {{ world.name }} and saved as a draft, which a Plot Master approves before it can be run. Nothing is submitted until you press Submit.</p>
     <p>Start by telling it about your idea, or just say hello. The conversation is kept for you alone, so you can leave and come back to it, until you submit the Mod or 30 days pass without a word.</p>
-  {% elif not streaming and transcript %}
+  {% endif %}
+  {% if turns and not streaming and transcript %}
     <p>Here is your Interview so far. Carry on below, or start a new one.</p>
-    <form method="post" action="{% if mod %}{% url 'revise-interview-start-over' world.pk mod.slug %}{% else %}{% url 'interview-start-over' world.pk %}{% endif %}">
+    <form method="post" action="{{ urls.start_over }}">
       {% csrf_token %}
       <input type="hidden" name="transcript" value="{{ transcript }}">
       <button type="submit">Start over</button>

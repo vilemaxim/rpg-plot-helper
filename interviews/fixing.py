@@ -1,6 +1,7 @@
-"""Fixing the LLM's Mod file before the person sees it (#45, ADR-0008).
+"""Fixing the LLM's file before the person sees it (#45, ADR-0008): a Mod
+file, or a report's.
 
-As soon as the LLM gives a Mod file, the app checks it the way the intake
+As soon as the LLM gives a file, the app checks it the way the intake
 would, saving nothing (`problems`). A file with errors goes back to the LLM
 with them, in plotcanon's words (`plotcanon.interview_fix_request`), up to
 the Interview's `max_fix_attempts`, without asking the person; they see a note that it is being fixed, and then the file
@@ -15,24 +16,24 @@ is shown under the reply, in the form to submit it, once it has been checked.
 
 import re
 
-from canon import access, intake
+from canon import access
+from canon.submitting import Refused
 from organizations import tenancy
 
-FILE_SHOWN_BELOW = "[The Mod file is shown below, once it has been checked.]"
+FILE_SHOWN_BELOW = "[The file is shown below, once it has been checked.]"
 
 
-def problems(world, person, text, mod=None):
-    """What is wrong with this Mod file, as the person may read it, or None
-    if the intake would take it in as it stands: as a new Mod, or as a
-    revision of the draft `mod`. Runs in a transaction of its own, as the
-    person, so it can be called while a reply streams."""
+def problems(world, person, check):
+    """What is wrong with a file, as the person may read it, or None if the
+    intake would take it in as it stands. `check`, called with nothing, checks
+    it the way its intake would, saving nothing, and raises
+    `canon.submitting.Refused` if it would be refused: a new Mod, a revision
+    of a draft or a report. Runs in a transaction of its own, as the person,
+    so it can be called while a reply streams."""
     with tenancy.acting_as(person, world.organization):
         try:
-            if mod is None:
-                intake.check_new_mod(world, text)
-            else:
-                intake.check_revision(world, mod, text)
-        except intake.ModRefused as refused:
+            check()
+        except Refused as refused:
             said = "\n".join(part for part in (str(refused), refused.errors) if part)
             return access.readable_findings(world, person, said)
     return None

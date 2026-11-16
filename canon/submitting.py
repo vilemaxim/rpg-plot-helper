@@ -206,59 +206,13 @@ def submit(world, mod, text, user):
     """File a report on `mod`, a stored Mod of `world`, as `user`. Returns the
     report's `Document`. Raises `ReportRefused`, having saved nothing, if it
     cannot be."""
-    reason = unreadable(text, "report", REPORT, "an After-Action Report")
-    if reason:
-        raise ReportRefused(reason)
-
     with transaction.atomic():
         # One submission at a time per World: each is checked against the
         # World as stored, and must not be checked against a World another
         # submission is in the middle of changing.
         World.objects.select_for_update().get(pk=world.pk)
         mod = Document.objects.get(pk=mod.pk)
-        if not can_be_reported_on(mod):
-            raise ReportRefused(f"{mod.name} cannot be reported on in its present state.")
-        files = files_of(world)
-        path = path_for(text)
-        if path in files:
-            # plotcanon would take this as a new version of the stored file. A
-            # report is not edited by filing it again.
-            raise ReportRefused(f"A report with the id `{said(text, 'id')}` has already "
-                                f"been filed for that Event. If this is a further report on "
-                                f"the Mod, give it an id of its own.")
-        files[mod.path] = listing_its_event(world, mod, text, files)
-        try:
-            checked = plotcanon.check_file(files, path, text)
-        except (ValueError, TypeError) as error:
-            raise ReportRefused(f"That report cannot be read: {error}.") from None
-        if not checked.ok:
-            raise ReportRefused("That report has errors.",
-                                errors=one_to_a_line(checked.errors))
-        report = checked.document
-        if report.type != REPORT:
-            raise ReportRefused(f"That file is a `{report.type}`. It is not an "
-                                f"After-Action Report.")
-        decided = [i for i, change in enumerate(report.fields.get("canon_changes") or [])
-                   if isinstance(change, dict) and change.get("decision") != Decision.PROPOSED]
-        if decided:
-            raise ReportRefused(
-                "Every Canon Change in a report is filed as `decision: proposed`: only a Plot "
-                "Master approves or rejects one, and that is done here once the report is in. "
-                f"Change the decision of canon_changes[{decided[0]}]"
-                f"{' and the others' if len(decided) > 1 else ''} to `proposed`.")
-        if report.fields.get("mod") != mod.slug:
-            raise ReportRefused(f"That report is for the Mod `{report.fields.get('mod')}`, "
-                                f"not for {mod.name}. File it from that Mod's page.")
-
-        files[path] = text
-        state = state_after(mod, report)
-        if state != mod.fields.get("state"):
-            files[mod.path] = with_state(files[mod.path], state)
-        whole = plotcanon.load_world(files)
-        if not whole.ok:
-            raise ReportRefused("Saving that report would leave the World with errors.",
-                                errors=one_to_a_line(whole.errors))
-
+        files, report, whole = checked_in(world, mod, text)
         row = new_row(world, whole.world.get(report.id), whole.world,
                       submitted_by=user, submitted_at=timezone.now())
         row.save()
@@ -267,6 +221,66 @@ def submit(world, mod, text, user):
             parsed_into(mod, whole.world.get(mod.slug), whole.world).save()
         raise_flags(world, whole, report.id, changes)
     return row
+
+
+def check(world, mod, text):
+    """Check a report on `mod` the way `submit` would, saving nothing: raises
+    `ReportRefused` if it would be refused now. Used to check the report an
+    LLM writes in an Interview before the person sees it."""
+    with transaction.atomic():
+        checked_in(world, Document.objects.get(pk=mod.pk), text)
+
+
+def checked_in(world, mod, text):
+    """The World's files with the report filed on `mod` as `submit` would
+    file it, the report as plotcanon read it, and plotcanon's report on that
+    World. Raises `ReportRefused` if it cannot be filed."""
+    reason = unreadable(text, "report", REPORT, "an After-Action Report")
+    if reason:
+        raise ReportRefused(reason)
+    if not can_be_reported_on(mod):
+        raise ReportRefused(f"{mod.name} cannot be reported on in its present state.")
+    files = files_of(world)
+    path = path_for(text)
+    if path in files:
+        # plotcanon would take this as a new version of the stored file. A
+        # report is not edited by filing it again.
+        raise ReportRefused(f"A report with the id `{said(text, 'id')}` has already "
+                            f"been filed for that Event. If this is a further report on "
+                            f"the Mod, give it an id of its own.")
+    files[mod.path] = listing_its_event(world, mod, text, files)
+    try:
+        checked = plotcanon.check_file(files, path, text)
+    except (ValueError, TypeError) as error:
+        raise ReportRefused(f"That report cannot be read: {error}.") from None
+    if not checked.ok:
+        raise ReportRefused("That report has errors.",
+                            errors=one_to_a_line(checked.errors))
+    report = checked.document
+    if report.type != REPORT:
+        raise ReportRefused(f"That file is a `{report.type}`. It is not an "
+                            f"After-Action Report.")
+    decided = [i for i, change in enumerate(report.fields.get("canon_changes") or [])
+               if isinstance(change, dict) and change.get("decision") != Decision.PROPOSED]
+    if decided:
+        raise ReportRefused(
+            "Every Canon Change in a report is filed as `decision: proposed`: only a Plot "
+            "Master approves or rejects one, and that is done here once the report is in. "
+            f"Change the decision of canon_changes[{decided[0]}]"
+            f"{' and the others' if len(decided) > 1 else ''} to `proposed`.")
+    if report.fields.get("mod") != mod.slug:
+        raise ReportRefused(f"That report is for the Mod `{report.fields.get('mod')}`, "
+                            f"not for {mod.name}. File it from that Mod's page.")
+
+    files[path] = text
+    state = state_after(mod, report)
+    if state != mod.fields.get("state"):
+        files[mod.path] = with_state(files[mod.path], state)
+    whole = plotcanon.load_world(files)
+    if not whole.ok:
+        raise ReportRefused("Saving that report would leave the World with errors.",
+                            errors=one_to_a_line(whole.errors))
+    return files, report, whole
 
 
 def raise_flags(world, whole, report_id, changes):

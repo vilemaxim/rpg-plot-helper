@@ -26,16 +26,21 @@ def address(trail):
     return f"?{urlencode([(TRAIL_PARAMETER, name) for name in trail])}" if trail else "./"
 
 
-def choices_of(passage, trail):
-    """What the reader may pick next, as words and the address each leads to.
-    A Contest is not played out: each of its results is a choice."""
-    def choice(words, way_on):
-        return {"label": words, "url": address([*trail, way_on.passage])}
-    return ([choice(f"If players do nothing: {way_out.label}" if way_out.players_do_nothing
-                    else way_out.label, way_out)
+def labelled(passage):
+    """Every way on from a passage, in the order of `Passage.choices`, as the
+    words to show for it and the `Exit` taken. A Contest is not played out:
+    each of its results is a choice."""
+    return ([(f"If players do nothing: {way_out.label}" if way_out.players_do_nothing
+              else way_out.label, way_out)
              for way_out in passage.exits]
-            + [choice(f"{contest.label}: {result.label}", result)
+            + [(f"{contest.label}: {result.label}", result)
                for contest in passage.contests for result in contest.results])
+
+
+def choices_of(passage, trail):
+    """What the reader may pick next, as words and the address each leads to."""
+    return [{"label": words, "url": address([*trail, way_on.passage])}
+            for words, way_on in labelled(passage)]
 
 
 def passage_at_end_of(story, trail):

@@ -1,9 +1,10 @@
 """The Interview's pages (ADR-0008): writing a new Mod, or revising a draft.
+A report Interview runs on these too, from `reporting`.
 
 A Mod Writer, or a Plot Master, answers the LLM's questions until it gives
 them the Mod file, reads it, and submits it through the same intake as a
 pasted file (`canon.intake.submit_mod`, or `canon.intake.revise` for a
-draft). The LLM never submits. Both kinds run the same way (`Interviewing`):
+draft). The LLM never submits. Every kind runs the same way (`Interviewing`):
 only where they start, what the LLM is told and which intake takes the file
 in differ.
 
@@ -26,12 +27,14 @@ from django.http import Http404, HttpResponseBadRequest, StreamingHttpResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils.html import escape
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 
 from canon import access, intake
 from canon.forms import ModForm
+from canon.submitting import Refused
 from canon.models import Document, Flag
 from canon.presenting import wording
 from canon.storing import one_to_a_line
@@ -50,6 +53,17 @@ SURFACE = "web"
 # Where the streamed reply and what follows it go in the rendered page.
 REPLY, AFTER = "<!--interview:reply-->", "<!--interview:after-->"
 
+# Each kind's pages, by URL name: its turns, submitting its file, starting
+# over, and the paste path that takes its place when it is off.
+PAGES = {
+    Kind.NEW_MOD: ("interview", "interview-submit", "interview-start-over",
+                   "canon-submit-mod"),
+    Kind.REVISE_MOD: ("revise-interview", "revise-interview-submit",
+                      "revise-interview-start-over", "canon-revise"),
+    Kind.REPORT: ("report-interview", "report-interview-submit",
+                  "report-interview-start-over", "canon-report"),
+}
+
 
 class AnswerForm(forms.Form):
     said = forms.CharField(label="Your answer", max_length=20000,
@@ -67,9 +81,20 @@ class Interviewing:
     llm: Llm | None
     mod: Document | None = None
 
-    def context(self):
-        """What every page of it is rendered with."""
-        return {"world": self.world, "mod": self.mod}
+    def urls(self):
+        """Its pages' addresses (`PAGES`), by what each is for."""
+        args = [self.world.pk] + ([self.mod.slug] if self.mod is not None else [])
+        return dict(zip(("turn", "submit", "start_over", "paste"),
+                        (reverse(name, args=args) for name in PAGES[self.kind])))
+
+    def context(self, turns=()):
+        """What every page of it is rendered with, at these turns."""
+        return {"world": self.world, "mod": self.mod, "kind": self.kind,
+                "urls": self.urls(), "begins": self.opener is not None and not turns}
+
+    def carry_on(self, transcript, person):
+        """Take up what is kept with the Interview `transcript` names besides
+        its turns. Raises `Tampered`."""
 
     def system_prompt(self, person):
         """plotcanon's instructions for this Interview, given only what this
@@ -95,23 +120,38 @@ class Interviewing:
         not theirs."""
         return turns[1:] if self.opener and turns else turns
 
+    def check(self, text):
+        """A function that checks the file as its intake would, saving
+        nothing, for `fixing.problems`."""
+        if self.mod is None:
+            return lambda: intake.check_new_mod(self.world, text)
+        return lambda: intake.check_revision(self.world, self.mod, text)
+
+    def file_form(self, data):
+        """The form the file the LLM gave is submitted in."""
+        return ModForm(data)
+
+    def as_given(self, text, data):
+        """The file to take in, from its text and what else the form sent."""
+        return text
+
     def take_in(self, text, person):
         """Submit the file through the intake a pasted one goes through."""
         if self.mod is None:
             return intake.submit_mod(self.world, text, person)
         return intake.revise(self.world, self.mod, text, person)
 
+    def taken_in(self, request, saved, form):
+        """Where the person goes once the file is in."""
+        return to_saved_mod(request, saved, one_to_a_line(form.cleaned_data["twine_warnings"]))
+
     def to_paste_path(self):
-        """Where the Mod is pasted or uploaded instead, when this kind is off."""
-        if self.mod is None:
-            return redirect("canon-submit-mod", world_id=self.world.pk)
-        return redirect("canon-revise", world_id=self.world.pk, slug=self.mod.slug)
+        """Where the file is pasted or uploaded instead, when this kind is off."""
+        return redirect(self.urls()["paste"])
 
     def to_start(self):
         """The Interview's page, to start it afresh."""
-        if self.mod is None:
-            return redirect("interview", world_id=self.world.pk)
-        return redirect("revise-interview", world_id=self.world.pk, slug=self.mod.slug)
+        return redirect(self.urls()["turn"])
 
 
 def interview_or_404(request, world_id):
@@ -124,15 +164,24 @@ def interview_or_404(request, world_id):
     return Interviewing(Kind.NEW_MOD, world, config.llm_for(Kind.NEW_MOD))
 
 
+def readable_mod_or_404(request, world, slug):
+    """The Mod, if this person may read it (`canon.access`): the Mod an LLM is
+    given is the one they read. Anyone else is told there is no such page."""
+    mod = access.readable_documents(world, request.user).filter(
+        pk=mod_or_404(world, slug).pk).first()
+    if mod is None:
+        raise Http404("No such page")
+    return mod
+
+
 def revise_interview_or_404(request, world_id, slug):
     """A revise Interview of a draft, for someone who may revise that Mod
     (`canon.views.may_revise`) and read it (`canon.access`): the draft the
     LLM is given is the one they read. Anyone else is told there is no such
     page."""
     world = world_or_404(request, world_id)
-    mod = access.readable_documents(world, request.user).filter(
-        pk=mod_or_404(world, slug).pk).first()
-    if mod is None or not may_revise(request, world, mod):
+    mod = readable_mod_or_404(request, world, slug)
+    if not may_revise(request, world, mod):
         raise Http404("No such page")
     conversation.forget_idle()
     return Interviewing(Kind.REVISE_MOD, world, config.llm_for(Kind.REVISE_MOD), mod)
@@ -196,21 +245,24 @@ def a_turn(request, interviewing):
     if interviewing.llm is None:
         return interviewing.to_paste_path()
     world, mod, llm = interviewing.world, interviewing.mod, interviewing.llm
-    person, base = request.user, interviewing.context()
+    person = request.user
     if request.method == "GET":
         transcript, turns = conversation.in_progress(world, person, interviewing.kind, mod)
+        interviewing.carry_on(transcript, person)
         replies = [turn.text for turn in turns if turn.role == "assistant"]
         return render(request, "interviews/interview.html",
-                      {**base, "form": AnswerForm(), "transcript": transcript,
-                       "turns": interviewing.shown(turns),
+                      {**interviewing.context(turns), "form": AnswerForm(),
+                       "transcript": transcript, "turns": interviewing.shown(turns),
                        "file": mod_file_in(replies[-1]) if replies else None})
     transcript = request.POST.get("transcript", "")
     form = AnswerForm(request.POST)
     try:
         turns = opened(transcript, world, person, mod)
+        interviewing.carry_on(transcript, person)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
-    # A revise Interview not yet begun begins with the opener, whatever was sent.
+    base = interviewing.context(turns)
+    # An Interview with an opener, not yet begun, begins with it, whatever was sent.
     opening = interviewing.opener is not None and not turns
     if not opening and not form.is_valid():
         return render(request, "interviews/interview.html",
@@ -228,18 +280,20 @@ def a_turn(request, interviewing):
                              "streaming": True}, request)
     head, rest = page.split(REPLY, 1)
     middle, foot = rest.split(AFTER, 1)
-    after = {**base, "csrf_token": get_token(request)}
+    after = {**base, "csrf_token": get_token(request), "begins": False}
 
     def what_follows(**context):
         if opening:
             context["said"] = ""  # the opener is not the person's to send again
+            # Not begun after all: the opener is sent again with Begin.
+            context["begins"] = "failed" in context
         return middle + render_to_string("interviews/after.html", {**after, **context})
 
     response = StreamingHttpResponse(
         streamed(head, foot, what_follows, llm, interviewing.system_prompt(person),
                  turns, said,
                  lambda kept: sealed(kept, world, person, interviewing.kind, transcript, mod),
-                 check=lambda text: fixing.problems(world, person, text, mod),
+                 check=lambda text: fixing.problems(world, person, interviewing.check(text)),
                  spent=lambda usage: spending.record(world.organization_id, usage)),
         content_type="text/html; charset=utf-8")
     # Ask proxies such as nginx to pass each piece on as it comes.
@@ -315,8 +369,8 @@ def one_turn(provider, system, messages, shown, spent=lambda usage: None):
 
 
 def submitted(request, interviewing):
-    """Submit the Mod file the LLM gave, through the same intake as a pasted
-    one. A refusal shows the Interview again, with the intake's errors and the
+    """Submit the file the LLM gave, through the same intake as a pasted one.
+    A refusal shows the Interview again, with the intake's errors and the
     conversation as it was."""
     if interviewing.llm is None:
         raise Http404("No such page")
@@ -324,27 +378,29 @@ def submitted(request, interviewing):
     transcript = request.POST.get("transcript", "")
     try:
         turns = opened(transcript, world, request.user, mod)
+        interviewing.carry_on(transcript, request.user)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
-    form = ModForm(request.POST)
-    context = {**interviewing.context(), "turns": interviewing.shown(turns),
+    form = interviewing.file_form(request.POST)
+    context = {**interviewing.context(turns), "turns": interviewing.shown(turns),
                "transcript": transcript,
                "form": AnswerForm(), "file": request.POST.get("text", "")}
     if not form.is_valid():
         return render(request, "interviews/interview.html",
                       {**context, "refused": " ".join(form.errors.get("__all__", []))
-                       or "There was no Mod file to submit."})
+                       or "There was no file to submit."})
+    text = interviewing.as_given(form.cleaned_data["contents"], request.POST)
     try:
-        saved = interviewing.take_in(form.cleaned_data["contents"], request.user)
-    except intake.ModRefused as refused:
+        saved = interviewing.take_in(text, request.user)
+    except Refused as refused:
         # As the person may read them, as the fix loop sends them (`fixing`).
         return render(request, "interviews/interview.html",
-                      {**context, "refused": access.readable_findings(world, request.user,
-                                                                      str(refused)),
+                      {**context, "file": text,
+                       "refused": access.readable_findings(world, request.user, str(refused)),
                        "errors": access.readable_findings(world, request.user,
                                                           refused.errors)})
     conversation.forget(transcript, world, request.user, mod)
-    return to_saved_mod(request, saved, one_to_a_line(form.cleaned_data["twine_warnings"]))
+    return interviewing.taken_in(request, saved, form)
 
 
 def started_over(request, interviewing):
