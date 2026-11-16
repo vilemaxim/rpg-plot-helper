@@ -321,8 +321,12 @@ def submitted(request, interviewing):
     try:
         saved = interviewing.take_in(form.cleaned_data["contents"], request.user)
     except intake.ModRefused as refused:
+        # As the person may read them, as the fix loop sends them (`fixing`).
         return render(request, "interviews/interview.html",
-                      {**context, "refused": str(refused), "errors": refused.errors})
+                      {**context, "refused": access.readable_findings(world, request.user,
+                                                                      str(refused)),
+                       "errors": access.readable_findings(world, request.user,
+                                                          refused.errors)})
     conversation.forget(transcript, world, request.user, mod)
     return to_saved_mod(request, saved, one_to_a_line(form.cleaned_data["twine_warnings"]))
 

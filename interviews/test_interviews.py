@@ -334,6 +334,23 @@ class FixingWithinWhatThePersonMayRead(InterviewTest):
         self.assertIn("points at a `mod`", page)
         self.assertNotIn(LEFT_OUT, page.replace(html.escape(NAMES_IT), ""))
 
+    def test_submitting_shows_the_intakes_errors_only_as_the_person_may_read_them(self):
+        everything = access.readable_documents
+
+        def without_one(world, person):
+            return everything(world, person).exclude(slug=LEFT_OUT)
+
+        with self.provider(FakeProvider()), \
+                mock.patch.object(access, "readable_documents", without_one):
+            response = self.sam.post(f"{self.interview}submit/",
+                                     {"text": NAMES_IT, "transcript": ""})
+
+        page = response.content.decode()
+        self.assertIn("Nothing was saved.", page)
+        self.assertIn("points at a `mod`", html.unescape(page))
+        self.assertNotIn(LEFT_OUT, page.replace(html.escape(NAMES_IT), ""))
+        self.assertFalse(self.exists(NEW))
+
     def test_the_same_error_names_a_document_the_person_may_read(self):
         with self.provider(FakeProvider(fenced(NAMES_IT), fenced(a_mod()))) as fake:
             self.say("Write it")
