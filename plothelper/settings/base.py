@@ -1,6 +1,7 @@
 """Settings shared by every environment. `local` builds on this; settings for a
 deployed copy will too, when deployment is built."""
 
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -17,6 +18,7 @@ INSTALLED_APPS = [
     "accounts",
     "organizations",
     "canon",
+    "interviews",
 ]
 
 MIDDLEWARE = [
@@ -70,6 +72,12 @@ DEFAULT_FROM_EMAIL = "RPG Plot Helper <no-reply@localhost>"
 # creates the one Organization, and everyone after joins only by invitation.
 # On: everyone who signs up gets an Organization of their own.
 OPEN_SIGN_UP = env.flag("OPEN_SIGN_UP", default=False)
+
+# ── Interviews ──────────────────────────────────────────────────────────────
+# Which LLM each kind of Interview uses, and whether it is on at all
+# (ADR-0008, interviews/config.py). The file at the repo root is committed with
+# defaults; INTERVIEWS_CONFIG names another.
+INTERVIEWS_CONFIG = os.environ.get("INTERVIEWS_CONFIG") or BASE_DIR / "interviews.toml"
 
 # ── Everything else ─────────────────────────────────────────────────────────
 

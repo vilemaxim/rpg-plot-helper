@@ -1,0 +1,18 @@
+# Which LLM each kind of Interview uses (ADR-0008). Read and checked when the
+# app starts; a key it does not know stops it. Set INTERVIEWS_CONFIG to use
+# another file.
+#
+# A kind of Interview is on only if it has an entry here and its provider's
+# key is set in the environment variable named by `key_env`. Otherwise it is
+# off, and Mods are pasted or uploaded as before.
+
+[providers.anthropic]
+key_env = "ANTHROPIC_API_KEY"
+
+# Writing a new Mod. `effort` is the provider's own: for Anthropic one of
+# low, medium, high, xhigh or max.
+[interviews.new-mod]
+provider = "anthropic"
+model = "claude-opus-5-5"
+effort = "high"
+max_tokens = 32000
