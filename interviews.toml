@@ -9,6 +9,18 @@
 [providers.anthropic]
 key_env = "ANTHROPIC_API_KEY"
 
+# Any endpoint that speaks OpenAI's Chat Completions API (OpenAI, OpenRouter,
+# Gemini's compatibility endpoint, a local model) is a provider of kind
+# "openai-compatible", under a name of your choosing. `base_url` is required;
+# `key_env` may be left out for a local endpoint that needs no key. To use it,
+# set `provider = "openrouter"` below; `effort` is then sent as the endpoint's
+# `reasoning_effort`.
+#
+# [providers.openrouter]
+# kind = "openai-compatible"
+# base_url = "https://openrouter.ai/api/v1"
+# key_env = "OPENROUTER_API_KEY"
+
 # Writing a new Mod. `effort` is the provider's own: for Anthropic one of
 # low, medium, high, xhigh or max.
 [interviews.new-mod]

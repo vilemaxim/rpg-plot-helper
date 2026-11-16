@@ -71,6 +71,9 @@ class Provider(ABC):
     #: The environment variable the key is read from when the config's
     #: `[providers.<name>]` table does not say.
     default_key_env: ClassVar[str] = ""
+    #: Whether its `[providers.<name>]` table must give a `base_url`, which
+    #: the adapter is then made with as a keyword argument.
+    takes_base_url: ClassVar[bool] = False
     #: The `effort` values this provider accepts. Empty: it takes none.
     efforts: ClassVar[tuple[str, ...]] = ()
 

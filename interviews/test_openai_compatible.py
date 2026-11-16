@@ -3,14 +3,18 @@ run in the test: the tests never reach a real LLM."""
 
 import json
 import os
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from unittest import mock
 
 from django.test import SimpleTestCase
 
+from interviews import config
 from interviews.config import InterviewSettings
-from interviews.providers import ADAPTERS, Ended, Message, ProviderError, Text
+from interviews.providers import ADAPTERS, Ended, Message, ProviderError, Text, Usage
+from interviews.test_interviews import InterviewTest
 
 SETTINGS = InterviewSettings(kind="new-mod", provider="openrouter", model="some/model",
                              effort="high", max_tokens=32000)
@@ -161,3 +165,49 @@ class OpenAICompatibleAdapter(SimpleTestCase):
         unreachable = adapter(endpoint)
         with self.assertRaises(ProviderError):
             list(unreachable.stream_turn("S", [Message("user", "Hello")]))
+
+
+class AnInterviewOnAnOpenAICompatibleEndpoint(InterviewTest):
+    """Switching `[interviews.new-mod]` to an OpenAI-compatible provider is a
+    config change only: the Interview runs through the real `llm_for`, the
+    adapter and the `openai` package, against the fake endpoint."""
+
+    def configured(self, endpoint):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "interviews.toml"
+            path.write_text(f"""\
+[providers.local]
+kind = "openai-compatible"
+base_url = "{endpoint.base_url}"
+key_env = "TEST_LOCAL_KEY"
+
+[interviews.new-mod]
+provider = "local"
+model = "some/model"
+""")
+            return config.load(path)
+
+    def test_a_whole_turn_streams_from_the_endpoint_and_reports_its_tokens(self):
+        events = []
+        cls = ADAPTERS["openai-compatible"]
+        original = cls.stream_turn
+
+        def recorded(provider, system, messages):
+            for event in original(provider, system, messages):
+                events.append(event)
+                yield event
+
+        with FakeEndpoint(pieces=["What is the Mod ", "about?"], usage=(900, 12)) as endpoint, \
+                mock.patch.object(config, "_current", self.configured(endpoint)), \
+                mock.patch.dict(os.environ, {"TEST_LOCAL_KEY": "sk-local"}), \
+                mock.patch.object(cls, "stream_turn", recorded):
+            first = self.say("Hello")
+            self.say("A debt owed to a lamplighter", first)
+
+        self.assertIn("What is the Mod about?", first)
+        self.assertEqual(endpoint.headers[0]["authorization"], "Bearer sk-local")
+        later = [(m["role"], m["content"]) for m in endpoint.asked[1][1]["messages"][1:]]
+        self.assertEqual(later, [("user", "Hello"), ("assistant", "What is the Mod about?"),
+                                 ("user", "A debt owed to a lamplighter")])
+        self.assertEqual([e for e in events if isinstance(e, Ended)],
+                         [Ended(Usage(900, 12))] * 2)
