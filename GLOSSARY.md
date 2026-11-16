@@ -79,6 +79,10 @@ _Avoid_: Mod report, AAR
 One continuous stretch of play of a Mod by one group, ending when play stops. A Mod is played in one or more Stretches, and when its players are split into groups, several run at once.
 _Avoid_: Part, session, segment
 
+**Group**:
+Some of a Mod's players, playing it apart from the others at the same Event, with their own Mod Runner. Each Group plays its own Stretches; the Mod is finished when every Group is.
+_Avoid_: Party, team, split
+
 **Path**:
 The way one Stretch went through a Mod's Dry Run: the Hook and scenes taken, each Contest's result, and the ending or the scene where play stopped.
 _Avoid_: Route, playthrough, trace
