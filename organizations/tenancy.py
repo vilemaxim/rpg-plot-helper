@@ -68,6 +68,28 @@ def acting_as(user=None, organization=None):
         set_context()
 
 
+@contextmanager
+def working_in(organization):
+    """Run a block in this Organization (an object or an id), as whoever
+    the database was told is asking, then put back the Organization it was
+    told before. Inside a transaction, the block shares it; outside one, it
+    gets its own, as `acting_as`. Yields the Organization's id."""
+    organization_id = _id(organization)
+    if not connection.in_atomic_block:
+        with acting_as(organization=organization_id):
+            yield organization_id
+        return
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT current_setting('app.user_id', true), "
+                       "current_setting('app.organization_id', true)")
+        user_id, was = cursor.fetchone()
+    set_context(user_id or None, organization_id)
+    try:
+        yield organization_id
+    finally:
+        set_context(user_id or None, was or None)
+
+
 def _preferred_organization(request):
     """The Organization id held in the session, or None if there is none or it
     is not an id at all."""
