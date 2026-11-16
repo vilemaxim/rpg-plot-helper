@@ -12,7 +12,11 @@
     <p><a href="{% url 'canon-export' world.pk %}">Export this World as a .zip of its files</a></p>
   {% endif %}
   {% if may_write_mods %}
-    <p><a href="{% url 'canon-submit-mod' world.pk %}">Submit a Mod</a></p>
+    {% if interviews_on %}
+      <p><a href="{% url 'interview' world.pk %}">Write a Mod</a> with an LLM, or <a href="{% url 'canon-submit-mod' world.pk %}">paste or upload one</a> your own LLM wrote</p>
+    {% else %}
+      <p><a href="{% url 'canon-submit-mod' world.pk %}">Submit a Mod</a></p>
+    {% endif %}
   {% endif %}
   {% if pending %}
     <p><a href="{% url 'canon-pending' world.pk %}">{{ pending }} Canon Change{{ pending|pluralize }} waiting to be decided</a></p>

@@ -1,6 +1,8 @@
 from django import template
 from django.db.models import Count
 
+from interviews import config as interviews
+
 from ..kinds import KINDS
 from .. import writers
 from ..models import CanonChange, Document, Flag
@@ -19,8 +21,9 @@ def my_drafts(world, user):
 def world_contents(world, is_plot_master=False, may_write_mods=False):
     """What a World holds: each kind of document with how many there are. To
     a Plot Master, a World with no Canon offers the import, and one with Canon
-    the export. A World with Canon offers submitting a Mod to someone who may
-    write one."""
+    the export. A World with Canon offers someone who may write a Mod an
+    Interview to write one in, when Interviews are on, and pasting or
+    uploading one."""
     counts = dict(Document.objects.filter(organization=world.organization, world=world)
                   .values_list("kind").annotate(Count("pk")))
     kinds = [(address, label, counts.get(doc_type, 0))
@@ -28,4 +31,6 @@ def world_contents(world, is_plot_master=False, may_write_mods=False):
     pending = CanonChange.objects.pending(world).count()
     flags = Flag.objects.open_in(world).count()
     return {"world": world, "kinds": [k for k in kinds if k[2]], "total": sum(counts.values()),
-            "is_plot_master": is_plot_master, "may_write_mods": may_write_mods, "pending": pending, "flags": flags}
+            "is_plot_master": is_plot_master, "may_write_mods": may_write_mods,
+            "interviews_on": may_write_mods and interviews.llm_for("new-mod") is not None,
+            "pending": pending, "flags": flags}

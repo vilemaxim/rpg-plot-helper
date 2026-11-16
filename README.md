@@ -148,7 +148,7 @@ A resolved Flag is no longer listed or warned about, and stays on record on the 
 
 ## Submitting and approving Mods
 
-Mods are written in the Mod Writer's own LLM and submitted as a file ([ADR-0002](./docs/adr/0002-mods-and-reports-are-written-in-the-users-own-llm.md)). A World's Mod Writers and Plot Masters submit one from "Submit a Mod" on the World's page, once the World has Canon, pasting the file or choosing it.
+A Mod is written in an [Interview](#writing-a-mod-in-an-interview) with the app's own LLM, when the deployment has one, or in the Mod Writer's own LLM and submitted as a file ([ADR-0008](./docs/adr/0008-mods-are-written-in-an-interview-with-an-llm-the-deployment-configures.md)). A World's Mod Writers and Plot Masters do either from the World's page, once the World has Canon: "Write a Mod" opens an Interview, and "Submit a Mod", or "paste or upload one" beside an Interview, takes a file pasted or chosen. Both end in the same intake:
 
 - **It arrives as a draft.** It is kept in the World's inbox, says `state: draft` and `canon: proposed` whatever the file claimed, and is not Canon. A draft cannot be run or reported on, and submitting one raises no Flags.
 - **It is checked first.** plotcanon checks it against the World as stored. If anything is wrong, nothing is saved and the errors are shown as text to paste back into the LLM, with what was pasted kept in the form. A draft may name people, places and factions the World does not have yet; plotcanon allows that in the inbox.
@@ -157,6 +157,16 @@ Mods are written in the Mod Writer's own LLM and submitted as a file ([ADR-0002]
 - **Its id is its own.** A Mod whose id the World already uses is refused. To change a draft, revise it from its page with a file that keeps its id; its Mod Writer, and the World's Plot Masters, can. A revision keeps the draft's history: who submitted it, its Flags, and who sent it back and why.
 
 A Plot Master approves a draft from its page, which makes it Canon and ready to be run. Its file moves to its Campaign's folder and says `state: approved` and `canon: approved`. A Mod that names no Campaign has one chosen as it is approved, and that is written into its file. The whole World is checked by plotcanon first, and nothing is saved if it finds an error, or a new warning on the Mod: a draft that names something the World does not have cannot be approved until it is revised. A Mod's open Flags stay open when it is approved. Its page says who approved it and when.
+
+### Writing a Mod in an Interview
+
+In an Interview the LLM asks about the Mod, works it through with the Mod Writer and writes its file. The file is shown with a Submit button; pressing it sends the file through the intake above, with the same checks and errors. The LLM never submits. Pasting or uploading a file stays a link away on every page of it.
+
+- **What the LLM is told** is plotcanon's (`plotcanon.interview_instructions`), with the documents of the World that person may read. Today that is the whole World; which documents they are is decided in one place, `canon/access.py`.
+- **Each reply streams** into the page as it is written, inside the request, with no script, so it works on a phone. The conversation lasts as long as the page; it is carried from one turn to the next in the page itself, signed so it cannot be altered or used by anyone else. A turn the provider fails leaves the conversation as it was, to send again.
+- **Configured by the deployment.** `interviews.toml`, at the repo root, says which provider, model and `effort` each kind of Interview uses; set `INTERVIEWS_CONFIG` to use another file. It is checked when the app starts, and a key it does not know, an unknown provider, a missing `model` or an `effort` the provider does not take stops it with the key named. A kind of Interview is on only if it has an entry and its provider's key is in the environment variable the file names (`ANTHROPIC_API_KEY` by default). Otherwise the Mod pages are as they were without it.
+
+To try one locally, export `ANTHROPIC_API_KEY` before `uv run manage.py runserver`. The tests never call a provider.
 
 ### Dry Run structure
 

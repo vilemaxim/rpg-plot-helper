@@ -65,6 +65,7 @@ class AnthropicAdapter(SimpleTestCase):
         self.assertEqual(client.asked["system"], "SYSTEM")
         self.assertEqual(client.asked["thinking"], {"type": "adaptive"})
         self.assertEqual(client.asked["output_config"], {"effort": "high"})
+        self.assertEqual(client.asked["cache_control"], {"type": "ephemeral"})
         self.assertEqual([m["role"] for m in client.asked["messages"]],
                          ["user", "assistant", "user"])
         self.assertEqual(client.asked["messages"][2]["content"], "A heist")

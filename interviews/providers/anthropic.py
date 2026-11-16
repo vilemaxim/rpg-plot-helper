@@ -12,8 +12,16 @@ class AnthropicProvider(Provider):
 
     def __init__(self, api_key, settings, *, client=None):
         super().__init__(api_key, settings)
-        # `client` is for tests, which never reach the real API.
-        self.client = client or anthropic.Anthropic(api_key=api_key)
+        # `client` is for tests, which never reach the real API. Otherwise it
+        # is made at the first turn, so asking whether Interviews are on is
+        # cheap.
+        self._client = client
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = anthropic.Anthropic(api_key=self.api_key)
+        return self._client
 
     def request(self, system, messages):
         """The arguments one turn is asked for with."""
@@ -24,6 +32,9 @@ class AnthropicProvider(Provider):
             "messages": [{"role": message.role, "content": message.text}
                          for message in messages],
             "thinking": {"type": "adaptive"},
+            # The instructions and the World are sent again with every turn;
+            # caching the conversation so far makes each later turn cheaper.
+            "cache_control": {"type": "ephemeral"},
         }
         if self.settings.effort:
             arguments["output_config"] = {"effort": self.settings.effort}

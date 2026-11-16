@@ -1,0 +1,42 @@
+{% if failed %}
+  <div class="refused">
+    <p><strong>That turn did not finish.</strong> {{ failed }} Nothing from it was kept. Send your answer again.</p>
+  </div>
+{% endif %}
+{% if cut_off %}
+  <p class="warning">The LLM ran out of room and stopped part way through. Ask it to carry on.</p>
+{% endif %}
+{% if refused %}
+  <div class="refused">
+    <p><strong>Nothing was saved.</strong> {{ refused }}</p>
+    {% if errors %}
+      <p>Tell the LLM what to fix. You can paste it these:</p>
+      <pre>{{ errors }}</pre>
+    {% endif %}
+  </div>
+{% endif %}
+{% if file %}
+  <section>
+    <h2>The Mod file</h2>
+    <p>Read it through. Submitting it checks it against {{ world.name }} and saves it as a draft for a Plot Master to approve. To change it, tell the LLM below, or edit it here.</p>
+    <form method="post" action="{% url 'interview-submit' world.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="transcript" value="{{ transcript }}">
+      <label for="mod-file">The Mod file</label>
+      <textarea name="text" id="mod-file" rows="18" spellcheck="false">
+{{ file }}</textarea>
+      <button type="submit">Submit the Mod</button>
+    </form>
+  </section>
+{% endif %}
+<form method="post" action="{% url 'interview' world.pk %}">
+  {% csrf_token %}
+  <input type="hidden" name="transcript" value="{{ transcript }}">
+  <div class="field">
+    {{ form.said.errors }}
+    <label for="said">Your answer</label>
+    <textarea name="said" id="said" rows="5" required>{{ said }}</textarea>
+  </div>
+  <button type="submit">Send</button>
+</form>
+<p>Rather paste or upload a Mod file your own LLM wrote? <a href="{% url 'canon-submit-mod' world.pk %}">Paste or upload it instead</a>.</p>

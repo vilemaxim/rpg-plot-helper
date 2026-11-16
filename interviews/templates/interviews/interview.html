@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Write a Mod — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <style>
+    .turn { margin: var(--gap) 0; padding: .75rem 1rem; border: 1px solid var(--line); border-radius: .4rem; }
+    .turn.you { border-left-width: .4rem; }
+    .turn .who { margin: 0 0 .25rem; font-weight: 600; font-size: .9em; }
+    .turn .said { white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>Write a Mod</h1>
+  {% if not turns %}
+    <p>An LLM asks you about the Mod you have in mind and writes its file with you. It knows what you may read in {{ world.name }}. When it gives you the file, read it, then submit it: it is checked against {{ world.name }} and saved as a draft, which a Plot Master approves before it can be run. Nothing is submitted until you press Submit.</p>
+    <p>Start by telling it about your idea, or just say hello. This conversation lasts as long as this page: leaving it starts over.</p>
+  {% endif %}
+  {% for turn in turns %}
+    <div class="turn {% if turn.role == 'user' %}you{% else %}llm{% endif %}">
+      <p class="who">{% if turn.role == 'user' %}You{% else %}The LLM{% endif %}</p>
+      <div class="said">{{ turn.text }}</div>
+    </div>
+  {% endfor %}
+  {% if streaming %}
+    <div class="turn llm">
+      <p class="who">The LLM</p>
+      <div class="said"><!--interview:reply--></div>
+    </div>
+    <!--interview:after-->
+  {% else %}
+    {% include "interviews/after.html" %}
+  {% endif %}
+{% endblock %}

@@ -402,6 +402,12 @@ def mod_form(request, context, save):
                       {**context, "form": again, "refused": str(refused),
                        "errors": refused.errors, "twine_warnings": twine_warnings,
                        "twine_warned": TWINE_WARNED})
+    return to_saved_mod(request, saved, twine_warnings)
+
+
+def to_saved_mod(request, saved, twine_warnings=""):
+    """Send the person to a Mod just taken in as a draft (an `intake.SavedMod`),
+    telling them so and showing what plotcanon and Twine warned about."""
     mod = saved.mod
     messages.success(request, f"{mod.name} is saved as a draft. A Plot Master approves it "
                               f"before it can be run.")
