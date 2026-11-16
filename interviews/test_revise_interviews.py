@@ -1,0 +1,199 @@
+"""Revising a sent-back draft in an Interview, through web requests, with a
+fake provider in place of the real one: the tests never call an LLM."""
+
+import html
+import re
+from pathlib import Path
+from unittest import mock
+
+from django.conf import settings
+from django.test import SimpleTestCase
+
+from canon.test_approving import DAUGHTER
+from canon.test_mod_submissions import NEW, a_mod
+from canon.test_resolving import WARRANT
+from interviews import config
+from interviews.test_interviews import (QUESTION, SETTINGS, FakeProvider, InterviewTest,
+                                        fenced, hidden)
+
+REASON = "The smuggler is dead; rewrite around his partner."
+
+
+class ReviseInterviewTest(InterviewTest):
+    def revise_interview(self, mod):
+        return f"{self.mod_page(mod)}interview/"
+
+    def say_about(self, mod, text, page=None, by=None):
+        """Send the person's answer in the revise Interview of `mod`, and read
+        the whole streamed page back."""
+        transcript = hidden(page, "transcript") if page else ""
+        response = (by or self.mira).post(self.revise_interview(mod),
+                                          {"said": text, "transcript": transcript or ""})
+        self.assertEqual(response.status_code, 200)
+        return b"".join(response.streaming_content).decode()
+
+
+class RevisingADraftInAnInterview(ReviseInterviewTest):
+    def test_the_first_prompt_holds_the_draft_the_reason_and_each_open_flag(self):
+        self.send_back(WARRANT, reason=REASON)
+        draft = self.stored(WARRANT).text
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.say_about(WARRANT, "Hello")
+
+        system = fake.asked[0][0]
+        self.assertIn(draft, system)
+        self.assertIn(REASON, system)
+
+    def test_each_open_flag_is_in_the_first_prompt_with_the_feature_it_touches(self):
+        flags = self.flags_on(DAUGHTER)
+        self.assertTrue(flags)
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.say_about(DAUGHTER, "Hello")
+
+        system = fake.asked[0][0]
+        for flag in flags:
+            self.assertIn(flag.change.summary, system)
+            self.assertIn(f"On `{flag.change.entity}`", system)
+
+    def test_submitting_replaces_the_draft_through_the_revise_path(self):
+        self.send_back(WARRANT, reason=REASON)
+        draft = self.stored(WARRANT).text
+        revised = draft.replace("duration_est: 90", "duration_est: 120")
+        with self.provider(FakeProvider(fenced(revised))):
+            page = self.say_about(WARRANT, "Make it longer")
+            file = re.search(r'<textarea name="text"[^>]*>\n?(.*?)</textarea>', page, re.S)
+            self.assertEqual(html.unescape(file.group(1)), revised)
+            response = self.mira.post(f"{self.revise_interview(WARRANT)}submit/",
+                                      {"text": revised, "transcript": hidden(page, "transcript")},
+                                      follow=True)
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(WARRANT))
+        self.assertEqual(self.stored(WARRANT).text, revised)
+        page = self.mira.get(self.mod_page(WARRANT))
+        self.assertContains(page, REASON)
+        self.assertTrue(self.flags_on(WARRANT, open_only=False))
+
+    def test_a_revision_with_another_id_is_refused_and_keeps_the_conversation(self):
+        self.submit_mod(a_mod())
+        other = a_mod(slug="another-mod")
+        with self.provider(FakeProvider(fenced(other))):
+            page = self.say_about(NEW, "Write it", by=self.sam)
+            response = self.sam.post(f"{self.revise_interview(NEW)}submit/",
+                                     {"text": other, "transcript": hidden(page, "transcript")})
+
+        self.assertContains(response, "Nothing was saved.")
+        self.assertContains(response, "A revision keeps its Mod&#x27;s id.")
+        self.assertContains(response, "Write it")
+        self.assertEqual(self.stored(NEW).text, a_mod())
+        self.assertFalse(self.exists("another-mod"))
+
+    def test_the_drafts_page_offers_the_interview_first_and_the_paste_path_beside_it(self):
+        self.submit_mod(a_mod())
+        with self.provider(FakeProvider()):
+            page = self.sam.get(self.mod_page(NEW))
+
+        self.assertContains(page, f'href="{self.revise_interview(NEW)}"')
+        self.assertContains(page, f'href="{self.mod_page(NEW)}revise/"')
+
+    def test_the_paste_path_is_reachable_from_the_interview(self):
+        self.submit_mod(a_mod())
+        with self.provider(FakeProvider(QUESTION)):
+            start = self.sam.get(self.revise_interview(NEW))
+            page = self.say_about(NEW, "Hello", by=self.sam)
+
+        self.assertContains(start, f'href="{self.mod_page(NEW)}revise/"')
+        self.assertIn(f'href="{self.mod_page(NEW)}revise/"', page)
+
+    def test_a_mod_that_is_not_a_draft_has_no_revise_interview(self):
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            response = self.mira.get(self.revise_interview(WARRANT), follow=True)
+
+        self.assertContains(response, "only a draft")
+        self.assertEqual(fake.asked, [])
+
+
+class WhoMayReviseInAnInterview(ReviseInterviewTest):
+    def setUp(self):
+        super().setUp()
+        self.submit_mod(a_mod())
+
+    def test_another_mod_writer_cannot_open_or_submit_it(self):
+        kay = self.join("kay@example.com")
+        self.give("kay@example.com", "mod-writer")
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.assertNotContains(kay.get(self.mod_page(NEW)), "interview/")
+            self.assertEqual(kay.get(self.revise_interview(NEW)).status_code, 404)
+            response = kay.post(self.revise_interview(NEW), {"said": "Hello", "transcript": ""})
+            self.assertEqual(response.status_code, 404)
+            response = kay.post(f"{self.revise_interview(NEW)}submit/",
+                                {"text": a_mod(title="Mine Now")})
+            self.assertEqual(response.status_code, 404)
+
+        self.assertEqual(fake.asked, [])
+        self.assertEqual(self.stored(NEW).text, a_mod())
+
+    def test_a_mod_runner_cannot(self):
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.assertEqual(self.rhea.get(self.revise_interview(NEW)).status_code, 404)
+            response = self.rhea.post(self.revise_interview(NEW),
+                                      {"said": "Hello", "transcript": ""})
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(fake.asked, [])
+
+    def test_a_mod_writer_cannot_revise_an_imported_draft_in_one(self):
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.assertEqual(self.sam.get(self.revise_interview(DAUGHTER)).status_code, 404)
+
+        self.assertEqual(fake.asked, [])
+
+    def test_its_mod_writer_and_a_plot_master_may(self):
+        with self.provider(FakeProvider(QUESTION, QUESTION)):
+            self.assertIn(html.escape(QUESTION), self.say_about(NEW, "Hello", by=self.sam))
+            self.assertIn(html.escape(QUESTION), self.say_about(NEW, "Hello", by=self.mira))
+
+
+class WhenReviseInterviewsAreOff(ReviseInterviewTest):
+    """`revise-mod` off and `new-mod` on: revising works exactly as before."""
+
+    def setUp(self):
+        super().setUp()
+        self.submit_mod(a_mod())
+        fake = FakeProvider()
+        self.only_new = mock.patch.object(
+            config, "llm_for",
+            lambda kind, loaded=None: config.Llm(SETTINGS, fake) if kind == "new-mod" else None)
+        self.only_new.start()
+        self.addCleanup(self.only_new.stop)
+
+    def test_the_drafts_page_offers_only_the_paste_path(self):
+        page = self.sam.get(self.mod_page(NEW))
+
+        self.assertNotContains(page, f'href="{self.revise_interview(NEW)}"')
+        self.assertContains(page, f'href="{self.mod_page(NEW)}revise/"')
+        self.assertContains(self.sam.get(self.first_world), f'href="{self.interview}"')
+
+    def test_the_interview_leads_to_the_paste_path(self):
+        self.assertRedirects(self.sam.get(self.revise_interview(NEW)),
+                             f"{self.mod_page(NEW)}revise/")
+        self.assertEqual(self.sam.post(f"{self.revise_interview(NEW)}submit/",
+                                       {"text": a_mod()}).status_code, 404)
+
+    def test_revising_by_pasting_works_as_before(self):
+        revised = a_mod(title="The Lamplighter's Last Debt")
+
+        response = self.revise(NEW, revised)
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(NEW))
+        self.assertEqual(self.stored(NEW).text, revised)
+
+
+class TheCommittedConfig(SimpleTestCase):
+    def test_it_sets_up_a_revise_interview_alongside_the_new_mod_one(self):
+        loaded = config.load(Path(settings.BASE_DIR) / "interviews.toml")
+
+        revise = loaded.interviews["revise-mod"]
+        self.assertEqual(revise.provider, "anthropic")
+        self.assertEqual(revise.model, "claude-opus-5-5")
+        self.assertEqual(revise.effort, "high")
+        self.assertEqual(revise.max_tokens, 32000)

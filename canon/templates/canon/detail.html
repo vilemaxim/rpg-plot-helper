@@ -51,7 +51,11 @@
     <p><a href="{% url 'canon-twee' world.pk document.slug %}" download>Download for Twine (.twee)</a> to edit it in Twine, then submit or revise it from the file Twine saves.</p>
   {% endif %}
   {% if may_revise %}
-    <p><a href="{% url 'canon-revise' world.pk document.slug %}">Revise this draft</a></p>
+    {% if revise_interview_on %}
+      <p><a href="{% url 'revise-interview' world.pk document.slug %}">Revise this draft</a> with an LLM, or <a href="{% url 'canon-revise' world.pk document.slug %}">paste or upload</a> a revised file your own LLM wrote</p>
+    {% else %}
+      <p><a href="{% url 'canon-revise' world.pk document.slug %}">Revise this draft</a></p>
+    {% endif %}
   {% endif %}
   {% if mod_links is not None %}
     <section class="mod-links">
