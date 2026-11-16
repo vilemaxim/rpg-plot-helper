@@ -247,3 +247,22 @@ class RevisingADraft(SpendingTest):
         self.assertContains(refused, f'href="{self.mod_page(NEW)}revise/"')
         with tenancy.acting_as(organization=self.organization()):
             self.assertEqual(TokenUsage.objects.get().tokens, 120)
+
+
+class WritingAReport(SpendingTest):
+    """A report Interview spends from the same limits as the Mod ones."""
+
+    def test_its_turns_count_and_a_paused_one_offers_pasting_a_report(self):
+        report = f"{self.mod_page('storm-moon-vigil')}report/"
+        with self.limited(turns_per_person_per_day=1), \
+                self.provider(FakeProvider(QUESTION)) as fake, self.on(2026, 11, 3, 9):
+            first = self.rhea.post(f"{report}interview/", {"transcript": ""})
+            page = b"".join(first.streaming_content).decode()
+            refused = self.rhea.post(f"{report}interview/",
+                                     {"said": "More", "transcript": hidden(page, "transcript")})
+            self.assertFalse(refused.streaming)
+
+        self.assertEqual(len(fake.asked), 1)
+        self.assertContains(refused, "This Interview is paused.")
+        self.assertContains(refused, f'href="{report}"')
+        self.assertContains(refused, ">More</textarea>")

@@ -6,14 +6,32 @@ import html
 from unittest import mock
 
 import plotcanon
+import yaml
 
+from canon.test_reports import VIGIL
+from canon import access
 from interviews import config
-from interviews.test_interviews import QUESTION, FakeProvider, InterviewTest, hidden
+from interviews.providers import ProviderError
+from interviews.test_interviews import (FIXING, QUESTION, FakeProvider, InterviewTest, fenced,
+                                        file_in, hidden)
 
 BELL = "the-bell-beneath"          # approved, with a Dry Run and a Contest
 NO_DRY_RUN = "storm-moon-vigil"    # approved, with no Dry Run
 SISTER = "The sister asks them to close what was opened"
 CONTEST = "stop her before the last stroke"
+CHAPEL_CHANGE = "The crypt stair is open again."
+
+
+def a_report(path, finished, id="aa-the-bell-beneath"):
+    """A report on the bell Mod at Second Lantern, as the LLM would write it,
+    with `path` (its steps) and `finished` ("true" or "false")."""
+    path_lines = yaml.safe_dump({"path": path}, sort_keys=False) if path else ""
+    return (f"---\nid: {id}\ntype: after-action\nmod: the-bell-beneath\n"
+            f"event: e04-second-lantern\nran: true\nfinished: {finished}\nmod_runner: sam\n"
+            f"pcs: [pc-bram-tolliver]\n{path_lines}canon_changes:\n"
+            f"  - entity: the-sunken-chapel\n    kind: narrative\n    decision: proposed\n"
+            f"    summary: \"{CHAPEL_CHANGE}\"\n---\n\n## What Happened\n\nThey went down.\n\n"
+            f"## Divergences From The Mod\n\nNone.\n\n## Loose Ends\n\n- The bell.\n")
 
 
 class ReportInterviewTest(InterviewTest):
@@ -177,3 +195,241 @@ class TheWalk(WalkingThePath):
 
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, html.escape(QUESTION))
+
+
+class AModInProgress(WalkingThePath):
+    """A first report on the bell Mod said play stopped at the descent."""
+
+    def setUp(self):
+        super().setUp()
+        filed = self.rhea.post(self.report_page(BELL),
+                               {"text": a_report([{"hook": SISTER}, DESCENT], "false")})
+        self.assertEqual(filed.status_code, 302)
+
+    def test_the_walk_starts_by_default_where_the_last_reports_path_stopped(self):
+        with self.provider(FakeProvider()):
+            page = self.walk_to(BELL, [])
+
+        self.assertContains(page, f"<h2>{DESCENT}")
+        self.assertContains(page, "Start from a Hook instead")
+
+    def test_stopping_further_on_gives_a_path_from_there_that_plotcanon_accepts(self):
+        path = [DESCENT, "The bell"]
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.begin(BELL, self.stop_at(BELL, [1]))
+
+        stop = plotcanon.last_stop(self.stored_files(), BELL)
+        self.assertEqual(stop, plotcanon.LastStop(DESCENT))
+        self.assertEqual(fake.asked[0][0], self.system_prompt_for(path, continues_from=stop))
+        walked = plotcanon.check_path(plotcanon.story(self.stored(BELL).text), path,
+                                      continues_from=stop)
+        self.assertTrue(walked.ok, walked.problems)
+
+    def test_the_mod_runner_can_start_from_a_hook_instead(self):
+        path = [{"hook": SISTER}, DESCENT, "The bell"]
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            page = self.walk_to(BELL, [], start="hook")
+            self.assertContains(page, html.escape(SISTER))
+            self.begin(BELL, self.stop_at(BELL, [0, 1], start="hook"))
+
+        stop = plotcanon.last_stop(self.stored_files(), BELL)
+        self.assertEqual(fake.asked[0][0], self.system_prompt_for(path, continues_from=stop))
+
+    def test_a_scene_the_last_report_did_not_stop_at_cannot_be_a_start(self):
+        with self.provider(FakeProvider()):
+            response = self.rhea.get(self.walk(BELL), {"from": WHO})
+
+        self.assertEqual(response.status_code, 404)
+
+
+class AModWhoseLastReportHasNoPath(WalkingThePath):
+    """A first report on the bell Mod was pasted with no Path, so where play
+    stopped is not known."""
+
+    def setUp(self):
+        super().setUp()
+        filed = self.rhea.post(self.report_page(BELL), {"text": a_report(None, "false")})
+        self.assertEqual(filed.status_code, 302)
+
+    def test_the_walk_offers_the_hooks_and_any_scene_to_pick_up_at(self):
+        with self.provider(FakeProvider()):
+            page = self.walk_to(BELL, [])
+
+        self.assertContains(page, html.escape(SISTER))
+        self.assertContains(page, 'href="?from=Who+rings+it"')
+
+    def test_picking_up_at_a_scene_gives_a_path_from_there(self):
+        path = [WHO, {"contest": CONTEST, "result": "lose"}, "The bell is rung"]
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.begin(BELL, self.stop_at(BELL, [2], start=WHO))
+
+        stop = plotcanon.last_stop(self.stored_files(), BELL)
+        self.assertEqual(stop, plotcanon.LastStop(known=False))
+        self.assertEqual(fake.asked[0][0], self.system_prompt_for(path, continues_from=stop))
+
+
+class AModWithNoDryRun(WalkingThePath):
+    def test_it_goes_straight_to_the_interview_which_asks_what_happened(self):
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            page = self.rhea.get(self.report_interview(NO_DRY_RUN))
+            self.assertEqual(page.status_code, 200)
+            self.begin(NO_DRY_RUN, page.content.decode())
+
+        system, messages = fake.asked[0]
+        self.assertEqual(system, self.system_prompt_for(None, mod=NO_DRY_RUN))
+        self.assertEqual(messages[0].text, plotcanon.interview_report_opener(None))
+
+    def test_its_walk_page_sends_the_person_on_to_the_interview(self):
+        with self.provider(FakeProvider()):
+            response = self.rhea.get(self.walk(NO_DRY_RUN))
+
+        self.assertRedirects(response, self.report_interview(NO_DRY_RUN),
+                             fetch_redirect_response=False)
+
+    def test_the_filed_report_has_no_path(self):
+        with self.provider(FakeProvider(fenced(VIGIL.text))):
+            page = self.begin(NO_DRY_RUN, "")
+            response = self.rhea.post(f"{self.report_interview(NO_DRY_RUN)}submit/",
+                                      {"text": file_in(page), "finished": "false",
+                                       "transcript": hidden(page, "transcript")})
+
+        self.assertEqual(response.status_code, 302)
+        filed = self.stored("aa-storm-moon-vigil")
+        self.assertNotIn("path", filed.fields)
+
+
+class FilingTheReport(WalkingThePath):
+    def write(self, choices, report):
+        """Walk, begin, and have the LLM give `report`. The page it gives."""
+        with self.provider(FakeProvider(fenced(report))):
+            return self.begin(BELL, self.stop_at(BELL, choices))
+
+    def file(self, page, finished=None, text=None):
+        data = {"text": file_in(page) if text is None else text,
+                "transcript": hidden(page, "transcript")}
+        if finished is not None:
+            data["finished"] = finished
+        with self.provider(FakeProvider()):
+            return self.rhea.post(f"{self.report_interview(BELL)}submit/", data, follow=True)
+
+    def test_reaching_an_ending_proposes_finished(self):
+        page = self.write(TO_SILENCED, a_report(PATH_TO_SILENCED, "true"))
+
+        self.assertIn('name="finished" value="true" checked', page)
+
+    def test_stopping_at_a_scene_proposes_not_finished(self):
+        page = self.write([0], a_report([{"hook": SISTER}, DESCENT], "false"))
+
+        self.assertIn('name="finished" value="false" checked', page)
+
+    def test_the_report_is_filed_through_the_same_path_as_a_pasted_one(self):
+        page = self.write(TO_SILENCED, a_report(PATH_TO_SILENCED, "true"))
+        response = self.file(page, "true")
+
+        self.assertEqual(response.redirect_chain[-1][0],
+                         f"{self.first_world}reports/aa-the-bell-beneath/")
+        self.assertContains(response, "Its Canon Changes are waiting to be decided")
+        filed = self.stored("aa-the-bell-beneath")
+        self.assertEqual(filed.fields["path"], PATH_TO_SILENCED)
+        self.assertEqual(filed.submitted_by.email, "rhea@example.com")
+        self.assertEqual(self.stored(BELL).fields["state"], "finished")
+        self.assertContains(self.mira.get(self.pending), CHAPEL_CHANGE)
+
+    def test_the_mod_runner_can_change_finished_before_filing(self):
+        page = self.write(TO_SILENCED, a_report(PATH_TO_SILENCED, "true"))
+        self.file(page, "false")
+
+        self.assertIs(self.stored("aa-the-bell-beneath").fields["finished"], False)
+        self.assertEqual(self.stored(BELL).fields["state"], "in-progress")
+
+    def test_the_interview_is_gone_once_filed(self):
+        page = self.write([0], a_report([{"hook": SISTER}, DESCENT], "false"))
+        self.file(page, "false")
+
+        with self.provider(FakeProvider()):
+            response = self.rhea.get(self.report_interview(BELL))
+        self.assertRedirects(response, self.walk(BELL), fetch_redirect_response=False)
+
+    def test_a_refused_report_keeps_the_conversation_and_says_why(self):
+        page = self.write([0], a_report([{"hook": SISTER}, DESCENT], "false"))
+        response = self.file(page, "false", text=a_report([{"hook": SISTER}, WHO], "false"))
+
+        self.assertContains(response, "Nothing was saved.")
+        self.assertContains(response, "That report has errors.")
+        self.assertFalse(self.exists("aa-the-bell-beneath"))
+
+    def test_a_report_with_errors_goes_back_to_the_llm_before_the_person_sees_it(self):
+        broken = a_report([{"hook": SISTER}, WHO], "false")
+        good = a_report([{"hook": SISTER}, DESCENT], "false")
+        with self.provider(FakeProvider(fenced(broken), fenced(good))) as fake:
+            page = self.begin(BELL, self.stop_at(BELL, [0]))
+
+        self.assertIn(FIXING, page)
+        self.assertEqual(len(fake.asked), 2)
+        self.assertIn(WHO, fake.asked[1][1][-1].text)
+        self.assertEqual(file_in(page), good)
+
+    def test_a_provider_failure_keeps_the_walk_and_offers_pasting(self):
+        with self.provider(FakeProvider(ProviderError("The LLM is busy."))):
+            page = self.begin(BELL, self.stop_at(BELL, [0]))
+
+        self.assertIn("The LLM is busy.", page)
+        self.assertIn(">Begin</button>", page)
+        self.assertIn(f'href="{self.report_page(BELL)}"', page)
+
+
+class WhoMayWriteAReport(WalkingThePath):
+    def test_anyone_with_a_role_in_the_world_may_as_they_may_file_one(self):
+        with self.provider(FakeProvider(QUESTION, QUESTION)) as fake:
+            self.begin(BELL, self.stop_at(BELL, [0], by=self.sam), by=self.sam)
+            self.begin(BELL, self.stop_at(BELL, [0], by=self.mira), by=self.mira)
+
+        self.assertEqual(len(fake.asked), 2)
+
+    def test_someone_with_no_role_in_the_world_cannot(self):
+        stranger = self.join("stranger@example.com")
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            for address in (self.report_interview(BELL), self.walk(BELL)):
+                self.assertEqual(stranger.get(address).status_code, 404)
+            self.assertEqual(stranger.post(self.walk(BELL), {"choice": "0"}).status_code, 404)
+
+        self.assertEqual(fake.asked, [])
+
+    def test_a_mod_that_cannot_be_reported_on_sends_the_person_to_the_report_page(self):
+        with self.provider(FakeProvider()) as fake:
+            response = self.rhea.get(self.report_interview("the-wardens-ball"))
+
+        self.assertRedirects(response, self.report_page("the-wardens-ball"),
+                             fetch_redirect_response=False)
+        self.assertEqual(fake.asked, [])
+
+    def test_one_persons_walk_is_not_anothers(self):
+        with self.provider(FakeProvider()):
+            page = self.stop_at(BELL, [0])
+            response = self.sam.post(self.report_interview(BELL),
+                                     {"transcript": hidden(page, "transcript")})
+
+        self.assertEqual(response.status_code, 400)
+
+
+class WhatTheLlmMayRead(WalkingThePath):
+    def reading_all_but(self, slug):
+        everything = access.readable_documents
+        return mock.patch.object(access, "readable_documents", lambda world, person:
+                                 everything(world, person).exclude(slug=slug))
+
+    def test_the_system_prompt_holds_only_what_the_read_access_function_returns(self):
+        with self.provider(FakeProvider(QUESTION)) as fake, \
+                self.reading_all_but("the-wardens-ball"):
+            self.begin(BELL, self.stop_at(BELL, [0]))
+
+        system = fake.asked[0][0]
+        self.assertNotIn("the-wardens-ball", system)
+        self.assertIn("clerk-pell", system)
+
+    def test_a_mod_the_person_may_not_read_has_no_report_interview(self):
+        with self.provider(FakeProvider()) as fake, self.reading_all_but(BELL):
+            self.assertEqual(self.rhea.get(self.walk(BELL)).status_code, 404)
+            self.assertEqual(self.rhea.get(self.report_interview(BELL)).status_code, 404)
+
+        self.assertEqual(fake.asked, [])
