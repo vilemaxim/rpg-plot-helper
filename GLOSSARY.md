@@ -79,6 +79,10 @@ _Avoid_: Mod report, AAR
 One continuous stretch of play of a Mod by one group, ending when play stops. A Mod is played in one or more Stretches, and when its players are split into groups, several run at once.
 _Avoid_: Part, session, segment
 
+**Path**:
+The way one Stretch went through a Mod's Dry Run: the Hook and scenes taken, each Contest's result, and the ending or the scene where play stopped.
+_Avoid_: Route, playthrough, trace
+
 **Debrief**:
 What someone who took part in a Mod, whatever their part, thinks plot should know about it. It belongs to the Mod and its Event, and proposes no changes to Canon; a Plot Master reads it beside the After-Action Reports.
 _Avoid_: Player report, extra report

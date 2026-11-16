@@ -1,6 +1,6 @@
 # Mods are written in an Interview with an LLM the deployment configures
 
-> Amends [ADR-0002](./0002-mods-and-reports-are-written-in-the-users-own-llm.md) for Mods. After-Action Reports are still written in the user's own LLM.
+> Amends [ADR-0002](./0002-mods-and-reports-are-written-in-the-users-own-llm.md) for Mods. [ADR-0009](./0009-after-action-reports-are-written-in-an-interview-that-starts-from-the-dry-run-path.md) does the same for After-Action Reports.
 
 The web app now calls an LLM itself. A Mod Writer, or a Plot Master acting as one, writes a new Mod or revises a draft in an Interview: the app's LLM asks questions, writes the Mod file, checks it with plotcanon, and fixes errors without involving the person, up to a set number of attempts. The person reads the result and submits it through the same intake as a pasted file. An Interview is the default, and pasting or uploading a file stays available beside it. A revise Interview starts from the draft, the Plot Master's reason for sending it back, and its open Flags.
 
