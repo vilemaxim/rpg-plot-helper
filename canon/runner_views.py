@@ -1,9 +1,8 @@
 """The pages a private link opens, for a Mod Runner with no account.
 
 Each shows one Mod and nothing else in its World: no page here links to
-another, and every one of them starts from the link (`links.opened`). None
-of them files anything: an After-Action Report is filed by someone signed in
-with a role in the World.
+another, and every one of them starts from the link (`links.opened`). What
+a link opens is told under **Private link** in GLOSSARY.md.
 """
 
 from functools import wraps
@@ -13,6 +12,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import render
 from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_GET
+from django.views.defaults import page_not_found
 
 from . import links
 from .models import Document, Flag
@@ -89,8 +89,10 @@ def mod_twee(request, link):
 
 
 @login_not_required
-def nothing_here(request, secret, rest):
-    """Any other address under a link, such as the report page links once
-    had: not found, and not sent to sign-in, which would carry the secret
-    along in its address. It opens no link, so it counts as no guess."""
-    raise Http404("No such page")
+def nothing_here(request, secret, other_page):
+    """Any other address under a link: not found, and not sent to sign-in,
+    which would carry the secret along in its address. It opens no link, so
+    it counts as no guess and is never refused for guessing."""
+    response = page_not_found(request, Http404("No such page"))
+    response["Referrer-Policy"] = "no-referrer"
+    return response

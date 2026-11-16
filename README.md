@@ -95,7 +95,7 @@ uv run plotcanon sample --write demo --script demo-script
 
 ### Private links for Mod Runners
 
-A Mod Runner does not need an account. A Plot Master creates a private link for a Mod from its page, saying who it is for if they like, and sends it on. Anyone with the link can read that Mod, download its file to read with no signal or to edit in Twine, play its [Dry Run](#playing-a-dry-run) and see its open Flags, and nothing else in the World. A link files nothing: an After-Action Report is filed by signing in with a role in the World (see [Filing an After-Action Report](#filing-an-after-action-report)), and the link's page says so without linking to sign-in. A report filed through a link before links stopped taking them still says which link it came through.
+A Mod Runner does not need an account. A Plot Master creates a private link for a Mod from its page, saying who it is for if they like, and sends it on. Anyone with the link can read that Mod, download its file to read with no signal or to edit in Twine, play its [Dry Run](#playing-a-dry-run) and see its open Flags, and nothing else in the World. A link files nothing: an After-Action Report is filed by signing in with a role in the World (see [Filing an After-Action Report](#filing-an-after-action-report)), and the link's page says so without linking to sign-in. A report that has a link it was filed through says which link that is.
 
 - **Shown once.** The link holds a long random secret, and only its hash is kept, so it is shown once, when it is created. A lost link is replaced by creating another.
 - **It works while the Mod can be run**: while it is approved or in progress, and until a Plot Master turns it off from the Mod's page. A finished or shelved Mod's links open nothing.

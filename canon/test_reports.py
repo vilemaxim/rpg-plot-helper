@@ -10,7 +10,7 @@ from accounts.models import User
 from canon.models import CanonChange, Document
 from canon.tests import CanonTest
 from organizations import tenancy
-from organizations.models import Membership
+from organizations.models import Membership, Role
 from organizations.tests import sign_in
 
 SCRIPT = {s.path.rsplit("/", 1)[-1].removesuffix(".md"): s for s in plotcanon.sample_script()}
@@ -515,22 +515,17 @@ class WhoMaySubmit(ReportTest):
         self.eve = sign_in("eve@example.com")
 
     def test_anyone_with_a_role_in_the_world_can(self):
-        self.give("sam@example.com", "mod-runner")
-
-        response = self.submit(VIGIL, by=self.sam)
-
-        self.assertContains(response, "Storm Moon Vigil at Storm Moon")
-        self.assertContains(response, "Submitted by sam@example.com")
-        self.assertEqual(self.sam.get(self.pending).status_code, 200)
-
-    def test_every_role_in_the_world_can(self):
-        for role, scripted in (("mod-writer", VIGIL), ("mod-runner", VIGIL_2)):
+        reports = dict(zip(Role, (VIGIL, STAIR, KEEPER), strict=True))
+        for role, scripted in reports.items():
             with self.subTest(role=role):
-                self.give("sam@example.com", role)
+                email = f"{role}@example.com"
+                browser = self.join(email)
+                self.give(email, role)
 
-                response = self.submit(scripted, by=self.sam)
+                response = self.submit(scripted, by=browser)
 
-                self.assertContains(response, "Submitted by sam@example.com")
+                self.assertContains(response, f"Submitted by {email}")
+                self.assertEqual(browser.get(self.pending).status_code, 200)
 
     def test_someone_with_no_role_in_the_world_cannot(self):
         for browser in (self.sam, self.eve):

@@ -61,9 +61,8 @@ class Document(models.Model):
                                      on_delete=models.SET_NULL, related_name="+")
     sent_back_at = models.DateTimeField(null=True, blank=True)
     sent_back_reason = models.TextField(blank=True)
-    # For an After-Action Report filed through a Mod Runner's private link,
-    # with no account, back when a link could file one: the link it came
-    # through. Kept for those reports; nothing sets it now.
+    # The private link an After-Action Report was filed through, with no
+    # account, for the reports that have one. Nothing sets it.
     filed_through = models.ForeignKey("ModLink", null=True, blank=True,
                                       on_delete=models.SET_NULL, related_name="reports")
 
@@ -258,8 +257,8 @@ class WriterHandle(models.Model):
 class ModLink(models.Model):
     """A private link to one Mod, for a Mod Runner with no account. Anyone with
     it can read the Mod, download it as its file or for Twine and play its Dry
-    Run, and nothing else in the World. It files nothing: an After-Action
-    Report needs an account with a role in the World.
+    Run, and nothing else in the World. Who may file an After-Action Report
+    on it is told under **Private link** in GLOSSARY.md.
 
     Only a hash of the link's secret is kept, so the secret cannot be read
     back out of the database: it is shown once, when the link is created. The

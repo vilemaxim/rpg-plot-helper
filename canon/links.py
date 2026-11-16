@@ -2,10 +2,9 @@
 
 A Plot Master creates a link for a Mod and sends it to whoever runs it. Anyone
 holding the link can read the Mod, download its file or for Twine, play its
-Dry Run and see its open Flags, and nothing else in the World. It files
-nothing: an After-Action Report needs an account with a role in the World. A
-link works while its Mod can be run (approved or in progress) and until a
-Plot Master turns it off.
+Dry Run and see its open Flags, and nothing else in the World (see **Private
+link** in GLOSSARY.md). A link works while its Mod can be run (approved or in
+progress) and until a Plot Master turns it off.
 
 The secret in a link is long and random, and only its hash is kept, so it is
 shown once, when it is created. Guessing a secret is not practical, and is
@@ -38,8 +37,8 @@ class LinkRefused(Exception):
 
 
 class TooMany(Exception):
-    """Refused for now: too many guesses from this address, or too many
-    reports through this link. `str()` says which."""
+    """Refused for now: too many guesses from this address. `str()` says
+    why."""
 
 
 def create(world, mod, label, user):

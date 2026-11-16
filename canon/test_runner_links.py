@@ -14,6 +14,13 @@ from organizations import tenancy
 VIGIL_MOD = "storm-moon-vigil"
 
 
+def part(response, pattern):
+    """The part of a page that `pattern` matches."""
+    found = re.search(pattern, response.content.decode(), re.DOTALL)
+    assert found, f"No {pattern} in the page"
+    return found.group(0)
+
+
 class LinkTest(ResolvingTest):
     """The stair report has been filed, so the warrant Mod has open Flags."""
 
@@ -64,13 +71,20 @@ class CreatingALink(LinkTest):
         self.assertEqual(self.link_rows(), [])
 
     def test_what_it_does_is_told_without_filing(self):
-        response = self.mira.post(self.links_page(VIGIL_MOD), {"label": "Rhea"}, follow=True)
+        created = self.mira.post(self.links_page(VIGIL_MOD), {"label": "Rhea"}, follow=True)
         mod_page = self.mira.get(self.mod_page(VIGIL_MOD))
 
-        for page in (response, mod_page):
-            self.assertContains(page, "Dry Run")
-            self.assertNotContains(page, "file a report")
-            self.assertNotContains(page, "file reports")
+        told = {
+            "the page a link is created on": part(created, r"<main.*?</main>"),
+            "the Mod's Private links": part(mod_page, r'<section class="mod-links">.*?</section>'),
+        }
+        for where, text in told.items():
+            with self.subTest(where=where):
+                self.assertIn("Dry Run", text)
+                self.assertNotIn("After-Action Report", text)
+                self.assertNotRegex(text, r"(?i)\bfil(e|es|ed|ing)\b")
+                self.assertNotRegex(text, r'(href|action)="[^"]*report')
+                self.assertNotIn("<textarea", text)
 
     def test_it_is_shown_once_and_kept_in_no_cookie(self):
         secret = self.create_link(VIGIL_MOD).removeprefix("/run/").removesuffix("/")
@@ -136,9 +150,8 @@ class UsingALink(LinkTest):
         self.assertEqual(self.client.get(f"{self.link}file/").status_code, 404)
 
 
-class AReportFiledThroughALinkBefore(LinkTest):
-    """Reports were once filed through a link, and keep the link they came
-    through."""
+class AReportFiledThroughALink(LinkTest):
+    """A report that has a link it was filed through keeps it."""
 
     def test_still_says_so(self):
         self.create_link(VIGIL_MOD)
@@ -204,6 +217,26 @@ class GuessingLinks(LinkTest):
 
         other = self.create_link(WARRANT)
         self.assertEqual(self.client.get(other).status_code, 200)
+
+    def test_another_address_under_a_link_is_not_found_and_sends_no_referrer(self):
+        response = self.client.get("/run/not-a-real-link-at-all/report/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response["Referrer-Policy"], "no-referrer")
+
+    def test_another_address_under_a_link_is_not_a_guess(self):
+        link = self.create_link(VIGIL_MOD)
+        for attempt in range(5):
+            self.client.get(f"/run/guess-{attempt}/report/")
+
+        self.assertEqual(self.client.get(link).status_code, 200)
+
+    def test_another_address_under_a_link_is_not_refused_for_guessing(self):
+        for attempt in range(3):
+            self.client.get(f"/run/guess-{attempt}/")
+        self.assertEqual(self.client.get("/run/guess-again/").status_code, 429)
+
+        self.assertEqual(self.client.get("/run/guess-again/report/").status_code, 404)
 
     def test_another_address_is_not_held_up(self):
         for attempt in range(3):
