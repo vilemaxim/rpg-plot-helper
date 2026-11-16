@@ -1,6 +1,7 @@
 """Writing a new Mod in an Interview, through web requests, with a fake
 provider in place of the real one: the tests never call an LLM."""
 
+import dataclasses
 import html
 import re
 from contextlib import contextmanager
@@ -53,9 +54,11 @@ class InterviewTest(SubmissionTest):
         self.interview = f"{self.first_world}interview/"
 
     @contextmanager
-    def provider(self, fake):
+    def provider(self, fake, max_fix_attempts=None):
+        settings = SETTINGS if max_fix_attempts is None else \
+            dataclasses.replace(SETTINGS, max_fix_attempts=max_fix_attempts)
         with mock.patch.object(config, "llm_for",
-                               lambda kind, loaded=None: config.Llm(SETTINGS, fake)):
+                               lambda kind, loaded=None: config.Llm(settings, fake)):
             yield fake
 
     def say(self, text, page=None, by=None):
@@ -103,8 +106,9 @@ class WritingAModInAnInterview(InterviewTest):
         self.assertEqual([(m.role, m.text) for m in messages], [("user", "Hello")])
 
     def test_a_refused_file_shows_the_intakes_errors_and_keeps_the_conversation(self):
+        # A file the person edited by hand, or submitted with its errors.
         broken = a_mod(**{"type: mod": "type: nonsense"})
-        with self.provider(FakeProvider(fenced(broken))):
+        with self.provider(FakeProvider(QUESTION)):
             page = self.say("Write it")
             response = self.sam.post(f"{self.interview}submit/",
                                      {"text": broken, "transcript": hidden(page, "transcript")})
@@ -224,3 +228,132 @@ class WhatTheLlmMayRead(InterviewTest):
             sam = get_user_model().objects.get(email="sam@example.com")
             self.assertEqual(set(access.readable_documents(world, sam)),
                              set(Document.objects.filter(world=world)))
+
+
+BROKEN = a_mod(**{"type: mod": "type: nonsense"})
+FIXING = "is fixing it"
+
+
+def file_in(page):
+    """The Mod file a page offers to submit, or None."""
+    found = re.search(r'<textarea name="text"[^>]*>\n?(.*?)</textarea>', page, re.S)
+    return html.unescape(found.group(1)) if found else None
+
+
+class FixingTheLlmsFile(InterviewTest):
+    def test_a_file_with_errors_goes_back_to_the_llm_and_the_person_sees_only_the_fixed_one(self):
+        with self.provider(FakeProvider(fenced(BROKEN), fenced(a_mod()))) as fake:
+            page = self.say("Write it")
+
+        self.assertEqual(len(fake.asked), 2)
+        sent = fake.asked[1][1]
+        self.assertEqual([m.role for m in sent], ["user", "assistant", "user"])
+        self.assertIn("nonsense", sent[2].text)
+        self.assertEqual(page.count(FIXING), 1)
+        self.assertEqual(file_in(page), a_mod())
+        self.assertNotIn("nonsense", page)
+
+    def test_after_max_fix_attempts_the_person_sees_the_file_and_its_errors(self):
+        for attempts in (3, 1, 0):
+            with self.subTest(attempts), \
+                    self.provider(FakeProvider(*[fenced(BROKEN)] * 5), attempts) as fake:
+                page = self.say("Write it")
+
+                self.assertEqual(len(fake.asked), 1 + attempts)
+                self.assertEqual(page.count(FIXING), attempts)
+                self.assertEqual(file_in(page), BROKEN)
+                self.assertIn("still has errors", page)
+                self.assertIn("nonsense", page)
+                self.assertIn("Submit the Mod", page)
+
+    def test_the_person_can_keep_talking_after_the_attempts_run_out(self):
+        with self.provider(FakeProvider(fenced(BROKEN), QUESTION), 0) as fake:
+            page = self.say("Write it")
+            self.say("Make it a nicer one", page)
+
+        self.assertEqual([m.role for m in fake.asked[1][1]], ["user", "assistant", "user"])
+        self.assertEqual(fake.asked[1][1][1].text, fenced(BROKEN))
+
+    def test_a_fixed_file_keeps_only_the_persons_answer_and_the_last_reply(self):
+        with self.provider(FakeProvider(fenced(BROKEN), fenced(a_mod()), QUESTION)) as fake:
+            page = self.say("Write it")
+            self.say("Thanks", page)
+
+        self.assertEqual([m.text for m in fake.asked[2][1]],
+                         ["Write it", fenced(a_mod()), "Thanks"])
+
+    def test_a_reply_with_no_file_is_not_checked(self):
+        with self.provider(FakeProvider(QUESTION)) as fake, \
+                mock.patch("canon.intake.check_new_mod") as check:
+            page = self.say("Hello")
+
+        check.assert_not_called()
+        self.assertEqual(len(fake.asked), 1)
+        self.assertNotIn(FIXING, page)
+
+
+LEFT_OUT = "the-wardens-ball"
+# The LLM names a Mod as an NPC: plotcanon's error names that Mod.
+NAMES_IT = a_mod(**{"npcs: [mirelle-vale, tobren-vale, ysolde-marr]":
+                    f"npcs: [mirelle-vale, tobren-vale, ysolde-marr, {LEFT_OUT}]"})
+
+
+class FixingWithinWhatThePersonMayRead(InterviewTest):
+    def test_an_error_naming_a_document_the_person_may_not_read_is_never_sent_or_shown(self):
+        everything = access.readable_documents
+
+        def without_one(world, person):
+            return everything(world, person).exclude(slug=LEFT_OUT)
+
+        with self.provider(FakeProvider(fenced(NAMES_IT), fenced(NAMES_IT)), 1) as fake, \
+                mock.patch.object(access, "readable_documents", without_one):
+            page = self.say("Write it")
+
+        fix = fake.asked[1][1][2].text
+        self.assertIn("points at a `mod`", fix)
+        self.assertNotIn(LEFT_OUT, fix)
+        self.assertIn("points at a `mod`", page)
+        self.assertNotIn(LEFT_OUT, page.replace(html.escape(NAMES_IT), ""))
+
+    def test_the_same_error_names_a_document_the_person_may_read(self):
+        with self.provider(FakeProvider(fenced(NAMES_IT), fenced(a_mod()))) as fake:
+            self.say("Write it")
+
+        self.assertIn(LEFT_OUT, fake.asked[1][1][2].text)
+
+    def test_a_finding_about_a_document_the_person_may_not_read_is_left_out(self):
+        from django.contrib.auth import get_user_model
+        from organizations.models import World
+
+        everything = access.readable_documents
+        findings = ("ERROR  inbox/new.md: `features.npcs: the-wardens-ball` points at a `mod`\n"
+                    "ERROR  mods/shelved/the-wardens-ball.md: `requires` does not resolve\n"
+                    "ERROR  canon/npcs/clerk-pell.md: something about clerk-pell")
+        with self.in_world(), mock.patch.object(
+                access, "readable_documents",
+                lambda world, person: everything(world, person).exclude(slug=LEFT_OUT)):
+            world = World.objects.get(pk=self.first_world.rstrip("/").rsplit("/", 1)[1])
+            sam = get_user_model().objects.get(email="sam@example.com")
+            shown = access.readable_findings(world, sam, findings)
+
+        self.assertEqual(shown.splitlines(), [
+            "ERROR  inbox/new.md: `features.npcs: another document` points at a `mod`",
+            "ERROR  canon/npcs/clerk-pell.md: something about clerk-pell",
+            access.NOT_SHOWN])
+
+
+class HoldingTheFileBack(InterviewTest):
+    def test_other_code_blocks_in_a_reply_are_shown_as_they_come(self):
+        reply = "Like this:\n\n```\nkey: value\n```\n\nAnd so on."
+        with self.provider(FakeProvider(reply)):
+            page = self.say("Hello")
+
+        self.assertIn(html.escape(reply), page)
+
+    def test_the_file_in_a_reply_is_replaced_by_a_note_in_the_reply(self):
+        with self.provider(FakeProvider(fenced(a_mod()))):
+            page = self.say("Write it")
+
+        self.assertIn("Here it is.\n\n[The Mod file is shown below", page)
+        self.assertIn("checked.]\n\nTell me what to change.", page)
+        self.assertEqual(page.count("id: the-lamplighters-debt"), 1)

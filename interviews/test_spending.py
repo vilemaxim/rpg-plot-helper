@@ -14,7 +14,8 @@ from interviews import config, spending
 from interviews.models import TokenUsage
 from interviews.providers import Usage
 from canon.test_mod_submissions import NEW, a_mod
-from interviews.test_interviews import QUESTION, FakeProvider, InterviewTest, hidden
+from interviews.test_interviews import (BROKEN, QUESTION, FakeProvider, InterviewTest, fenced,
+                                        hidden)
 from organizations import tenancy
 from organizations.models import Membership, World
 from organizations.tests import sign_in
@@ -155,6 +156,17 @@ class FixAttempts(SpendingTest):
             self.say("Hello")
 
         self.assertEqual(len(fake.asked), 1)
+
+    def test_a_turn_with_a_fix_attempt_records_both_calls_and_counts_one_turn(self):
+        with self.limited(turns_per_person_per_day=2), \
+                self.provider(FakeProvider(fenced(BROKEN), fenced(a_mod()), QUESTION)) as fake, \
+                self.on(2026, 11, 3, 9):
+            page = self.say("Write it")
+            self.say("Thanks", page)
+
+        self.assertEqual(len(fake.asked), 3)
+        with tenancy.acting_as(organization=self.organization()):
+            self.assertEqual(TokenUsage.objects.get().tokens, 3 * Usage(100, 20).total)
 
 
 class KeptPerOrganization(SpendingTest):

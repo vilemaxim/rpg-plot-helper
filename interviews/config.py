@@ -20,6 +20,7 @@ naming the key (ADR-0008).
     model = "claude-opus-5-5"
     effort = "high"                 # the provider's own values
     max_tokens = 32000
+    max_fix_attempts = 3            # times the LLM is sent its file's errors
 
     [limits]                        # either may be left out: no limit
     turns_per_person_per_day = 40
@@ -46,6 +47,7 @@ from django.conf import settings
 from .providers import ADAPTERS
 
 DEFAULT_MAX_TOKENS = 32000
+DEFAULT_MAX_FIX_ATTEMPTS = 3
 
 # The kinds of Interview plotcanon has instructions for
 # (`plotcanon.interview_instructions`), which does not export the list.
@@ -77,6 +79,9 @@ class InterviewSettings:
     model: str
     effort: str | None = None
     max_tokens: int = DEFAULT_MAX_TOKENS
+    # How many times a Mod file with errors goes back to the LLM to fix
+    # before the person is shown it with its errors (#45).
+    max_fix_attempts: int = DEFAULT_MAX_FIX_ATTEMPTS
 
 
 @dataclass(frozen=True)
@@ -116,10 +121,16 @@ def _positive(value):
     return value
 
 
+def _not_negative(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("must be a whole number, 0 or more")
+    return value
+
+
 # Each key a table may hold, with the function that checks its value.
 PROVIDER_KEYS = {"kind": _text, "key_env": _text, "base_url": _text}
 INTERVIEW_KEYS = {"provider": _text, "model": _text, "effort": _text,
-                  "max_tokens": _positive}
+                  "max_tokens": _positive, "max_fix_attempts": _not_negative}
 LIMIT_KEYS = {"turns_per_person_per_day": _positive,
               "tokens_per_organization_per_month": _positive}
 REQUIRED_INTERVIEW_KEYS = ("provider", "model")

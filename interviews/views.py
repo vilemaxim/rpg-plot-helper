@@ -34,7 +34,7 @@ from canon.storing import one_to_a_line
 from canon.views import documents_of, is_draft, may_revise, mod_or_404, to_saved_mod
 from organizations.views import may_write_mods, world_or_404
 
-from . import config, spending
+from . import config, fixing, spending
 from .conversation import Tampered, mod_file_in, opened, sealed
 from .providers import Ended, Message, ProviderError, Text
 
@@ -108,6 +108,8 @@ def interview(request, world_id):
     response = StreamingHttpResponse(
         streamed(head, foot, what_follows, llm.provider, system_prompt(world, request.user),
                  turns, said, lambda messages: sealed(messages, world, request.user),
+                 check=lambda text: fixing.problems(world, request.user, text),
+                 max_fix_attempts=llm.settings.max_fix_attempts,
                  spent=lambda usage: spending.record(world.organization_id, usage)),
         content_type="text/html; charset=utf-8")
     # Ask proxies such as nginx to pass each piece on as it comes.
@@ -115,26 +117,36 @@ def interview(request, world_id):
     return response
 
 
-def streamed(head, foot, what_follows, provider, system, turns, said, seal,
-             spent=lambda usage: None):
+def streamed(head, foot, what_follows, provider, system, turns, said, seal, check=None,
+             max_fix_attempts=0, spent=lambda usage: None):
     """The page for one turn, piece by piece: everything up to the reply, the
     reply as the LLM writes it, then what follows it. A turn that fails is not
     kept: the page carries the conversation as it was before it, with the
-    person's answer ready to send again. `spent` is given the tokens the turn
-    used, when the provider reports them, whether or not it is kept."""
+    person's answer ready to send again.
+
+    A Mod file in the reply is held back and `check`ed (`fixing`): if it has
+    problems, they go back to the LLM, up to `max_fix_attempts` times, and its
+    next reply follows a note saying so. The conversation kept is the
+    person's answer and the last reply; the fixing in between is the app's.
+
+    `spent` is given the tokens each LLM call used, the person's turn and
+    each fix attempt alike, when the provider reports them, whether or not
+    the turn is kept."""
     yield head
-    pieces, ended = [], None
     asked = [*turns, Message("user", said)]
+    conversation, fixes = asked, 0
     try:
-        for event in provider.stream_turn(system, asked):
-            if isinstance(event, Text):
-                pieces.append(event.text)
-                yield escape(event.text)
-            elif isinstance(event, Ended):
-                ended = event
-                spent(event.usage)
-        if not "".join(pieces).strip() or ended is None:
-            raise ProviderError("The LLM gave no answer.")
+        while True:
+            shown = fixing.FilesHeldBack()
+            reply, ended = yield from one_turn(provider, system, conversation, shown, spent)
+            file = mod_file_in(reply)
+            problems = check(file) if file and check else None
+            if problems is None or fixes == max_fix_attempts:
+                break
+            fixes += 1
+            yield render_to_string("interviews/fixing.html")
+            conversation = [*conversation, Message("assistant", reply),
+                            Message("user", fixing.fix_request(problems))]
     except ProviderError as error:
         yield what_follows(failed=str(error), said=said, transcript=seal(turns))
     except Exception:  # noqa: BLE001 - the page has started; say so rather than stop dead
@@ -142,10 +154,26 @@ def streamed(head, foot, what_follows, provider, system, turns, said, seal,
         yield what_follows(failed="Something went wrong with that turn.", said=said,
                            transcript=seal(turns))
     else:
-        reply = "".join(pieces)
-        yield what_follows(file=mod_file_in(reply), cut_off=ended.cut_off,
+        yield what_follows(file=file, problems=problems, fixes=fixes, cut_off=ended.cut_off,
                            transcript=seal([*asked, Message("assistant", reply)]))
     yield foot
+
+
+def one_turn(provider, system, messages, shown, spent=lambda usage: None):
+    """Stream one reply from the LLM, as `shown` lets the person read it.
+    Returns the whole reply and its `Ended`."""
+    pieces, ended = [], None
+    for event in provider.stream_turn(system, messages):
+        if isinstance(event, Text):
+            pieces.append(event.text)
+            yield escape(shown.feed(event.text))
+        elif isinstance(event, Ended):
+            ended = event
+            spent(event.usage)
+    yield escape(shown.end())
+    if not "".join(pieces).strip() or ended is None:
+        raise ProviderError("The LLM gave no answer.")
+    return "".join(pieces), ended
 
 
 @never_cache

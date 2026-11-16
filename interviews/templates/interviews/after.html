@@ -20,6 +20,12 @@
     {% endif %}
   </div>
 {% endif %}
+{% if file and problems %}
+  <div class="refused">
+    <p><strong>This file still has errors.</strong>{% if fixes %} The LLM tried to fix them {{ fixes }} time{{ fixes|pluralize }}.{% endif %} Tell it what to do below, edit the file yourself, or submit it anyway: it is not saved until it has none.</p>
+    <pre>{{ problems }}</pre>
+  </div>
+{% endif %}
 {% if file %}
   <section>
     <h2>The Mod file</h2>
