@@ -242,6 +242,11 @@ def revise_interview(request, world_id, slug):
                       {**base, "turns": turns, "form": form,
                        "transcript": request.POST.get("transcript", "")})
     said = form.cleaned_data["said"]
+    paused = spending.turn_refused(request.user, world.organization_id)
+    if paused:
+        return render(request, "interviews/interview.html",
+                      {**base, "turns": turns, "form": form, "said": said, "paused": paused,
+                       "transcript": request.POST.get("transcript", "")})
     page = render_to_string("interviews/interview.html",
                             {**base, "turns": [*turns, Message("user", said)],
                              "streaming": True}, request)
@@ -255,7 +260,8 @@ def revise_interview(request, world_id, slug):
     response = StreamingHttpResponse(
         streamed(head, foot, what_follows, llm.provider,
                  revise_system_prompt(world, mod, request.user), turns, said,
-                 lambda kept: sealed(kept, world, request.user)),
+                 lambda kept: sealed(kept, world, request.user),
+                 spent=lambda usage: spending.record(world.organization_id, usage)),
         content_type="text/html; charset=utf-8")
     response["X-Accel-Buffering"] = "no"
     return response

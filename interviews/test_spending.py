@@ -13,6 +13,7 @@ from accounts.models import User
 from interviews import config, spending
 from interviews.models import TokenUsage
 from interviews.providers import Usage
+from canon.test_mod_submissions import NEW, a_mod
 from interviews.test_interviews import QUESTION, FakeProvider, InterviewTest, hidden
 from organizations import tenancy
 from organizations.models import Membership, World
@@ -194,3 +195,22 @@ class RecordingOutsideARequestsTransaction(TransactionTestCase):
 
         with tenancy.acting_as(organization=organization):
             self.assertEqual(TokenUsage.objects.get().tokens, 103)
+
+
+class RevisingADraft(SpendingTest):
+    """A revise Interview spends from the same limits as a new-Mod one."""
+
+    def test_its_turns_count_and_a_paused_one_offers_its_own_paste_path(self):
+        self.submit_mod(a_mod())
+        revise = f"{self.mod_page(NEW)}interview/"
+        with self.limited(turns_per_person_per_day=1, tokens_per_organization_per_month=100), \
+                self.provider(FakeProvider(QUESTION)) as fake, self.on(2026, 11, 3, 9):
+            first = self.sam.post(revise, {"said": "Hello", "transcript": ""})
+            b"".join(first.streaming_content)
+            refused = self.sam.post(revise, {"said": "More", "transcript": ""})
+            self.assertFalse(refused.streaming)
+
+        self.assertEqual(len(fake.asked), 1)
+        self.assertContains(refused, f'href="{self.mod_page(NEW)}revise/"')
+        with tenancy.acting_as(organization=self.organization()):
+            self.assertEqual(TokenUsage.objects.get().tokens, 120)
