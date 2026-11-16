@@ -91,6 +91,18 @@ class Interviewing:
         it (`fixing.problems`)."""
         return fixing.problems(self.world, person, text, self.mod)
 
+    @property
+    def opener(self):
+        """The first message, sent on the person's behalf, that a revise
+        Interview opens with, so the LLM speaks first; None for a new
+        Mod, where the person does."""
+        return None if self.mod is None else plotcanon.interview_revise_opener()
+
+    def shown(self, turns):
+        """The turns as the person reads them: without the opener, which is
+        not theirs."""
+        return turns[1:] if self.opener and turns else turns
+
     def take_in(self, text, person):
         """Submit the file through the intake a pasted one goes through."""
         if self.mod is None:
@@ -198,30 +210,37 @@ def a_turn(request, interviewing):
         replies = [turn.text for turn in turns if turn.role == "assistant"]
         return render(request, "interviews/interview.html",
                       {**base, "form": AnswerForm(), "transcript": transcript,
-                       "turns": turns, "file": mod_file_in(replies[-1]) if replies else None})
+                       "turns": interviewing.shown(turns),
+                       "file": mod_file_in(replies[-1]) if replies else None})
     transcript = request.POST.get("transcript", "")
     form = AnswerForm(request.POST)
     try:
         turns = opened(transcript, world, person, mod)
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
-    if not form.is_valid():
+    # A revise Interview not yet begun begins with the opener, whatever was sent.
+    opening = interviewing.opener is not None and not turns
+    if not opening and not form.is_valid():
         return render(request, "interviews/interview.html",
-                      {**base, "turns": turns, "form": form, "transcript": transcript})
-    said = form.cleaned_data["said"]
+                      {**base, "turns": interviewing.shown(turns), "form": form,
+                       "transcript": transcript})
+    said = interviewing.opener if opening else form.cleaned_data["said"]
     paused = spending.turn_refused(person, world.organization_id)
     if paused:
         return render(request, "interviews/interview.html",
-                      {**base, "turns": turns, "form": form, "said": said, "paused": paused,
+                      {**base, "turns": interviewing.shown(turns), "form": form,
+                       "said": "" if opening else said, "paused": paused,
                        "transcript": transcript})
     page = render_to_string("interviews/interview.html",
-                            {**base, "turns": [*turns, Message("user", said)],
+                            {**base, "turns": interviewing.shown([*turns, Message("user", said)]),
                              "streaming": True}, request)
     head, rest = page.split(REPLY, 1)
     middle, foot = rest.split(AFTER, 1)
     after = {**base, "csrf_token": get_token(request)}
 
     def what_follows(**context):
+        if opening:
+            context["said"] = ""  # the opener is not the person's to send again
         return middle + render_to_string("interviews/after.html", {**after, **context})
 
     response = StreamingHttpResponse(
@@ -315,7 +334,8 @@ def submitted(request, interviewing):
     except Tampered:
         return HttpResponseBadRequest("That Interview cannot be carried on. Start a new one.")
     form = ModForm(request.POST)
-    context = {**interviewing.context(), "turns": turns, "transcript": transcript,
+    context = {**interviewing.context(), "turns": interviewing.shown(turns),
+               "transcript": transcript,
                "form": AnswerForm(), "file": request.POST.get("text", "")}
     if not form.is_valid():
         return render(request, "interviews/interview.html",

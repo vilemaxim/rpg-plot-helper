@@ -243,7 +243,7 @@ class ARevisingInterview(ReviseInterviewTest):
 
     def test_it_is_kept_as_a_revise_interview_of_its_draft_and_resumes(self):
         with self.provider(FakeProvider(QUESTION)):
-            self.say_about(WARRANT, "Hello")
+            self.begin(WARRANT)
             reloaded = self.mira.get(self.revise_interview(WARRANT)).content.decode()
             other = self.mira.get(self.revise_interview(DAUGHTER)).content.decode()
 
@@ -256,7 +256,7 @@ class ARevisingInterview(ReviseInterviewTest):
 
     def test_its_transcript_does_not_carry_over_to_a_new_mod_interview(self):
         with self.provider(FakeProvider(QUESTION)):
-            page = self.say_about(WARRANT, "Hello")
+            page = self.begin(WARRANT)
             response = self.mira.post(self.interview, {"said": "More",
                                                        "transcript": hidden(page, "transcript")})
 
@@ -266,7 +266,7 @@ class ARevisingInterview(ReviseInterviewTest):
         draft = self.stored(WARRANT).text
         revised = draft.replace("duration_est: 90", "duration_est: 120")
         with self.provider(FakeProvider(fenced(revised))):
-            page = self.say_about(WARRANT, "Make it longer")
+            page = self.begin(WARRANT)
             self.mira.post(f"{self.revise_interview(WARRANT)}submit/",
                            {"text": revised, "transcript": hidden(page, "transcript")})
 
@@ -276,7 +276,7 @@ class ARevisingInterview(ReviseInterviewTest):
 
     def test_it_can_be_started_over(self):
         with self.provider(FakeProvider(QUESTION)):
-            page = self.say_about(WARRANT, "Hello")
+            page = self.begin(WARRANT)
             response = self.mira.post(f"{self.revise_interview(WARRANT)}start-over/",
                                       {"transcript": hidden(page, "transcript")})
 

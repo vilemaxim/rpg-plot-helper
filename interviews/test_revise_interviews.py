@@ -9,11 +9,14 @@ from unittest import mock
 from django.conf import settings
 from django.test import SimpleTestCase
 
+import plotcanon
+
 from canon import access
 from canon.test_approving import DAUGHTER
 from canon.test_mod_submissions import NEW, a_mod
 from canon.test_resolving import WARRANT
 from interviews import config
+from interviews.providers import Message, ProviderError
 from interviews.test_interviews import (FIXING, QUESTION, SETTINGS, FakeProvider,
                                         InterviewTest, fenced, file_in, hidden)
 
@@ -30,6 +33,12 @@ class ReviseInterviewTest(InterviewTest):
         return mock.patch.object(access, "readable_documents",
                                  lambda world, person: narrowed(everything(world, person)))
 
+    def begin(self, mod, by=None):
+        """Begin the revise Interview of `mod`: the LLM speaks first."""
+        response = (by or self.mira).post(self.revise_interview(mod), {"transcript": ""})
+        self.assertEqual(response.status_code, 200)
+        return b"".join(response.streaming_content).decode()
+
     def say_about(self, mod, text, page=None, by=None):
         """Send the person's answer in the revise Interview of `mod`, and read
         the whole streamed page back."""
@@ -45,7 +54,7 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         self.send_back(WARRANT, reason=REASON)
         draft = self.stored(WARRANT).text
         with self.provider(FakeProvider(QUESTION)) as fake:
-            self.say_about(WARRANT, "Hello")
+            self.begin(WARRANT)
 
         system = fake.asked[0][0]
         self.assertIn(draft, system)
@@ -55,7 +64,7 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         flags = self.flags_on(DAUGHTER)
         self.assertTrue(flags)
         with self.provider(FakeProvider(QUESTION)) as fake:
-            self.say_about(DAUGHTER, "Hello")
+            self.begin(DAUGHTER)
 
         system = fake.asked[0][0]
         for flag in flags:
@@ -69,7 +78,7 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         self.send_back(WARRANT, reason=REASON)
         with self.provider(FakeProvider(QUESTION)) as fake, self.reading_all_but(
                 lambda documents: documents.exclude(slug=hidden.change.entity)):
-            self.say_about(WARRANT, "Hello")
+            self.begin(WARRANT)
 
         system = fake.asked[0][0]
         self.assertNotIn(f"On `{hidden.change.entity}`", system)
@@ -81,7 +90,7 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         report = flags[0].change.report_id
         with self.provider(FakeProvider(QUESTION)) as fake, self.reading_all_but(
                 lambda documents: documents.exclude(pk=report)):
-            self.say_about(DAUGHTER, "Hello")
+            self.begin(DAUGHTER)
 
         system = fake.asked[0][0]
         for flag in flags:
@@ -105,7 +114,7 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         self.send_back(WARRANT, reason=REASON)
         self.assertFalse(self.flags_on(WARRANT))
         with self.provider(FakeProvider(QUESTION)) as fake:
-            self.say_about(WARRANT, "Hello")
+            self.begin(WARRANT)
 
         system = fake.asked[0][0]
         for flag in flags:
@@ -119,7 +128,7 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         self.dismiss(dismissed)
         self.send_back(WARRANT, reason=REASON)
         with self.provider(FakeProvider(QUESTION)) as fake:
-            self.say_about(WARRANT, "Hello")
+            self.begin(WARRANT)
 
         system = fake.asked[0][0]
         self.assertNotIn(f"On `{dismissed.change.entity}`", system)
@@ -131,7 +140,7 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         draft = self.stored(WARRANT).text
         revised = draft.replace("duration_est: 90", "duration_est: 120")
         with self.provider(FakeProvider(fenced(revised))):
-            page = self.say_about(WARRANT, "Make it longer")
+            page = self.begin(WARRANT)
             file = re.search(r'<textarea name="text"[^>]*>\n?(.*?)</textarea>', page, re.S)
             self.assertEqual(html.unescape(file.group(1)), revised)
             response = self.mira.post(f"{self.revise_interview(WARRANT)}submit/",
@@ -148,8 +157,8 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         self.submit_mod(a_mod())
         other = a_mod(slug="another-mod")
         # Submitted with its errors, once the fix attempts are used up.
-        with self.provider(FakeProvider(fenced(other)), max_fix_attempts=0):
-            page = self.say_about(NEW, "Write it", by=self.sam)
+        with self.provider(FakeProvider(QUESTION, fenced(other)), max_fix_attempts=0):
+            page = self.say_about(NEW, "Write it", self.begin(NEW, by=self.sam), by=self.sam)
             response = self.sam.post(f"{self.revise_interview(NEW)}submit/",
                                      {"text": other, "transcript": hidden(page, "transcript")})
 
@@ -171,7 +180,7 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         self.submit_mod(a_mod())
         with self.provider(FakeProvider(QUESTION)):
             start = self.sam.get(self.revise_interview(NEW))
-            page = self.say_about(NEW, "Hello", by=self.sam)
+            page = self.begin(NEW, by=self.sam)
 
         self.assertContains(start, f'href="{self.mod_page(NEW)}revise/"')
         self.assertIn(f'href="{self.mod_page(NEW)}revise/"', page)
@@ -184,6 +193,65 @@ class RevisingADraftInAnInterview(ReviseInterviewTest):
         self.assertEqual(fake.asked, [])
 
 
+OPENING = "The Plot Master sent this back because the smuggler is dead."
+
+
+class TheLlmSpeaksFirst(ReviseInterviewTest):
+    """A revise Interview opens with plotcanon's first message, sent on the
+    person's behalf, so the LLM starts on the send-back reason and the Flags.
+    The person never sees that message as theirs."""
+
+    def setUp(self):
+        super().setUp()
+        self.send_back(WARRANT, reason=REASON)
+
+    def test_a_new_one_offers_to_begin_instead_of_asking_for_an_answer(self):
+        with self.provider(FakeProvider()) as fake:
+            page = self.mira.get(self.revise_interview(WARRANT))
+
+        self.assertContains(page, "Begin")
+        self.assertNotContains(page, 'name="said"')
+        self.assertEqual(fake.asked, [])
+
+    def test_beginning_sends_plotcanons_opener_and_streams_the_llms_first_turn(self):
+        with self.provider(FakeProvider(OPENING)) as fake:
+            page = self.begin(WARRANT)
+
+        self.assertEqual(fake.asked[0][1], [Message("user", plotcanon.interview_revise_opener())])
+        self.assertIn(OPENING, page)
+        self.assertIn('name="said"', page)
+
+    def test_the_opener_is_never_shown_as_the_persons(self):
+        opener = html.escape(plotcanon.interview_revise_opener())
+        with self.provider(FakeProvider(OPENING, QUESTION)) as fake:
+            first = self.begin(WARRANT)
+            later = self.say_about(WARRANT, "Rewrite it around the partner", first)
+            again = self.mira.get(self.revise_interview(WARRANT)).content.decode()
+
+        for page in (first, later, again):
+            self.assertNotIn(opener[:40], page)
+            self.assertEqual(re.search(r'class="turn (\w+)"', page).group(1), "llm")
+        self.assertIn(OPENING, again)
+        self.assertEqual([m.text for m in fake.asked[1][1]],
+                         [plotcanon.interview_revise_opener(), OPENING,
+                          "Rewrite it around the partner"])
+
+    def test_an_answer_sent_before_it_has_begun_is_not_the_first_message(self):
+        with self.provider(FakeProvider(OPENING)) as fake:
+            self.say_about(WARRANT, "Hello")
+
+        self.assertEqual(fake.asked[0][1], [Message("user", plotcanon.interview_revise_opener())])
+
+    def test_a_failed_opening_offers_to_begin_again(self):
+        with self.provider(FakeProvider(ProviderError("The LLM is busy."))):
+            page = self.begin(WARRANT)
+
+        self.assertIn("The LLM is busy.", page)
+        self.assertIn("Begin", page)
+        self.assertNotIn('name="said"', page)
+        self.assertEqual(hidden(page, "transcript"), "")
+
+
 class FixingTheLlmsRevision(ReviseInterviewTest):
     def setUp(self):
         super().setUp()
@@ -194,7 +262,7 @@ class FixingTheLlmsRevision(ReviseInterviewTest):
 
     def test_a_revision_with_errors_goes_back_to_the_llm_and_the_person_sees_the_fixed_one(self):
         with self.provider(FakeProvider(fenced(self.broken), fenced(self.revised))) as fake:
-            page = self.say_about(WARRANT, "Make it longer")
+            page = self.begin(WARRANT)
 
         self.assertEqual(len(fake.asked), 2)
         sent = fake.asked[1][1]
@@ -207,7 +275,7 @@ class FixingTheLlmsRevision(ReviseInterviewTest):
     def test_it_is_checked_as_a_revision_of_its_draft_so_another_id_goes_back(self):
         other = self.revised.replace(f"id: {WARRANT}", "id: another-mod")
         with self.provider(FakeProvider(fenced(other), fenced(self.revised))) as fake:
-            page = self.say_about(WARRANT, "Make it longer")
+            page = self.begin(WARRANT)
 
         self.assertEqual(len(fake.asked), 2)
         self.assertIn("keeps its Mod's id", fake.asked[1][1][2].text)
@@ -215,7 +283,7 @@ class FixingTheLlmsRevision(ReviseInterviewTest):
 
     def test_a_good_revision_is_not_sent_back(self):
         with self.provider(FakeProvider(fenced(self.revised))) as fake:
-            page = self.say_about(WARRANT, "Make it longer")
+            page = self.begin(WARRANT)
 
         self.assertEqual(len(fake.asked), 1)
         self.assertNotIn(FIXING, page)
@@ -223,7 +291,7 @@ class FixingTheLlmsRevision(ReviseInterviewTest):
 
     def test_after_max_fix_attempts_the_person_sees_the_revision_and_its_errors(self):
         with self.provider(FakeProvider(*[fenced(self.broken)] * 3), 1) as fake:
-            page = self.say_about(WARRANT, "Make it longer")
+            page = self.begin(WARRANT)
 
         self.assertEqual(len(fake.asked), 2)
         self.assertEqual(file_in(page), self.broken)
@@ -267,8 +335,8 @@ class WhoMayReviseInAnInterview(ReviseInterviewTest):
 
     def test_its_mod_writer_and_a_plot_master_may(self):
         with self.provider(FakeProvider(QUESTION, QUESTION)):
-            self.assertIn(html.escape(QUESTION), self.say_about(NEW, "Hello", by=self.sam))
-            self.assertIn(html.escape(QUESTION), self.say_about(NEW, "Hello", by=self.mira))
+            self.assertIn(html.escape(QUESTION), self.begin(NEW, by=self.sam))
+            self.assertIn(html.escape(QUESTION), self.begin(NEW, by=self.mira))
 
 
 class WhenReviseInterviewsAreOff(ReviseInterviewTest):

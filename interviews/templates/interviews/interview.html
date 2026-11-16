@@ -13,7 +13,7 @@
   <h1>{% if mod %}Revise {{ mod.name }}{% else %}Write a Mod{% endif %}</h1>
   {% if mod and not turns %}
     <p>An LLM works through this draft with you, starting from why it was sent back and any open Flags on it, and writes the revised file. It knows the draft and what you may read in {{ world.name }}. When it gives you the file, read it, then submit it: it replaces the draft, which keeps its id and its history, and a Plot Master approves it before it can be run. Nothing is submitted until you press Submit.</p>
-    <p>Say hello to begin. The conversation is kept for you alone, so you can leave and come back to it, until you submit the revised file or 30 days pass without a word.</p>
+    <p>Press Begin, and the LLM starts with why the draft was sent back and each Flag on it. The conversation is kept for you alone, so you can leave and come back to it, until you submit the revised file or 30 days pass without a word.</p>
   {% elif not turns %}
     <p>An LLM asks you about the Mod you have in mind and writes its file with you. It knows what you may read in {{ world.name }}. When it gives you the file, read it, then submit it: it is checked against {{ world.name }} and saved as a draft, which a Plot Master approves before it can be run. Nothing is submitted until you press Submit.</p>
     <p>Start by telling it about your idea, or just say hello. The conversation is kept for you alone, so you can leave and come back to it, until you submit the Mod or 30 days pass without a word.</p>
