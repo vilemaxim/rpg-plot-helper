@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Write a Mod — {{ world.name }} — RPG Plot Helper{% endblock %}
+{% block title %}{% if mod %}Revise {{ mod.name }}{% else %}Write a Mod{% endif %} — {{ world.name }} — RPG Plot Helper{% endblock %}
 
 {% block content %}
   <style>
@@ -10,8 +10,11 @@
     .turn .said { white-space: pre-wrap; overflow-wrap: anywhere; }
   </style>
   <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
-  <h1>Write a Mod</h1>
-  {% if not turns %}
+  <h1>{% if mod %}Revise {{ mod.name }}{% else %}Write a Mod{% endif %}</h1>
+  {% if mod and not turns %}
+    <p>An LLM works through this draft with you, starting from why it was sent back and any open Flags on it, and writes the revised file. It knows the draft and what you may read in {{ world.name }}. When it gives you the file, read it, then submit it: it replaces the draft, which keeps its id and its history, and a Plot Master approves it before it can be run. Nothing is submitted until you press Submit.</p>
+    <p>Say hello to begin. This conversation lasts as long as this page: leaving it starts over.</p>
+  {% elif not turns %}
     <p>An LLM asks you about the Mod you have in mind and writes its file with you. It knows what you may read in {{ world.name }}. When it gives you the file, read it, then submit it: it is checked against {{ world.name }} and saved as a draft, which a Plot Master approves before it can be run. Nothing is submitted until you press Submit.</p>
     <p>Start by telling it about your idea, or just say hello. This conversation lasts as long as this page: leaving it starts over.</p>
   {% endif %}

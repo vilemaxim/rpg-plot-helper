@@ -24,8 +24,8 @@
 {% if file %}
   <section>
     <h2>The Mod file</h2>
-    <p>Read it through. Submitting it checks it against {{ world.name }} and saves it as a draft for a Plot Master to approve. To change it, tell the LLM below, or edit it here.</p>
-    <form method="post" action="{% url 'interview-submit' world.pk %}">
+    <p>Read it through. Submitting it checks it against {{ world.name }} and {% if mod %}replaces the draft, which keeps its history,{% else %}saves it{% endif %} as a draft for a Plot Master to approve. To change it, tell the LLM below, or edit it here.</p>
+    <form method="post" action="{% if mod %}{% url 'revise-interview-submit' world.pk mod.slug %}{% else %}{% url 'interview-submit' world.pk %}{% endif %}">
       {% csrf_token %}
       <input type="hidden" name="transcript" value="{{ transcript }}">
       <label for="mod-file">The Mod file</label>
@@ -35,7 +35,7 @@
     </form>
   </section>
 {% endif %}
-<form method="post" action="{% url 'interview' world.pk %}">
+<form method="post" action="{% if mod %}{% url 'revise-interview' world.pk mod.slug %}{% else %}{% url 'interview' world.pk %}{% endif %}">
   {% csrf_token %}
   <input type="hidden" name="transcript" value="{{ transcript }}">
   <div class="field">
@@ -45,4 +45,8 @@
   </div>
   <button type="submit">Send</button>
 </form>
-<p>Rather paste or upload a Mod file your own LLM wrote? <a href="{% url 'canon-submit-mod' world.pk %}">Paste or upload it instead</a>.</p>
+{% if mod %}
+  <p>Rather paste or upload a revised file your own LLM wrote? <a href="{% url 'canon-revise' world.pk mod.slug %}">Paste or upload it instead</a>.</p>
+{% else %}
+  <p>Rather paste or upload a Mod file your own LLM wrote? <a href="{% url 'canon-submit-mod' world.pk %}">Paste or upload it instead</a>.</p>
+{% endif %}
