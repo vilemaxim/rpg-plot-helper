@@ -30,10 +30,11 @@ from functools import cached_property
 import plotcanon
 from django.db.models import BooleanField, Case, Q, Value, When
 
-from organizations.models import Membership, Role, WorldRole
+from organizations.models import Role, WorldRole
 
 from . import assignments, grants, writers
 from .models import Document
+from .roles import plot_team
 from .storing import settings_file_of
 
 # What anyone with a role in a World reads, without its GM Notes.
@@ -53,9 +54,7 @@ def documents_in(world):
 def is_plot_team(world, person):
     """Whether this person reads everything in the World: they are one of its
     Plot Masters, or an Admin of its Organization."""
-    return (WorldRole.objects.filter(world=world, user=person, role=Role.PLOT_MASTER).exists()
-            or Membership.objects.filter(organization=world.organization, user=person,
-                                         is_admin=True).exists())
+    return plot_team(world).filter(pk=person.pk).exists()
 
 
 def granted_in_full(world, person):

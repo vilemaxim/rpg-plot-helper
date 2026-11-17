@@ -20,11 +20,11 @@ from functools import cached_property
 from django.db import transaction
 from django.utils import timezone
 
-from organizations.models import Membership, Role, World, WorldRole
+from organizations.models import Role, World
 
 from . import assignments
 from .models import Document, Grant
-from .roles import chosen, people_holding
+from .roles import chosen, people_holding, plot_team
 
 
 class GrantRefused(Exception):
@@ -47,12 +47,8 @@ def may_be_granted(world):
     """The people who can be given a Grant in this World, by email: those
     holding the Mod Writer or Mod Runner role, but not the plot team (its
     Plot Masters and its Organization's Admins)."""
-    plot_masters = WorldRole.objects.filter(world=world, role=Role.PLOT_MASTER) \
-        .values("user_id")
-    admins = Membership.objects.filter(organization=world.organization, is_admin=True) \
-        .values("user_id")
     return people_holding(world, Role.MOD_WRITER, Role.MOD_RUNNER) \
-        .exclude(pk__in=plot_masters).exclude(pk__in=admins)
+        .exclude(pk__in=plot_team(world).values("pk"))
 
 
 class Liveness:
