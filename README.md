@@ -59,7 +59,7 @@ A World's Canon arrives as files. A Plot Master of a World uploads one `.zip` of
 What each person may read is narrowed per document ([ADR-0010](./docs/adr/0010-reading-is-narrowed-per-document.md)), and decided in one place, `canon/access.py`, which every page, download, Twine file, Dry Run, Interview and check error takes World content from.
 
 - **The plot team**, a World's Plot Masters and its Organization's Admins, reads everything in full.
-- **Anyone else with a role in the World** reads every `public` and `player-known` document, and every Campaign and Event (their files have no `visibility`), with its `## GM Notes` removed (`plotcanon.without_gm_notes`). A Mod Writer also reads their own Mods in full, draft or not, and a Mod Runner the Mods they hold a live [Assignment](#assigning-mod-runners) for, for as long as it is live. Either of them also reads in full each document a Plot Master has given them a Grant for, until it is revoked; a Grant made for an Assignment ends with it. Only someone with the Mod Writer or Mod Runner role, and not on the plot team, can hold one. An After-Action Report is read as its Mod is.
+- **Anyone else with a role in the World** reads every `public` and `player-known` document, and every Campaign and Event (their files have no `visibility`), with its `## GM Notes` removed (`plotcanon.without_gm_notes`). A Mod Writer also reads their own Mods in full, draft or not, and a Mod Runner the Mods they hold a live [Assignment](#assigning-mod-runners) for, for as long as it is live. Either of them also reads in full each document a Plot Master has given them a [Grant](#granting-documents) for, until it is revoked; a Grant made for an Assignment ends with it. Only someone with the Mod Writer or Mod Runner role, and not on the plot team, can hold one. An After-Action Report is read as its Mod is.
 - **A document someone may not read** is not listed, its page is not found, the same answer as for one that does not exist, and wherever it is mentioned (a relationship, a Feature, a Plot, a link in a body or a Dry Run, a Canon Change or a decision's note) it reads "another document". A readable report leaves out its Canon Changes about such documents, and says there are more.
 - **The Canon Changes waiting to be decided**, on their page or on a document's, and the records of Canon Changes made during an Interlude, are for the plot team only.
 - **A private link** reads its own Mod in full and nothing else in the World.
@@ -110,6 +110,15 @@ A Plot Master assigns a Mod Runner to a Mod from its page, while the Mod is appr
 - **Only someone with the Mod Runner role** in the World can be assigned, and not twice to the same Mod for the same Event, or twice until revoked. Anyone in the World but a Plot Master is answered 403.
 - **One for an Event ends by itself** once that Event's last day (`real_date_end`, or `real_date` for a one-day Event) has passed.
 - **Who sees them.** The Mod's page lists its live Assignments to everyone with a role in the World, and revoked and ended ones, with who assigned and revoked each and when, to Plot Masters. A Mod Runner's own live Assignments are listed on the World's page.
+- **Kept in the app alone**, never in a file, so an export leaves them out.
+
+### Granting documents
+
+A Plot Master grants one document, of any kind, to a Mod Writer or Mod Runner from that document's page. The holder then reads it in full, GM Notes included, everywhere they read the World, until a Plot Master revokes it from the same page. Revoked Grants are kept, with who granted and revoked each and when.
+
+- **Only someone with the Mod Writer or Mod Runner role** in the World, and not on its plot team, can be granted a document, and not twice while the first Grant is live. Anyone in the World but a Plot Master is answered 403.
+- **One made for an Assignment ends with it**, when the Assignment is revoked or its Event is over. Every other Grant lasts until revoked.
+- **Who sees them.** A document's page lists who holds a live Grant of it to the plot team alone. A holder's own live Grants are listed on the World's page. Nobody else sees them.
 - **Kept in the app alone**, never in a file, so an export leaves them out.
 
 ### Private links for Mod Runners
