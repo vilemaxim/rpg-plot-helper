@@ -31,10 +31,9 @@ class GrantRefused(Exception):
     """Nothing was changed. `str()` says why."""
 
 
-# Why a Grant is not live.
-REVOKED = "revoked"
-ENDED = "ended with its Assignment"
-NOT_GRANTABLE = "no longer a Mod Writer or Mod Runner here, or on the plot team"
+# Why a Grant is not live (`Liveness.ended`): codes to branch on, not words
+# to show. It was revoked; its Assignment ended; its holder may not hold one.
+REVOKED, ENDED, NOT_GRANTABLE = "revoked", "ended", "not-grantable"
 
 
 def grants_in(world):
@@ -60,7 +59,8 @@ class Liveness:
         self.world, self.on = world, on
 
     def ended(self, grant):
-        """Why a Grant is not live, in words, or "" if it is."""
+        """Why a Grant is not live, as REVOKED, ENDED or NOT_GRANTABLE, or ""
+        if it is."""
         if grant.revoked_at is not None:
             return REVOKED
         if grant.assignment_id is not None and self.assignments.ended(grant.assignment):
