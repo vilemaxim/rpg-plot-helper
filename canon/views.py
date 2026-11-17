@@ -19,7 +19,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from organizations.forms import DryRunStructureForm
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import (access, approving, assignments, deciding, dry_runs, exporting, intake, interludes, links,
+from . import (access, approving, assignments, deciding, dry_runs, exporting, grants, intake, interludes, links,
                resolving, submitting, world_settings, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
@@ -281,6 +281,7 @@ def detail(request, world_id, kind, slug):
         "writer": writers.writer_of(document) if doc_type == "mod" else None,
         "may_reassign": draft and is_plot_master(request, world),
         **(assignments_shown(request, world, document) if doc_type == "mod" else {}),
+        **grants_shown(request, world, document, plot_team),
         "mod_links": ModLink.objects.filter(organization=world.organization, world=world,
                                             mod=document).select_related("created_by")
         if doc_type == "mod" and is_plot_master(request, world) else None,
@@ -854,6 +855,62 @@ def revoke_assignment(request, world_id, slug, assignment_id):
         messages.success(request, f"{revoked.runner.email}'s Assignment to {mod.name} is "
                                   f"revoked.")
     return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
+
+
+def grants_shown(request, world, document, plot_team):
+    """What a document's page shows of its Grants: the live ones to the plot
+    team alone, and to Plot Masters the form to grant it to someone."""
+    if not plot_team:
+        return {"live_grants": None}
+    plot_master = is_plot_master(request, world)
+    return {
+        "live_grants": grants.live_on(document),
+        "may_grant": plot_master,
+        "may_be_granted": grants.may_be_granted(world) if plot_master else [],
+    }
+
+
+def document_or_404(world, kind, slug):
+    """A document of the World, as stored, whatever its visibility: for the
+    plot team, who read everything."""
+    doc_type, _ = kind_or_404(kind)
+    document = Document.objects.filter(organization=world.organization, world=world,
+                                       kind=doc_type, slug=slug).first()
+    if document is None:
+        raise Http404("No such document")
+    return document
+
+
+@require_POST
+def grant(request, world_id, kind, slug):
+    """Grant a document to a Mod Writer or Mod Runner, to read in full until
+    revoked. For the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    plot_master_or_403(request, world)
+    document = document_or_404(world, kind, slug)
+    try:
+        granted = grants.grant(world, document, request.POST.get("user", ""), request.user)
+    except grants.GrantRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, f"{granted.person.email} is granted {document.name}.")
+    return redirect("canon-detail", world_id=world.pk, kind=kind, slug=document.slug)
+
+
+@require_POST
+def revoke_grant(request, world_id, kind, slug, grant_id):
+    """Revoke a live Grant of a document. For the World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    plot_master_or_403(request, world)
+    document = document_or_404(world, kind, slug)
+    try:
+        revoked = grants.revoke(world, document, grant_id, request.user)
+    except grants.GrantRefused as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, f"{revoked.person.email}'s Grant of {document.name} is "
+                                  f"revoked.")
+    return redirect("canon-detail", world_id=world.pk, kind=kind, slug=document.slug)
 
 
 @require_http_methods(["GET", "POST"])

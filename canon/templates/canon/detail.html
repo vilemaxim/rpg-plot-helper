@@ -130,6 +130,36 @@
       </ul>
     </section>
   {% endif %}
+  {% if live_grants is not None %}
+    <section class="grants">
+      <h2>Grants</h2>
+      <p>A Grant lets one Mod Writer or Mod Runner read this document in full, GM Notes included. Only the plot team sees who holds one.</p>
+      {% if live_grants %}
+        <ul class="live-grants">
+          {% for grant in live_grants %}
+            <li>{% include "canon/grant.html" %}{% if may_grant %}.
+              <form method="post" action="{% url 'canon-revoke-grant' world.pk kind document.slug grant.pk %}" class="inline">
+                {% csrf_token %}<button type="submit">Revoke</button>
+              </form>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>Nobody holds a Grant of it.</p>
+      {% endif %}
+      {% if may_grant %}
+        <form method="post" action="{% url 'canon-grant' world.pk kind document.slug %}" class="grant">
+          {% csrf_token %}
+          <label for="grant-to">Grant it to</label>
+          <select id="grant-to" name="user" required>
+            <option value="">Choose someone</option>
+            {% for someone in may_be_granted %}<option value="{{ someone.pk }}">{{ someone.email }}</option>{% endfor %}
+          </select>
+          <button type="submit">Grant</button>
+        </form>
+      {% endif %}
+    </section>
+  {% endif %}
   {% if may_reassign %}
     <form method="post" action="{% url 'canon-reassign' world.pk document.slug %}" class="reassign">
       {% csrf_token %}
