@@ -215,6 +215,10 @@
     </table>
     {% if report_waiting %}{% with approve_all=document.slug %}{% include "canon/decide_selected.html" %}{% endwith %}{% endif %}
   {% endif %}
+  {% if changes_not_shown %}
+    {% if not report_changes %}<h2>Canon Changes</h2>{% endif %}
+    <p class="not-shown">There are more Canon Changes in it, about documents only the plot team may read.</p>
+  {% endif %}
 
   {% if waiting_for_it %}
     <h2>Waiting to be decided</h2>

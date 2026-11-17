@@ -15,6 +15,9 @@ from django.utils.safestring import mark_safe
 
 from .kinds import ADDRESS_OF, KINDS
 
+# What a document a person may not read is called wherever it is named.
+HIDDEN = "another document"
+
 # Frontmatter that a page shows in its own way, or not at all.
 NOT_PLAIN_FACTS = {"id", "type", "title", "aliases", "state", "status", "features", "involves",
                    "canon_changes", "requires", "expected_changes", "mods", "entities"}
@@ -55,10 +58,13 @@ def as_parsed(document):
 
 
 class Index:
-    """Every document of one World, looked up by id."""
+    """The documents of one World a person may read, looked up by id.
+    `hidden` holds the ids of those they may not, each of which reads
+    "another document" wherever it is named (ADR-0010)."""
 
-    def __init__(self, world, documents):
+    def __init__(self, world, documents, hidden=()):
         self.world = world
+        self.hidden = set(hidden)
         self.by_slug = {document.slug: document for document in documents}
         self.parsed = {slug: as_parsed(document) for slug, document in self.by_slug.items()}
 
@@ -75,6 +81,8 @@ class Index:
     def link(self, value):
         """`{"text", "url"}` for a value: a link if it is another document's
         id, and plain text if not."""
+        if isinstance(value, str) and value in self.hidden:
+            return plain(HIDDEN)
         document = self.by_slug.get(value) if isinstance(value, str) else None
         if document is None or document.kind not in ADDRESS_OF:
             return plain(value)
@@ -118,9 +126,10 @@ class Index:
     def mods_of(self, document):
         """A Plot's Mods, in the order the Plot lists them, each with its state."""
         listed = document.fields.get("mods")
-        return [(self.link(mod), wording(self.by_slug[mod].fields.get("state", "")))
+        return [(self.link(mod), wording(self.by_slug[mod].fields.get("state", ""))
+                 if mod in self.by_slug else "")
                 for mod in (listed if isinstance(listed, list) else [])
-                if isinstance(mod, str) and mod in self.by_slug]
+                if isinstance(mod, str) and (mod in self.by_slug or mod in self.hidden)]
 
     def referred_to_by(self, document):
         """Every other document that names this one anywhere in its
