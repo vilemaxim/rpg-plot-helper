@@ -190,6 +190,10 @@ SALT_TAX_TIES = {                       # what lists it: NPCs and factions by `p
              "the-tax-collectors-ledger"],
 }
 SALT_STAIR = "the-salt-stair"           # a Location whose `plots` list it too
+SALT_TAX_ALSO = [SALT_STAIR,             # and what else names it or it names:
+                 "aa-the-low-tide-market",   # a report that changed it
+                 "e01-low-tide"]             # the Event its `as_of` names
+UNTIED = "the-tidemother"               # an NPC of another Plot
 
 
 class GrantingAPlot(GrantingTest):
@@ -203,15 +207,16 @@ class GrantingAPlot(GrantingTest):
             offered[box.split('value="', 1)[1].split('"', 1)[0]] = "checked" in box
         return offered
 
-    def test_granting_a_plot_offers_its_npcs_factions_and_mods_unticked(self):
+    def test_granting_a_plot_offers_everything_tied_to_it_unticked(self):
         response = self.grant("plots", SALT_TAX, "rhea@example.com")
 
         self.assertContains(response, "rhea@example.com is granted The Salt Tax Revolt.")
         offered = self.ties_offered(response)
-        self.assertEqual(set(offered),
-                         {slug for slugs in SALT_TAX_TIES.values() for slug in slugs})
+        self.assertLessEqual({slug for slugs in SALT_TAX_TIES.values() for slug in slugs}
+                             | set(SALT_TAX_ALSO), set(offered))
+        self.assertNotIn(SALT_TAX, offered)
+        self.assertNotIn(UNTIED, offered)
         self.assertNotIn(True, offered.values())
-        self.assertNotIn(SALT_STAIR, offered)
 
     def grant_ties(self, response, slugs, by=None):
         """Tick these on the page offering a Plot's ties, and send it."""
@@ -247,7 +252,7 @@ class GrantingAPlot(GrantingTest):
     def test_something_not_tied_to_the_plot_is_refused_and_nothing_is_granted(self):
         offer = self.grant("plots", SALT_TAX, "rhea@example.com")
 
-        response = self.grant_ties(offer, ["clerk-pell", SALT_STAIR])
+        response = self.grant_ties(offer, ["clerk-pell", UNTIED])
 
         self.assertContains(response, "is not tied to The Salt Tax Revolt")
         self.assertEqual(self.page("npcs", "clerk-pell", by=self.rhea).status_code, 404)
@@ -273,14 +278,24 @@ class GrantingAPlot(GrantingTest):
         self.assertContains(response, "is no longer live, so nothing more was granted.")
         self.assertIsNone(self.section(response, "ties"))
 
-    def test_what_they_already_hold_a_grant_of_is_not_offered(self):
+    def test_what_they_already_hold_a_grant_of_is_offered_and_said_to_be_held(self):
         self.grant("npcs", "clerk-pell", "rhea@example.com")
         self.grant("npcs", "oslo-reth", "sam@example.com")
+        offer = self.grant("plots", SALT_TAX, "rhea@example.com")
 
-        offered = self.ties_offered(self.grant("plots", SALT_TAX, "rhea@example.com"))
-
-        self.assertNotIn("clerk-pell", offered)
+        offered = self.ties_offered(offer)
+        self.assertIn("clerk-pell", offered)
         self.assertIn("oslo-reth", offered)
+        ties = self.section(offer, "ties")
+        self.assertIn("already granted", ties.split('value="clerk-pell"', 1)[1].split("</label>", 1)[0])
+        self.assertNotIn("already granted", ties.split('value="oslo-reth"', 1)[1].split("</label>", 1)[0])
+
+        response = self.grant_ties(offer, ["clerk-pell", "oslo-reth"])
+
+        self.assertContains(response, "rhea@example.com is granted Oslo Reth as well.")
+        with self.in_world():
+            self.assertEqual(Grant.objects.filter(document__slug="clerk-pell",
+                                                  person__email="rhea@example.com").count(), 1)
 
     def test_granting_any_other_kind_offers_nothing_more(self):
         response = self.grant("npcs", "clerk-pell", "rhea@example.com")

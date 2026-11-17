@@ -17,12 +17,14 @@ been granted now"; `access.py` reads it.
 
 from functools import cached_property
 
+import plotcanon
 from django.db import transaction
 from django.utils import timezone
 
 from organizations.models import Role, World
 
 from . import assignments
+from .kinds import ADDRESS_OF
 from .models import Document, Grant
 from .roles import chosen, people_holding, plot_team
 
@@ -125,20 +127,32 @@ def features_of(world, mod):
 
 
 def ties_of(world, plot):
-    """The documents tied to a Plot: the NPCs and factions whose `plots` list
-    it, then the Mods whose `features.plots` do, each by name."""
-    documents = Document.objects.filter(organization=world.organization, world=world)
-    listing = documents.filter(kind__in=["npc", "faction"], fields__plots__contains=[plot.slug])
-    featuring = documents.filter(kind="mod", fields__features__plots__contains=[plot.slug])
-    return [*listing.order_by("kind", "name", "slug"), *featuring.order_by("name", "slug")]
+    """Every other document tied to a Plot, either way: each one that names
+    it anywhere in its frontmatter (NPCs, factions and Locations by `plots`,
+    Mods by `features`, reports that changed it, ...) and each one it names
+    (its `entities`, `mods`, `as_of`, ...). In the order the World's pages
+    list kinds, then by name."""
+    # Imported here: presenting reads access, which reads this module.
+    from .presenting import as_parsed
+
+    documents = list(Document.objects.filter(organization=world.organization, world=world))
+    canon = plotcanon.World([as_parsed(document) for document in documents], {})
+    tied = {other.id for other in plotcanon.referrers(canon, plot.slug)}
+    tied |= {ref.id for ref in plotcanon.references(as_parsed(plot))}
+    tied.discard(plot.slug)
+    order = {doc_type: position for position, doc_type in enumerate(ADDRESS_OF)}
+    return sorted((document for document in documents
+                   if document.slug in tied and document.kind in order),
+                  key=lambda document: (order[document.kind], document.name, document.slug))
 
 
 def ties_to_offer(world, plot_grant, on=None):
-    """The documents tied to the Plot of this Grant that its holder holds no
-    live Grant of yet: what to offer to grant them as well."""
+    """Everything tied to the Plot of this Grant, to offer to grant its
+    holder as well, as `(document, held)`: `held` when they already hold a
+    live Grant of it."""
     held = granted_ids(world, plot_grant.person, on)
-    return [document for document in ties_of(world, plot_grant.document)
-            if document.pk not in held]
+    return [(document, document.pk in held)
+            for document in ties_of(world, plot_grant.document)]
 
 
 def grant(world, document, user_id, by, assignment=None, on=None):
@@ -201,9 +215,10 @@ def refuse_unless_live(world, plot_grant, on=None):
 
 def grant_ties(world, plot_grant, ids, by, on=None):
     """Grant the holder of a Plot's live Grant these documents tied to the
-    Plot as well, by id, each on its own and until revoked. Returns the
-    Grants. All or none: refused if the Plot's Grant is no longer live or an
-    id is not tied to the Plot."""
+    Plot as well, by id, each on its own and until revoked, passing over any
+    they already hold a live Grant of. Returns the new Grants. All or none:
+    refused if the Plot's Grant is no longer live or an id is not tied to the
+    Plot."""
     with transaction.atomic():
         refuse_unless_live(world, plot_grant, on)
         ties = {document.slug: document for document in ties_of(world, plot_grant.document)}
@@ -211,8 +226,9 @@ def grant_ties(world, plot_grant, ids, by, on=None):
             if id not in ties:
                 raise GrantRefused(f"{id!r} is not tied to {plot_grant.document.name}, so "
                                    f"nothing more was granted.")
+        held = granted_ids(world, plot_grant.person, on)
         return [grant(world, ties[id], plot_grant.person_id, by, on=on)
-                for id in dict.fromkeys(ids)]
+                for id in dict.fromkeys(ids) if ties[id].pk not in held]
 
 
 def revoke(world, document, grant_id, by, on=None):

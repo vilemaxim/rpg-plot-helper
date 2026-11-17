@@ -901,7 +901,7 @@ def grant(request, world_id, kind, slug):
         messages.error(request, str(refused))
     else:
         messages.success(request, f"{granted.person.email} is granted {document.name}.")
-        if document.kind == "plot" and grants.ties_to_offer(world, granted):
+        if document.kind == "plot" and grants.ties_of(world, document):
             return redirect("canon-grant-ties", world_id=world.pk, slug=document.slug,
                             grant_id=granted.pk)
     return redirect("canon-detail", world_id=world.pk, kind=kind, slug=document.slug)
