@@ -146,14 +146,36 @@ class Hiding:
 
 
 def _hider(rows, names):
-    words = sorted({word for path, slug, name in rows
-                    for word in (path, slug, name if names else "") if word},
-                   key=len, reverse=True)
-    if not words:
+    mention = mentions(word for path, slug, name in rows
+                       for word in (path, slug, name if names else ""))
+    if mention is None:
         return lambda text: text
-    mention = re.compile("|".join(rf"(?<![\w/-]){re.escape(word)}(?![\w/-])"
-                                  for word in words))
     return lambda text: mention.sub(HIDDEN, text) if text else text
+
+
+def mentions(words):
+    """One pattern for every mention of any of these words in a text, each
+    standing as a word of its own, or None if there are none. The longest
+    word is tried first, so a mention of a longer one counts as that one
+    alone, not also as a shorter word inside it."""
+    words = sorted({word for word in words if word}, key=len, reverse=True)
+    if not words:
+        return None
+    return re.compile(rf"(?<![\w/-])(?:{'|'.join(map(re.escape, words))})(?![\w/-])")
+
+
+def linked_in(body, documents):
+    """Those of `documents` a body links to by path or id, as `hide_links`
+    reads it, each once, in the order the body first does."""
+    by_word = {}
+    for document in documents:
+        for word in (document.path, document.slug):
+            if word:
+                by_word.setdefault(word, document)
+    mention = mentions(by_word)
+    if mention is None or not body:
+        return []
+    return list(dict.fromkeys(by_word[found.group()] for found in mention.finditer(body)))
 
 
 NOT_SHOWN = ("There are more errors, about documents only the plot team may read. "

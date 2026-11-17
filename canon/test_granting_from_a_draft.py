@@ -10,6 +10,7 @@ from canon.test_granting import SALT_TAX, GrantingTest
 from canon.test_mod_submissions import a_mod
 from canon.test_reading import FERRYMAN, FERRYMAN_SECRET, SISTER_ANE, TIDEMOTHER
 from canon.test_resolving import WARRANT
+from canon.models import Document
 from organizations.models import Membership
 
 LANTERN = "the-lamplighters-debt"  # the draft Sam submits
@@ -30,6 +31,18 @@ class DraftTest(GrantingTest):
         text = a_draft(npcs).replace("## Premise\n\n", f"## Premise\n\n{body_adds}\n\n", 1)
         response = self.sam.post(f"{self.first_world}submit-mod/", {"text": text}, follow=True)
         self.assertEqual(response.redirect_chain[-1][0], self.mod_page(LANTERN))
+
+    def a_document(self, slug, path):
+        """Another GM-only NPC like the Tidemother, with this id and path, made
+        directly."""
+        with self.in_world():
+            npc = Document.objects.get(slug=TIDEMOTHER)
+            npc.pk, npc.slug, npc.path = None, slug, path
+            npc.name = slug.replace("-", " ").title()
+            npc.fields = {**npc.fields, "id": slug, "plots": []}
+            npc.text = npc.text.replace(f"id: {TIDEMOTHER}", f"id: {slug}") \
+                .replace("plots: [the-drowned-bell]", "plots: []")
+            npc.save()
 
     def notice(self, mod=LANTERN, by=None):
         """The notice on a draft's page of what its Mod Writer has not been
@@ -92,6 +105,16 @@ class TheNotice(DraftTest):
 
         self.assertIn(f"/{TIDEMOTHER}/", notice)
         self.assertIn(f"/{SISTER_ANE}/", notice)
+
+    def test_a_link_that_contains_another_documents_id_counts_only_once(self):
+        self.a_document("harbor", "canon/npcs/harbor.md")
+        self.a_document("old-harbor", "harbor.md")
+        self.submit_draft(FERRYMAN, body_adds="Meets them at harbor.md.")
+
+        notice = self.notice()
+
+        self.assertIn("/old-harbor/", notice)
+        self.assertNotIn("/harbor/", notice)
 
 
 class WhatItBlocks(DraftTest):
