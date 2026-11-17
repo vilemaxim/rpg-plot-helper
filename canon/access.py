@@ -30,6 +30,7 @@ from organizations.models import Membership, Role, WorldRole
 
 from . import assignments, writers
 from .models import Document
+from .presenting import HIDDEN
 from .storing import settings_file_of
 
 # What anyone with a role in a World reads, without its GM Notes.
@@ -149,7 +150,6 @@ def readable_flags(world, person, flags):
             .exclude(change__entity__in=hidden))
 
 
-HIDDEN = "another document"
 NOT_SHOWN = ("There are more errors, about documents only a Plot Master may read. "
              "Ask one to look at it.")
 
@@ -162,15 +162,25 @@ def readable_findings(world, person, findings):
     id or name, reads "another document"."""
     hidden = unreadable_documents(world, person).values_list("path", "slug", "name")
     paths = {path for path, _, _ in hidden}
-    words = sorted({word for row in hidden for word in row if word}, key=len, reverse=True)
-    mention = (re.compile("|".join(rf"(?<![\w/-]){re.escape(word)}(?![\w/-])"
-                                   for word in words)) if words else None)
+    hide = hiding(hidden)
     lines, left_out = [], False
     for line in findings.splitlines():
         if any(f" {path}: " in line for path in paths):
             left_out = True
             continue
-        lines.append(mention.sub(HIDDEN, line) if mention else line)
+        lines.append(hide(line))
     if left_out:
         lines.append(NOT_SHOWN)
     return "\n".join(lines)
+
+
+def hiding(hidden):
+    """A function that gives a text with every mention of these documents, by
+    path, id or name (`(path, slug, name)` rows), reading "another
+    document"."""
+    words = sorted({word for row in hidden for word in row if word}, key=len, reverse=True)
+    if not words:
+        return lambda text: text
+    mention = re.compile("|".join(rf"(?<![\w/-]){re.escape(word)}(?![\w/-])"
+                                  for word in words))
+    return lambda text: mention.sub(HIDDEN, text)

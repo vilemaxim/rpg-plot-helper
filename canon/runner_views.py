@@ -14,7 +14,7 @@ from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_GET
 from django.views.defaults import page_not_found
 
-from . import links
+from . import access, links
 from .models import Document, Flag
 from .presenting import Index, render_markdown
 from .views import dry_run_page_or_404, flags_shown, state_of, twee_download
@@ -44,16 +44,19 @@ def through_a_link(view):
 
 
 def page(request, link, template, **extra):
-    """A page about the link's Mod. Its Flags name what their changes touch,
-    and only those documents are read to name them."""
+    """A page about the link's Mod. A link reads its own Mod and nothing else
+    in the World (ADR-0010), so every other document its Flags name reads
+    "another document"."""
     world, mod = link.world, link.mod
     flags = Flag.objects.open_in(world).filter(mod=mod)
-    touched = set(flags.values_list("change__entity", flat=True))
-    index = Index(world, Document.objects.filter(organization=world.organization, world=world,
-                                                 slug__in=touched))
+    touched = set(flags.values_list("change__entity", flat=True)) - {mod.slug}
+    index = Index(world, [mod], hidden=touched)
+    hide = access.hiding(Document.objects.filter(organization=world.organization, world=world)
+                         .exclude(pk=mod.pk).values_list("path", "slug", "name"))
+    shown = [{**row, **{field: hide(row[field]) for field in ("before", "after", "summary")}}
+             for row in flags_shown(index, flags)]
     return render(request, template, {
-        "link": link, "mod": mod, "state": state_of(mod), "flags": flags_shown(index, flags),
-        **extra})
+        "link": link, "mod": mod, "state": state_of(mod), "flags": shown, **extra})
 
 
 @through_a_link

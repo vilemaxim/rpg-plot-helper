@@ -8,6 +8,7 @@ Mods, and Rhea and Tom only run them."""
 from canon.models import CanonChange, Document
 from canon.test_assignments import AssignmentTest
 from canon.test_reports import LEDGER_2, STAIR
+from canon.test_runner_links import LinkTest
 from organizations.models import Membership
 
 SISTER_ANE = "sister-ane"              # player-known, in the GM-only drowned bell Plot
@@ -220,3 +221,23 @@ class ThePlotTeam(ReadingTest):
             self.assertContains(self.page("mods", VIGIL_MOD, by=someone), VIGIL_SECRET)
             self.assertIn(f"npcs/{TIDEMOTHER}/", self.listed("npcs", by=someone))
             self.assertEqual(someone.get(self.pending).status_code, 200)
+
+
+class APrivateLink(LinkTest):
+    """The stair report has been filed, so the warrant Mod has open Flags on
+    Harrow Dunmore, a GM-only NPC."""
+
+    def test_shows_its_own_mod_in_full_and_names_nothing_else(self):
+        link = self.create_link(WARRANT)
+
+        page = self.client.get(link)
+        file = self.client.get(f"{link}file/").content.decode()
+
+        self.assertContains(page, WARRANT_SECRET)
+        self.assertIn(WARRANT_SECRET, file)
+        flags = page.content.decode().split('<div class="warning">', 1)[1].split("</div>")[0]
+        self.assertIn("2 Flags", flags)
+        self.assertIn(HIDDEN, flags)
+        self.assertNotIn("Harrow", flags)
+        self.assertNotIn("harrow-dunmore", page.content.decode())
+        self.assertEqual(self.client.get(f"{link}npcs/harrow-dunmore/").status_code, 404)
