@@ -54,6 +54,16 @@ export DATABASE_URL=postgres://plothelper:plothelper@localhost:5433/plothelper
 
 A World's Canon arrives as files. A Plot Master of a World uploads one `.zip` of them from the link on the World's page, and everyone who can open that World can then browse it: Campaigns, Events, Mods, Plots, NPCs, factions, locations, PCs, After-Action Reports and timeline entries, each with a list and a page per item. A Mod's page shows its state, its Events and its Features, and each of those links to its own page. Every page also lists what refers to it, so a Campaign shows its Events and Mods, and an NPC shows the Mods that feature them and the reports that changed them.
 
+### Who reads what
+
+What each person may read is narrowed per document ([ADR-0010](./docs/adr/0010-reading-is-narrowed-per-document.md)), and decided in one place, `canon/access.py`, which every page, download, Twine file, Dry Run, Interview and check error takes World content from.
+
+- **The plot team**, a World's Plot Masters and its Organization's Admins, reads everything in full.
+- **Anyone else with a role in the World** reads every `public` and `player-known` document, and every Campaign and Event (their files have no `visibility`), with its `## GM Notes` removed (`plotcanon.without_gm_notes`). A Mod Writer also reads their own Mods in full, draft or not, and a Mod Runner the Mods they hold a live [Assignment](#assigning-mod-runners) for, for as long as it is live. An After-Action Report is read as its Mod is.
+- **A document someone may not read** is not listed, its page is not found, the same answer as for one that does not exist, and wherever it is mentioned (a relationship, a Feature, a Plot, a link in a body, a Canon Change) it reads "another document". A readable report leaves out its Canon Changes about such documents, and says there are more.
+- **The Canon Changes waiting to be decided**, on their page or on a document's, are for the plot team only.
+- **A private link** reads its own Mod in full and nothing else in the World.
+
 To try it, make a zip of the sample World that ships with [plotcanon](https://github.com/vilemaxim/plotcanon):
 
 ```sh
@@ -170,7 +180,7 @@ A Plot Master approves a draft from its page, which makes it Canon and ready to 
 
 In an Interview the LLM asks about the Mod, works it through with the Mod Writer and writes its file. The file is shown with a Submit button; pressing it sends the file through the intake above, with the same checks and errors. The LLM never submits. Pasting or uploading a file stays a link away on every page of it.
 
-- **What the LLM is told** is plotcanon's (`plotcanon.interview_instructions`), with the documents of the World that person may read. Today that is the whole World; which documents they are is decided in one place, `canon/access.py`. Errors the person or the LLM is shown are cut down the same way: one about a document they may not read is left out, and saying so ends them.
+- **What the LLM is told** is plotcanon's (`plotcanon.interview_instructions`), with the documents of the World that person may read, as they read them, GM Notes removed where they may not read them (see [Who reads what](#who-reads-what)). Errors the person or the LLM is shown are cut down the same way: one about a document they may not read is left out, and saying so ends them.
 - **Each reply streams** into the page as it is written, inside the request, with no script, so it works on a phone. A turn the provider fails leaves the conversation as it was, with the answer ready to send again.
 - **The conversation is kept** in Postgres, for that person alone, so it survives a reload, a dropped connection or a day away: opening the Interview again carries on where it was. "Start over" deletes it and begins a new one. It is deleted when its Mod is submitted, or after 30 days with no activity. It is not part of the World, so it is never exported.
 - **The LLM fixes its own file first.** When a reply holds a Mod file, the app checks it the way the intake would, saving nothing. A file with errors goes back to the LLM with them, in plotcanon's words (`plotcanon.interview_fix_request`), up to `max_fix_attempts` times; the person sees a note that it is being fixed, and the file once it is good, or once the attempts are used up, with its errors. The fixing is not kept in the conversation: only the person's answer and the LLM's last reply are.
