@@ -19,3 +19,8 @@ KINDS = {
 }
 
 ADDRESS_OF = {doc_type: address for address, (doc_type, _label) in KINDS.items()}
+
+
+def has_page(doc_type):
+    """Whether documents of this type have pages of their own here."""
+    return doc_type in ADDRESS_OF

@@ -32,12 +32,12 @@ class DraftTest(GrantingTest):
         response = self.sam.post(f"{self.first_world}submit-mod/", {"text": text}, follow=True)
         self.assertEqual(response.redirect_chain[-1][0], self.mod_page(LANTERN))
 
-    def a_document(self, slug, path):
-        """Another GM-only NPC like the Tidemother, with this id and path, made
-        directly."""
+    def a_document(self, slug, path, kind="npc"):
+        """Another GM-only document like the Tidemother, with this id and path,
+        made directly."""
         with self.in_world():
             npc = Document.objects.get(slug=TIDEMOTHER)
-            npc.pk, npc.slug, npc.path = None, slug, path
+            npc.pk, npc.slug, npc.path, npc.kind = None, slug, path, kind
             npc.name = slug.replace("-", " ").title()
             npc.fields = {**npc.fields, "id": slug, "plots": []}
             npc.text = npc.text.replace(f"id: {TIDEMOTHER}", f"id: {slug}") \
@@ -115,6 +115,20 @@ class TheNotice(DraftTest):
 
         self.assertIn("/old-harbor/", notice)
         self.assertNotIn("/harbor/", notice)
+
+    def test_a_document_of_a_kind_with_no_page_is_named_without_a_link_and_granted(self):
+        self.submit_draft(FERRYMAN, body_adds="Heard the old-rumor.")
+        self.a_document("old-rumor", "rumors/old-rumor.md", kind="rumor")
+
+        notice = self.notice()
+        self.assertIn("Old Rumor", notice)
+        self.assertNotIn('/old-rumor/"', notice)  # no link to a page
+
+        response = self.grant_from_notice("old-rumor")
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(LANTERN))
+        self.assertContains(response, "sam@example.com is granted Old Rumor.")
+        self.assertNotIn("Old Rumor", self.notice())
 
 
 class WhatItBlocks(DraftTest):

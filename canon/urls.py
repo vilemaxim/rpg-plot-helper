@@ -48,6 +48,8 @@ urlpatterns = [
     path("worlds/<uuid:world_id>/mods/<slug:slug>/dry-run/", views.dry_run,
          name="canon-dry-run"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/report/", views.report, name="canon-report"),
+    path("worlds/<uuid:world_id>/documents/<slug:slug>/grants/", views.grant,
+         name="canon-grant-document"),
     path("worlds/<uuid:world_id>/<slug:kind>/<slug:slug>/grants/", views.grant,
          name="canon-grant"),
     path("worlds/<uuid:world_id>/<slug:kind>/<slug:slug>/grants/<int:grant_id>/revoke/",

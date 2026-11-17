@@ -23,7 +23,7 @@ from . import (access, approving, assignments, deciding, dry_runs, exporting, gr
                interludes, links, resolving, submitting, world_settings, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
-from .kinds import ADDRESS_OF, KINDS
+from .kinds import ADDRESS_OF, KINDS, has_page
 from .models import CanonChange, Decision, Document, Flag, ModLink
 from .presenting import Index, render_markdown, wording
 from .storing import one_to_a_line
@@ -885,8 +885,9 @@ def not_granted_shown(world, draft, plot_team):
         return {"not_granted": []}
     writer, documents = grants.not_granted_to_writer(world, draft)
     return {"not_granted_to": writer, "not_granted": [
-        {"name": document.name, "kind": ADDRESS_OF[document.kind], "slug": document.slug}
-        for document in documents if document.kind in ADDRESS_OF]}
+        {"name": document.name, "slug": document.slug,
+         "kind": ADDRESS_OF[document.kind] if has_page(document.kind) else None}
+        for document in documents]}
 
 
 def document_or_404(world, kind, slug):
@@ -901,15 +902,24 @@ def document_or_404(world, kind, slug):
 
 
 @require_POST
-def grant(request, world_id, kind, slug):
+def grant(request, world_id, slug, kind=None):
     """Grant a document to a Mod Writer or Mod Runner, to read in full until
     revoked, and go back to the page the form named, if it named one (a
-    draft that refers to it), or to the document's own. For the World's Plot
-    Masters only."""
+    draft that refers to it), or to the document's own. With no `kind`, the
+    document is found by id alone, as for one of a kind with no page, which
+    goes back to the World's page if the form named none. For the World's
+    Plot Masters only."""
     world = world_or_404(request, world_id)
     plot_master_or_403(request, world)
-    document = document_or_404(world, kind, slug)
-    here = reverse("canon-detail", args=[world.pk, kind, document.slug])
+    if kind is None:
+        document = access.documents_in(world).filter(slug=slug).first()
+        if document is None:
+            raise Http404("No such document")
+        kind = ADDRESS_OF[document.kind] if has_page(document.kind) else None
+    else:
+        document = document_or_404(world, kind, slug)
+    here = reverse("canon-detail", args=[world.pk, kind, document.slug]) if kind \
+        else reverse("world", args=[world.pk])
     back = back_to(request, here)
     try:
         granted = grants.grant(world, document, request.POST.get("user", ""), request.user)

@@ -24,7 +24,7 @@ from django.utils import timezone
 from organizations.models import Role, World
 
 from . import assignments, writers
-from .kinds import ADDRESS_OF
+from .kinds import ADDRESS_OF, has_page
 from .models import Document, Grant
 from .roles import chosen, people_holding, plot_team
 
@@ -133,16 +133,17 @@ def ties_of(world, plot):
     (its `entities`, `mods`, `as_of`, ...). In the order the World's pages
     list kinds, then by name."""
     # Imported here: presenting reads access, which reads this module.
+    from .access import documents_in
     from .presenting import as_parsed
 
-    documents = list(Document.objects.filter(organization=world.organization, world=world))
+    documents = list(documents_in(world))
     canon = plotcanon.World([as_parsed(document) for document in documents], {})
     tied = {other.id for other in plotcanon.referrers(canon, plot.slug)}
     tied |= {ref.id for ref in plotcanon.references(as_parsed(plot))}
     tied.discard(plot.slug)
     order = {doc_type: position for position, doc_type in enumerate(ADDRESS_OF)}
     return sorted((document for document in documents
-                   if document.slug in tied and document.kind in order),
+                   if document.slug in tied and has_page(document.kind)),
                   key=lambda document: (order[document.kind], document.name, document.slug))
 
 

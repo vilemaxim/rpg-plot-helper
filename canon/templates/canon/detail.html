@@ -174,8 +174,8 @@
       <p>Probably an oversight. Grant any to let them read it in full, GM Notes included, until revoked. It is up to you: nothing waits on it.</p>
       <ul>
         {% for other in not_granted %}
-          <li><a href="{% url 'canon-detail' world.pk other.kind other.slug %}">{{ other.name }}</a>{% if may_grant %}
-            <form method="post" action="{% url 'canon-grant' world.pk other.kind other.slug %}" class="inline">
+          <li>{% if other.kind %}<a href="{% url 'canon-detail' world.pk other.kind other.slug %}">{{ other.name }}</a>{% else %}{{ other.name }}{% endif %}{% if may_grant %}
+            <form method="post" action="{% if other.kind %}{% url 'canon-grant' world.pk other.kind other.slug %}{% else %}{% url 'canon-grant-document' world.pk other.slug %}{% endif %}" class="inline">
               {% csrf_token %}
               <input type="hidden" name="user" value="{{ not_granted_to.pk }}">
               <input type="hidden" name="next" value="{{ request.path }}">
