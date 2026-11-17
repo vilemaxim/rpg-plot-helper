@@ -25,10 +25,8 @@ def my_assignments(world, user):
 def my_grants(world, user):
     """The documents this person holds a live Grant of in the World, each
     once, by name, with the address of its page."""
-    shown = {}
-    for grant in grants.live_for(world, user):
-        shown.setdefault(grant.document_id, (grant.document, ADDRESS_OF[grant.document.kind]))
-    return {"world": world, "documents": list(shown.values())}
+    return {"world": world, "documents": [(document, ADDRESS_OF[document.kind]) for document
+                                          in grants.granted_documents(world, user)]}
 
 
 @register.inclusion_tag("canon/contents.html")

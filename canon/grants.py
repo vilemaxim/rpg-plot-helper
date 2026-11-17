@@ -102,6 +102,14 @@ def granted_ids(world, person, on=None):
     return {grant.document_id for grant in live_for(world, person, on)}
 
 
+def granted_documents(world, person, on=None):
+    """The documents this person holds a live Grant of, each once, by name."""
+    documents = {}
+    for grant in live_for(world, person, on):
+        documents.setdefault(grant.document_id, grant.document)
+    return list(documents.values())
+
+
 def features_of(world, mod):
     """The documents a Mod features: every id under its `features`, in the
     order its file lists them, that names a document of the World."""
