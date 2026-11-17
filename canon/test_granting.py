@@ -147,3 +147,33 @@ class WhoSeesThem(GrantingTest):
                 if page.status_code == 200:
                     self.assertIsNone(self.section(page, "grants"))
                     self.assertNotIn("Grant", page.content.decode())
+
+
+class TheirOwnList(GrantingTest):
+    def world_page(self, by):
+        return by.get(self.first_world)
+
+    def test_a_holder_sees_their_live_grants_on_the_worlds_page(self):
+        self.grant("npcs", TIDEMOTHER, "sam@example.com")
+        self.grant("plots", DROWNED_BELL, "sam@example.com")
+        self.grant("npcs", FERRYMAN, "rhea@example.com")
+
+        mine = self.section(self.world_page(self.sam), "my-grants")
+
+        self.assertIn(f'href="{self.doc_page("npcs", TIDEMOTHER)}"', mine)
+        self.assertIn("The Tidemother", mine)
+        self.assertIn(f'href="{self.doc_page("plots", DROWNED_BELL)}"', mine)
+        self.assertNotIn(FERRYMAN, mine)
+
+    def test_not_once_revoked(self):
+        self.grant("npcs", TIDEMOTHER, "sam@example.com")
+        [grant_id] = self.grant_ids(TIDEMOTHER)
+        self.revoke_grant("npcs", TIDEMOTHER, grant_id)
+
+        self.assertIsNone(self.section(self.world_page(self.sam), "my-grants"))
+
+    def test_nobody_else_sees_them(self):
+        self.grant("npcs", TIDEMOTHER, "sam@example.com")
+
+        for someone in (self.rhea, self.mira):
+            self.assertIsNone(self.section(self.world_page(someone), "my-grants"))

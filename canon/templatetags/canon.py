@@ -1,8 +1,8 @@
 from django import template
 from django.db.models import Count
 
-from ..kinds import KINDS
-from .. import access, assignments, writers
+from ..kinds import ADDRESS_OF, KINDS
+from .. import access, assignments, grants, writers
 from ..models import CanonChange, Document, Flag
 
 register = template.Library()
@@ -19,6 +19,16 @@ def my_drafts(world, user):
 def my_assignments(world, user):
     """This person's live Assignments in the World."""
     return {"world": world, "assignments": assignments.live_for(world, user)}
+
+
+@register.inclusion_tag("canon/my_grants.html")
+def my_grants(world, user):
+    """The documents this person holds a live Grant of in the World, each
+    once, by name, with the address of its page."""
+    shown = {}
+    for grant in grants.live_for(world, user):
+        shown.setdefault(grant.document_id, (grant.document, ADDRESS_OF[grant.document.kind]))
+    return {"world": world, "documents": list(shown.values())}
 
 
 @register.inclusion_tag("canon/contents.html")

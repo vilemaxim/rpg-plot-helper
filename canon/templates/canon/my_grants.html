@@ -1,0 +1,11 @@
+{% if documents %}
+  <section class="my-grants">
+    <h2>Your Grants</h2>
+    <p>The documents a Plot Master has granted you, to read in full, GM Notes included.</p>
+    <ul>
+      {% for document, address in documents %}
+        <li><a href="{% url 'canon-detail' world.pk address document.slug %}">{{ document.name }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
