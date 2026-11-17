@@ -843,7 +843,7 @@ def assign(request, world_id, slug):
         messages.error(request, str(refused))
     else:
         messages.success(request, f"{assignment.runner.email} is assigned to {mod.name}"
-                         + (", and granted " + ", ".join(g.document.name for g in granted)
+                         + (", and granted " + in_words(g.document.name for g in granted)
                             + " while the Assignment lasts." if granted else "."))
     return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
 

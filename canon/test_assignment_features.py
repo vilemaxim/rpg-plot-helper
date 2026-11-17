@@ -72,6 +72,17 @@ class TickingFeatures(FeatureTest):
         self.assertContains(self.page("npcs", TIDEMOTHER, by=self.rhea), TIDEMOTHER_SECRET)
         self.assertEqual(self.page("plots", DROWNED_BELL, by=self.rhea).status_code, 404)
 
+    def test_says_what_was_granted_in_words(self):
+        response = self.assign_with(VIGIL, "rhea@example.com",
+                                    [TIDEMOTHER, "sister-ane", "brother-castan"])
+
+        with self.in_world():
+            names = {slug: Document.objects.get(slug=slug).name
+                     for slug in (TIDEMOTHER, "sister-ane", "brother-castan")}
+        self.assertContains(response, f"rhea@example.com is assigned to Storm Moon Vigil, and "
+                                      f"granted {names[TIDEMOTHER]}, {names['sister-ane']} and "
+                                      f"{names['brother-castan']} while the Assignment lasts.")
+
     def test_the_grants_belong_to_the_assignment(self):
         self.assign_with(VIGIL, "rhea@example.com", [TIDEMOTHER, DROWNED_BELL])
 
