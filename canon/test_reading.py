@@ -67,6 +67,34 @@ class AModWriterWithNoModsOfTheirOwn(ReadingTest):
         self.assertNotIn("The Drowned Bell", page)
         self.assertIn(f"locations/the-sunken-chapel/", page)
 
+    def test_a_link_in_a_body_to_a_document_they_may_not_read_reads_another_document(self):
+        with self.in_world():
+            ferryman = Document.objects.get(slug=FERRYMAN)
+            ferryman.body = ferryman.body.replace(
+                "Wants out of a debt.",
+                "Owes [[the-tidemother]], as canon/npcs/the-tidemother.md says.")
+            ferryman.save(update_fields=["body"])
+
+        page = self.page("npcs", FERRYMAN).content.decode()
+
+        self.assertNotIn(TIDEMOTHER, page)
+        self.assertIn(f"Owes [[{HIDDEN}]], as {HIDDEN} says.", page)
+        self.assertIn(TIDEMOTHER, self.page("npcs", FERRYMAN, by=self.mira).content.decode())
+
+    def test_a_change_to_a_readable_document_names_no_other_in_its_history(self):
+        self.submit(LEDGER_2)
+        with self.in_world():
+            change = CanonChange.objects.filter(entity="harrow-dunmore").first()
+            change.entity, change.summary = FERRYMAN, "Rowed Harrow Dunmore out at night."
+            change.decision = "approved"
+            change.save(update_fields=["entity", "summary", "decision"])
+
+        page = self.page("npcs", FERRYMAN, by=self.mira).content.decode()
+        self.assertIn("Rowed Harrow Dunmore out at night.", page)
+        page = self.page("npcs", FERRYMAN).content.decode()
+        self.assertIn(f"Rowed {HIDDEN} out at night.", page)
+        self.assertNotIn(f"reports/aa-{LEDGER}-2/", page)
+
 
 VIGIL_MOD = "storm-moon-vigil"
 WARRANT = "a-warrant-for-dunmore"            # approved, by `sam`

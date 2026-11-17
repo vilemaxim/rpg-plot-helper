@@ -62,9 +62,14 @@ class Index:
     `hidden` holds the ids of those they may not, each of which reads
     "another document" wherever it is named (ADR-0010)."""
 
-    def __init__(self, world, documents, hidden=()):
+    def __init__(self, world, documents, hidden=(), hide=None, hide_links=None):
         self.world = world
         self.hidden = set(hidden)
+        # Each gives a text with the hidden documents in it reading "another
+        # document": `hide` wherever they are mentioned, and `hide_links` only
+        # where they are linked by id or path, for a document's body.
+        self.hide = hide or (lambda text: text)
+        self.hide_links = hide_links or (lambda text: text)
         self.by_slug = {document.slug: document for document in documents}
         self.parsed = {slug: as_parsed(document) for slug, document in self.by_slug.items()}
 

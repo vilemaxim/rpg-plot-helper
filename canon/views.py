@@ -40,8 +40,10 @@ def reading(request, world):
     named "another document"."""
     readable = access.read(access.readable_documents(world, request.user))
     readable_slugs = {document.slug for document in readable}
-    hidden = set(documents_of(world).values_list("slug", flat=True)) - readable_slugs
-    return Index(world, readable, hidden)
+    hidden = [row for row in documents_of(world).values_list("path", "slug", "name")
+              if row[1] not in readable_slugs]
+    return Index(world, readable, {slug for _, slug, _ in hidden},
+                 hide=access.hiding(hidden), hide_links=access.hiding(hidden, names=False))
 
 
 def plot_team_only(view):
@@ -316,7 +318,7 @@ def detail(request, world_id, kind, slug):
         "note_length": deciding.NOTE_LENGTH,
         "submitted_by": document.submitted_by,
         "submitted_at": document.submitted_at,
-        "body": render_markdown(document.body),
+        "body": render_markdown(index.hide_links(document.body)),
     })
 
 
@@ -502,9 +504,9 @@ def change_row(index, change):
         "decision": wording(change.decision),
         "proposed": change.decision == Decision.PROPOSED,
         "moved": bool(change.before or change.after),
-        "before": change.before,
-        "after": change.after,
-        "summary": change.summary,
+        "before": index.hide(change.before),
+        "after": index.hide(change.after),
+        "summary": index.hide(change.summary),
         "report": index.link(change.report.slug),
         "submitted_by": change.report.submitted_by,
         "submitted_at": change.report.submitted_at,
@@ -661,9 +663,9 @@ def flags_shown(index, flags):
         "entity": index.link(flag.change.entity),
         "kind": wording(flag.change.kind),
         "moved": bool(flag.change.before or flag.change.after),
-        "before": flag.change.before,
-        "after": flag.change.after,
-        "summary": flag.change.summary,
+        "before": index.hide(flag.change.before),
+        "after": index.hide(flag.change.after),
+        "summary": index.hide(flag.change.summary),
         "report": index.link(flag.change.report.slug),
     } for flag in flags.select_related("mod", "change__report", "resolved_by")
         .order_by("mod__name", "change__report__submitted_at", "change__position")]

@@ -174,13 +174,16 @@ def readable_findings(world, person, findings):
     return "\n".join(lines)
 
 
-def hiding(hidden):
-    """A function that gives a text with every mention of these documents, by
-    path, id or name (`(path, slug, name)` rows), reading "another
-    document"."""
-    words = sorted({word for row in hidden for word in row if word}, key=len, reverse=True)
+def hiding(hidden, names=True):
+    """A function that gives a text with every mention of these documents
+    (`(path, slug, name)` rows) reading "another document": by path or id,
+    and by name too if `names`. Without names it hides what a body links
+    by, and leaves its prose alone."""
+    words = sorted({word for path, slug, name in hidden
+                    for word in (path, slug, name if names else "") if word},
+                   key=len, reverse=True)
     if not words:
         return lambda text: text
     mention = re.compile("|".join(rf"(?<![\w/-]){re.escape(word)}(?![\w/-])"
                                   for word in words))
-    return lambda text: mention.sub(HIDDEN, text)
+    return lambda text: mention.sub(HIDDEN, text) if text else text

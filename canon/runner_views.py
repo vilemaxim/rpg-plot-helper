@@ -49,14 +49,13 @@ def page(request, link, template, **extra):
     "another document"."""
     world, mod = link.world, link.mod
     flags = Flag.objects.open_in(world).filter(mod=mod)
-    touched = set(flags.values_list("change__entity", flat=True)) - {mod.slug}
-    index = Index(world, [mod], hidden=touched)
-    hide = access.hiding(Document.objects.filter(organization=world.organization, world=world)
-                         .exclude(pk=mod.pk).values_list("path", "slug", "name"))
-    shown = [{**row, **{field: hide(row[field]) for field in ("before", "after", "summary")}}
-             for row in flags_shown(index, flags)]
+    others = list(Document.objects.filter(organization=world.organization, world=world)
+                  .exclude(pk=mod.pk).values_list("path", "slug", "name"))
+    index = Index(world, [mod], hidden={slug for _, slug, _ in others},
+                  hide=access.hiding(others))
     return render(request, template, {
-        "link": link, "mod": mod, "state": state_of(mod), "flags": shown, **extra})
+        "link": link, "mod": mod, "state": state_of(mod), "flags": flags_shown(index, flags),
+        **extra})
 
 
 @through_a_link
