@@ -118,6 +118,7 @@ A Plot Master assigns a Mod Runner to a Mod from its page, while the Mod is appr
 A Plot Master grants one document, of any kind, to a Mod Writer or Mod Runner from that document's page. The holder then reads it in full, GM Notes included, everywhere they read the World, until a Plot Master revokes it from the same page. Revoked Grants are kept, with who granted and revoked each and when.
 
 - **Only someone with the Mod Writer or Mod Runner role** in the World, and not on its plot team, can be granted a document, and not twice while the first Grant is live. Anyone in the World but a Plot Master is answered 403.
+- **Granting a Plot offers what is tied to it.** Once a Plot is granted, the Plot Master is shown the NPCs and factions whose `plots` list it and the Mods whose `features.plots` list it, none of them ticked, leaving out any the holder already holds a Grant of. Each one ticked is granted to the same person in one step, until revoked. Nothing is granted unless ticked.
 - **One made for an Assignment ends with it**, when the Assignment is revoked or its Event is over. Every other Grant lasts until revoked.
 - **Who sees them.** A document's page lists who holds a live Grant of it to the plot team alone. A holder's own live Grants are listed on the World's page. Nobody else sees them.
 - **Kept in the app alone**, never in a file, so an export leaves them out.
