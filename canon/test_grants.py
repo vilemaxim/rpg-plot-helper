@@ -128,6 +128,48 @@ class ForAnAssignment(GrantTest):
         self.assertEqual(self.page("npcs", TIDEMOTHER, by=self.rhea).status_code, 404)
 
 
+class WhileTheyMayHoldOne(GrantTest):
+    """Sam holds only the Mod Writer role, the World has no role that is not
+    the plot team's or a Mod's, so losing it leaves him none."""
+
+    def live_for_sam(self):
+        with self.in_world():
+            return [grant.document.slug for grant in grants.live_for(
+                World.objects.get(), User.objects.get(email="sam@example.com"))]
+
+    def holders_of(self, slug):
+        with self.in_world():
+            return [grant.person.email for grant in
+                    grants.live_on(Document.objects.get(slug=slug))]
+
+    def test_not_once_they_no_longer_write_or_run_mods_here(self):
+        self.grant(TIDEMOTHER, "sam@example.com")
+
+        self.take("sam@example.com", "mod-writer")
+
+        self.assertEqual(self.live_for_sam(), [])
+        self.assertEqual(self.holders_of(TIDEMOTHER), [])
+        self.assertEqual(self.page("npcs", TIDEMOTHER, by=self.sam).status_code, 404)
+
+    def test_live_again_once_given_the_role_back(self):
+        self.grant(TIDEMOTHER, "sam@example.com")
+        self.take("sam@example.com", "mod-writer")
+
+        self.give("sam@example.com", "mod-writer")
+
+        self.assertEqual(self.live_for_sam(), [TIDEMOTHER])
+        self.assertContains(self.page("npcs", TIDEMOTHER, by=self.sam), TIDEMOTHER_SECRET)
+
+    def test_not_once_they_join_the_plot_team(self):
+        self.grant(TIDEMOTHER, "sam@example.com")
+
+        self.give("sam@example.com", "plot-master")
+
+        self.assertEqual(self.live_for_sam(), [])
+        self.assertEqual(self.holders_of(TIDEMOTHER), [])
+        self.assertContains(self.page("npcs", TIDEMOTHER, by=self.sam), TIDEMOTHER_SECRET)
+
+
 class Refused(GrantTest):
     def assertRefused(self, slug, email_or_id, assignment=None):
         with self.in_world():

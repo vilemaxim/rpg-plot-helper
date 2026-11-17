@@ -120,6 +120,7 @@ A Plot Master grants one document, of any kind, to a Mod Writer or Mod Runner fr
 - **Only someone with the Mod Writer or Mod Runner role** in the World, and not on its plot team, can be granted a document, and not twice while the first Grant is live. Anyone in the World but a Plot Master is answered 403.
 - **Granting a Plot offers what is tied to it.** Once a Plot is granted, the Plot Master is shown the NPCs and factions whose `plots` list it and the Mods whose `features.plots` list it, none of them ticked, leaving out any the holder already holds a Grant of. Each one ticked is granted to the same person in one step, until revoked. Nothing is granted unless ticked.
 - **One made for an Assignment ends with it**, when the Assignment is revoked or its Event is over. Every other Grant lasts until revoked.
+- **Only while its holder may hold one.** A Grant is not live while its holder has neither the Mod Writer nor the Mod Runner role in the World, or is on its plot team. It is live again, unless revoked, once they may hold one again.
 - **Who sees them.** A document's page lists who holds a live Grant of it to the plot team alone. A holder's own live Grants are listed on the World's page. Nobody else sees them.
 - **Kept in the app alone**, never in a file, so an export leaves them out.
 

@@ -5,8 +5,9 @@ GLOSSARY.md, ADR-0010).
 Only someone who holds the Mod Writer or Mod Runner role in the World, and
 is not on its plot team, can be given one: the plot team reads everything
 already, and anyone else with no such role reads only what is open. A Grant
-made for an Assignment is for that Assignment's Mod Runner, and is live only
-while the Assignment is (`assignments.Liveness`). Revoked and ended ones are
+is live only while its holder still may be given one, and one made for an
+Assignment, which is for that Assignment's Mod Runner, only while the
+Assignment is live too (`assignments.Liveness`). Revoked and ended ones are
 kept as history.
 
 Grants are never written into a file (ADR-0001), so an export leaves them
@@ -33,6 +34,7 @@ class GrantRefused(Exception):
 # Why a Grant is not live.
 REVOKED = "revoked"
 ENDED = "ended with its Assignment"
+NOT_GRANTABLE = "no longer a Mod Writer or Mod Runner here, or on the plot team"
 
 
 def grants_in(world):
@@ -54,8 +56,8 @@ def may_be_granted(world):
 
 
 class Liveness:
-    """What decides whether a World's Grants are live, read once: the
-    liveness of its Assignments. `on` is the day to ask about, today if not
+    """What decides whether a World's Grants are live, read once: who may be
+    given one, and the liveness of its Assignments. `on` is the day to ask about, today if not
     given."""
 
     def __init__(self, world, on=None):
@@ -67,7 +69,13 @@ class Liveness:
             return REVOKED
         if grant.assignment_id is not None and self.assignments.ended(grant.assignment):
             return ENDED
+        if grant.person_id not in self.may_be_granted:
+            return NOT_GRANTABLE
         return ""
+
+    @cached_property
+    def may_be_granted(self):
+        return set(may_be_granted(self.world).values_list("pk", flat=True))
 
     @cached_property
     def assignments(self):
