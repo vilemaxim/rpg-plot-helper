@@ -901,7 +901,43 @@ def grant(request, world_id, kind, slug):
         messages.error(request, str(refused))
     else:
         messages.success(request, f"{granted.person.email} is granted {document.name}.")
+        if document.kind == "plot" and grants.ties_to_offer(world, granted):
+            return redirect("canon-grant-ties", world_id=world.pk, slug=document.slug,
+                            grant_id=granted.pk)
     return redirect("canon-detail", world_id=world.pk, kind=kind, slug=document.slug)
+
+
+def in_words(names):
+    """"A", "A and B", "A, B and C"."""
+    names = list(names)
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+@require_http_methods(["GET", "POST"])
+def grant_ties(request, world_id, slug, grant_id):
+    """Offer to grant the holder of a Plot's Grant the documents tied to the
+    Plot as well, none of them ticked, and grant those that were. For the
+    World's Plot Masters only."""
+    world = world_or_404(request, world_id)
+    plot_master_or_403(request, world)
+    plot = document_or_404(world, "plots", slug)
+    plot_grant = grants.grants_in(world).filter(document=plot, pk=grant_id).first()
+    if plot_grant is None:
+        raise Http404("No such Grant")
+    if request.method == "POST":
+        try:
+            granted = grants.grant_ties(world, plot_grant, request.POST.getlist("document"),
+                                        request.user)
+        except grants.GrantRefused as refused:
+            messages.error(request, str(refused))
+        else:
+            messages.success(request, f"{plot_grant.person.email} is granted "
+                             f"{in_words(g.document.name for g in granted)} as well."
+                             if granted else "Nothing more was granted.")
+        return redirect("canon-detail", world_id=world.pk, kind="plots", slug=plot.slug)
+    return render(request, "canon/grant_ties.html", {
+        "world": world, "plot": plot, "plot_grant": plot_grant,
+        "ties": grants.ties_to_offer(world, plot_grant)})
 
 
 @require_POST

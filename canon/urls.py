@@ -52,6 +52,8 @@ urlpatterns = [
          name="canon-grant"),
     path("worlds/<uuid:world_id>/<slug:kind>/<slug:slug>/grants/<int:grant_id>/revoke/",
          views.revoke_grant, name="canon-revoke-grant"),
+    path("worlds/<uuid:world_id>/plots/<slug:slug>/grants/<int:grant_id>/ties/",
+         views.grant_ties, name="canon-grant-ties"),
     path("worlds/<uuid:world_id>/<slug:kind>/", views.listing, name="canon-list"),
     path("worlds/<uuid:world_id>/<slug:kind>/<slug:slug>/", views.detail, name="canon-detail"),
 ]

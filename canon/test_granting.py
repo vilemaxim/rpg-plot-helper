@@ -177,3 +177,118 @@ class TheirOwnList(GrantingTest):
 
         for someone in (self.rhea, self.mira):
             self.assertIsNone(self.section(self.world_page(someone), "my-grants"))
+
+
+SALT_TAX = "the-salt-tax-revolt"        # a GM-only Plot
+SALT_TAX_TIES = {                       # what lists it: NPCs and factions by `plots`,
+    "npcs": ["clerk-pell", "harrow-dunmore", "oslo-reth", "tobren-vale", "ysolde-marr"],
+    "factions": ["harbour-wardens", "salt-guild"],  # and Mods by `features.plots`
+    "mods": ["a-warrant-for-dunmore", "blood-on-the-salt-stair", "the-low-tide-market",
+             "the-tax-collectors-ledger"],
+}
+SALT_STAIR = "the-salt-stair"           # a Location whose `plots` list it too
+
+
+class GrantingAPlot(GrantingTest):
+    def ties_offered(self, response):
+        """The documents a page offers to grant along with a Plot: slug to
+        whether its box is ticked."""
+        form = self.section(response, "ties") or ""
+        offered = {}
+        for box in form.split('<input type="checkbox"')[1:]:
+            box = box.split(">", 1)[0]
+            offered[box.split('value="', 1)[1].split('"', 1)[0]] = "checked" in box
+        return offered
+
+    def test_granting_a_plot_offers_its_npcs_factions_and_mods_unticked(self):
+        response = self.grant("plots", SALT_TAX, "rhea@example.com")
+
+        self.assertContains(response, "rhea@example.com is granted The Salt Tax Revolt.")
+        offered = self.ties_offered(response)
+        self.assertEqual(set(offered),
+                         {slug for slugs in SALT_TAX_TIES.values() for slug in slugs})
+        self.assertNotIn(True, offered.values())
+        self.assertNotIn(SALT_STAIR, offered)
+
+    def grant_ties(self, response, slugs, by=None):
+        """Tick these on the page offering a Plot's ties, and send it."""
+        return (by or self.mira).post(response.redirect_chain[-1][0], {"document": slugs},
+                                      follow=True)
+
+    def test_only_the_ticked_ones_are_granted_to_the_same_person(self):
+        offer = self.grant("plots", SALT_TAX, "rhea@example.com")
+
+        response = self.grant_ties(offer, ["clerk-pell", "a-warrant-for-dunmore"])
+
+        self.assertEqual(response.redirect_chain[-1][0], self.doc_page("plots", SALT_TAX))
+        self.assertContains(response, "rhea@example.com is granted Clerk Pell and "
+                                      "A Warrant for Dunmore as well.")
+        self.assertEqual(self.page("npcs", "clerk-pell", by=self.rhea).status_code, 200)
+        self.assertEqual(self.page("mods", "a-warrant-for-dunmore", by=self.rhea).status_code,
+                         200)
+        for slug in ("harrow-dunmore", "oslo-reth"):
+            self.assertEqual(self.page("npcs", slug, by=self.rhea).status_code, 404)
+        self.assertEqual(self.page("mods", "the-low-tide-market", by=self.rhea).status_code, 404)
+        self.assertEqual(self.page("npcs", "clerk-pell", by=self.sam).status_code, 404)
+        self.assertIn("rhea@example.com", self.live_grants_shown("npcs", "clerk-pell"))
+
+    def test_nothing_ticked_grants_nothing_more(self):
+        offer = self.grant("plots", SALT_TAX, "rhea@example.com")
+
+        response = self.grant_ties(offer, [])
+
+        self.assertContains(response, "Nothing more was granted.")
+        with self.in_world():
+            self.assertEqual(Grant.objects.count(), 1)
+
+    def test_something_not_tied_to_the_plot_is_refused_and_nothing_is_granted(self):
+        offer = self.grant("plots", SALT_TAX, "rhea@example.com")
+
+        response = self.grant_ties(offer, ["clerk-pell", SALT_STAIR])
+
+        self.assertContains(response, "is not tied to The Salt Tax Revolt")
+        self.assertEqual(self.page("npcs", "clerk-pell", by=self.rhea).status_code, 404)
+
+    def test_not_once_the_plots_grant_is_revoked(self):
+        offer = self.grant("plots", SALT_TAX, "rhea@example.com")
+        [grant_id] = self.grant_ids(SALT_TAX)
+        self.revoke_grant("plots", SALT_TAX, grant_id)
+
+        response = self.grant_ties(offer, ["clerk-pell"])
+
+        self.assertContains(response, "is no longer live, so nothing more was granted.")
+        self.assertEqual(self.page("npcs", "clerk-pell", by=self.rhea).status_code, 404)
+
+    def test_what_they_already_hold_a_grant_of_is_not_offered(self):
+        self.grant("npcs", "clerk-pell", "rhea@example.com")
+        self.grant("npcs", "oslo-reth", "sam@example.com")
+
+        offered = self.ties_offered(self.grant("plots", SALT_TAX, "rhea@example.com"))
+
+        self.assertNotIn("clerk-pell", offered)
+        self.assertIn("oslo-reth", offered)
+
+    def test_granting_any_other_kind_offers_nothing_more(self):
+        response = self.grant("npcs", "clerk-pell", "rhea@example.com")
+
+        self.assertEqual(response.redirect_chain[-1][0], self.doc_page("npcs", "clerk-pell"))
+        self.assertIsNone(self.section(response, "ties"))
+
+    def test_only_a_plot_master_is_offered_them_or_may_grant_them(self):
+        offer = self.grant("plots", SALT_TAX, "rhea@example.com")
+        ties_page = offer.redirect_chain[-1][0]
+
+        for someone in (self.rhea, self.sam):
+            self.assertEqual(someone.get(ties_page).status_code, 403)
+            self.assertEqual(self.grant_ties(offer, ["clerk-pell"], by=someone).status_code,
+                             403)
+        eve = sign_in("eve@example.com")
+        self.assertEqual(eve.get(ties_page).status_code, 404)
+        self.assertEqual(self.page("npcs", "clerk-pell", by=self.rhea).status_code, 404)
+
+    def test_a_grant_of_another_document_has_no_such_page(self):
+        self.grant("npcs", TIDEMOTHER, "rhea@example.com")
+        [grant_id] = self.grant_ids(TIDEMOTHER)
+
+        self.assertEqual(self.mira.get(f"{self.doc_page('plots', SALT_TAX)}grants/{grant_id}/"
+                                       f"ties/").status_code, 404)

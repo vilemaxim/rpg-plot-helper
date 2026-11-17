@@ -112,6 +112,23 @@ def features_of(world, mod):
     return [found[id] for id in ids if id in found]
 
 
+def ties_of(world, plot):
+    """The documents tied to a Plot: the NPCs and factions whose `plots` list
+    it, then the Mods whose `features.plots` do, each by name."""
+    documents = Document.objects.filter(organization=world.organization, world=world)
+    listing = documents.filter(kind__in=["npc", "faction"], fields__plots__contains=[plot.slug])
+    featuring = documents.filter(kind="mod", fields__features__plots__contains=[plot.slug])
+    return [*listing.order_by("kind", "name", "slug"), *featuring.order_by("name", "slug")]
+
+
+def ties_to_offer(world, plot_grant, on=None):
+    """The documents tied to the Plot of this Grant that its holder holds no
+    live Grant of yet: what to offer to grant them as well."""
+    held = granted_ids(world, plot_grant.person, on)
+    return [document for document in ties_of(world, plot_grant.document)
+            if document.pk not in held]
+
+
 def grant(world, document, user_id, by, assignment=None, on=None):
     """Grant a document of the World to the person whose id a form sent, on
     its own, or for one of their live Assignments. Returns the Grant."""
@@ -159,6 +176,24 @@ def grant_features(world, assignment, ids, by, on=None):
         if not may_be_granted(world).filter(pk=assignment.runner_id).exists():
             return []
         return [grant(world, features[id], assignment.runner_id, by, assignment=assignment, on=on)
+                for id in dict.fromkeys(ids)]
+
+
+def grant_ties(world, plot_grant, ids, by, on=None):
+    """Grant the holder of a Plot's live Grant these documents tied to the
+    Plot as well, by id, each on its own and until revoked. Returns the
+    Grants. All or none: refused if the Plot's Grant is no longer live or an
+    id is not tied to the Plot."""
+    with transaction.atomic():
+        if Liveness(world, on).ended(plot_grant):
+            raise GrantRefused(f"{plot_grant.person.email}'s Grant of {plot_grant.document.name} "
+                               f"is no longer live, so nothing more was granted.")
+        ties = {document.slug: document for document in ties_of(world, plot_grant.document)}
+        for id in ids:
+            if id not in ties:
+                raise GrantRefused(f"{id!r} is not tied to {plot_grant.document.name}, so "
+                                   f"nothing more was granted.")
+        return [grant(world, ties[id], plot_grant.person_id, by, on=on)
                 for id in dict.fromkeys(ids)]
 
 

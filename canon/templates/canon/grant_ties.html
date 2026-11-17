@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Grant what is tied to {{ plot.name }} — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-list' world.pk 'plots' %}">Plots</a> › <a href="{% url 'canon-detail' world.pk 'plots' plot.slug %}">{{ plot.name }}</a></p>
+  <h1>Grant what is tied to {{ plot.name }}</h1>
+  <section class="ties">
+    <p>These NPCs and factions list {{ plot.name }} among their Plots, and these Mods feature it. Tick any to grant them to {{ plot_grant.person.email }} as well, each until revoked. Nothing is granted unless ticked.</p>
+    <form method="post">
+      {% csrf_token %}
+      <fieldset>
+        <legend>Also grant {{ plot_grant.person.email }}</legend>
+        {% for document in ties %}
+          <label><input type="checkbox" name="document" value="{{ document.slug }}"> {{ document.name }}</label>
+        {% endfor %}
+      </fieldset>
+      <button type="submit">Grant the ticked ones</button>
+    </form>
+  </section>
+{% endblock %}
