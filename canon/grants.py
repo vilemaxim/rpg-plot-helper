@@ -160,12 +160,10 @@ def referred_to(world, mod):
     plotcanon's `references` finds in its frontmatter, in that order, then
     those its body links to (`access.linked_in`)."""
     # Imported here: presenting reads access, which reads this module.
-    from .access import linked_in
+    from .access import documents_in, linked_in
     from .presenting import as_parsed
 
-    others = {document.slug: document for document in
-              Document.objects.filter(organization=world.organization, world=world)
-              .exclude(pk=mod.pk)}
+    others = {document.slug: document for document in documents_in(world).exclude(pk=mod.pk)}
     ids = [ref.id for ref in plotcanon.references(as_parsed(mod)) if ref.id in others]
     ids += [document.slug for document in linked_in(mod.body, others.values())]
     return [others[id] for id in dict.fromkeys(ids)]
