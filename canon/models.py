@@ -325,3 +325,40 @@ class Assignment(models.Model):
                                     condition=models.Q(revoked_at=None),
                                     name="one_live_assignment_per_runner_and_event"),
         ]
+
+
+class Grant(models.Model):
+    """A Plot Master's choice to let one Mod Writer or Mod Runner read one
+    document in full, GM Notes included, until a Plot Master revokes it (see
+    **Grant** in GLOSSARY.md). One made for an Assignment (`assignment`)
+    also ends when that Assignment stops being live. A revoked or ended one
+    is kept as history. Kept here, never in a file (ADR-0001, ADR-0010). Who
+    holds a live one is `grants.py`'s to say.
+    """
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="grants")
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="grants")
+    person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                               related_name="+")
+    assignment = models.ForeignKey(Assignment, null=True, blank=True,
+                                   on_delete=models.CASCADE, related_name="grants")
+    granted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    granted_at = models.DateTimeField()
+    revoked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["granted_at", "pk"]
+        constraints = [
+            # One unrevoked Grant of a document to a person that stands on its
+            # own, and one for each of their Assignments.
+            models.UniqueConstraint(fields=["document", "person"],
+                                    condition=models.Q(revoked_at=None, assignment=None),
+                                    name="one_live_grant_per_person"),
+            models.UniqueConstraint(fields=["document", "person", "assignment"],
+                                    condition=models.Q(revoked_at=None),
+                                    name="one_live_grant_per_person_and_assignment"),
+        ]

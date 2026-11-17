@@ -32,7 +32,7 @@ from django.db.models import BooleanField, Case, Q, Value, When
 
 from organizations.models import Membership, Role, WorldRole
 
-from . import assignments, writers
+from . import assignments, grants, writers
 from .models import Document
 from .storing import settings_file_of
 
@@ -59,9 +59,9 @@ def is_plot_team(world, person):
 
 
 def granted_in_full(world, person):
-    """The ids of the documents a Plot Master has given this person a Grant
-    for (see **Grant** in GLOSSARY.md). Grants are not built yet, so none."""
-    return set()
+    """The ids of the documents a Plot Master has given this person a live
+    Grant for (see **Grant** in GLOSSARY.md)."""
+    return grants.granted_ids(world, person)
 
 
 def in_full_by_part(world, person):
