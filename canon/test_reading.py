@@ -5,7 +5,10 @@ GM-only, and some NPCs, Locations and Factions are public or player-known.
 Mira is the plot team (Plot Master and Organization Admin). Sam only writes
 Mods, and Rhea and Tom only run them."""
 
+import html
+
 from canon.models import CanonChange, Document
+from canon.test_mod_submissions import a_mod
 from canon.test_assignments import AssignmentTest
 from canon.test_reports import LEDGER_2, STAIR
 from canon.test_runner_links import LinkTest
@@ -241,3 +244,17 @@ class APrivateLink(LinkTest):
         self.assertNotIn("Harrow", flags)
         self.assertNotIn("harrow-dunmore", page.content.decode())
         self.assertEqual(self.client.get(f"{link}npcs/harrow-dunmore/").status_code, 404)
+
+
+class CheckErrorsOnThePastePath(ReadingTest):
+    def test_name_documents_they_may_not_read_as_another_document(self):
+        names_gm_only = a_mod(**{"npcs: [mirelle-vale, tobren-vale, ysolde-marr]":
+                                 f"npcs: [mirelle-vale, tobren-vale, ysolde-marr, {WARRANT}]"})
+
+        page = self.sam.post(f"{self.first_world}submit-mod/", {"text": names_gm_only},
+                             follow=True).content.decode()
+        shown = page.replace(html.escape(names_gm_only), "")
+
+        self.assertIn("points at a `mod`", html.unescape(shown))
+        self.assertIn(HIDDEN, shown)
+        self.assertNotIn(WARRANT, shown)

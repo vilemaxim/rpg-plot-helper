@@ -392,10 +392,17 @@ def report(request, world_id, slug):
         # Give back what was sent, so it can be corrected and sent again.
         again = ReportForm(initial={"text": form.cleaned_data["contents"]})
         return render(request, "canon/report.html",
-                      {**context, "form": again, "refused": str(refused),
-                       "errors": refused.errors})
+                      {**context, "form": again,
+                       **refusal_as_read(request, world, refused)})
     messages.success(request, "Report filed. Its Canon Changes are waiting to be decided.")
     return redirect("canon-detail", world_id=world.pk, kind="reports", slug=filed.slug)
+
+
+def refusal_as_read(request, world, refused):
+    """Why a file was refused, and its errors, as this person may read them
+    (`canon.access.readable_findings`)."""
+    return {"refused": access.readable_findings(world, request.user, str(refused)),
+            "errors": access.readable_findings(world, request.user, refused.errors or "")}
 
 
 def is_draft(mod):
@@ -439,8 +446,9 @@ def mod_form(request, context, save):
     except intake.ModRefused as refused:
         again = ModForm(initial={"text": form.cleaned_data["contents"]})
         return render(request, "canon/mod_form.html",
-                      {**context, "form": again, "refused": str(refused),
-                       "errors": refused.errors, "twine_warnings": twine_warnings,
+                      {**context, "form": again,
+                       **refusal_as_read(request, context["world"], refused),
+                       "twine_warnings": twine_warnings,
                        "twine_warned": TWINE_WARNED})
     return to_saved_mod(request, saved, twine_warnings)
 
@@ -451,7 +459,8 @@ def to_saved_mod(request, saved, twine_warnings=""):
     mod = saved.mod
     messages.success(request, f"{mod.name} is saved as a draft. A Plot Master approves it "
                               f"before it can be run.")
-    show_warnings(request, saved.warnings)
+    show_warnings(request, access.readable_findings(mod.world, request.user, saved.warnings)
+                  if saved.warnings else saved.warnings)
     if twine_warnings:
         messages.warning(request, TWINE_WARNED)
         messages.warning(request, twine_warnings, extra_tags="findings")
