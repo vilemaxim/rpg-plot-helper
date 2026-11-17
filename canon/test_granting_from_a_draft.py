@@ -8,7 +8,7 @@ Mods, and Rhea and Tom only run them."""
 from canon.test_approving import DAUGHTER
 from canon.test_granting import GrantingTest
 from canon.test_mod_submissions import a_mod
-from canon.test_reading import FERRYMAN, FERRYMAN_SECRET, TIDEMOTHER
+from canon.test_reading import FERRYMAN, FERRYMAN_SECRET, SISTER_ANE, TIDEMOTHER
 from canon.test_resolving import WARRANT
 
 LANTERN = "the-lamplighters-debt"  # the draft Sam submits
@@ -25,9 +25,9 @@ def a_draft(npcs):
 
 
 class DraftTest(GrantingTest):
-    def submit_draft(self, *npcs):
-        response = self.sam.post(f"{self.first_world}submit-mod/", {"text": a_draft(npcs)},
-                                 follow=True)
+    def submit_draft(self, *npcs, body_adds=""):
+        text = a_draft(npcs).replace("## Premise\n\n", f"## Premise\n\n{body_adds}\n\n", 1)
+        response = self.sam.post(f"{self.first_world}submit-mod/", {"text": text}, follow=True)
         self.assertEqual(response.redirect_chain[-1][0], self.mod_page(LANTERN))
 
     def notice(self, mod=LANTERN, by=None):
@@ -82,6 +82,15 @@ class TheNotice(DraftTest):
 
         self.assertIn(f"/{FERRYMAN}/", notice)
         self.assertNotIn(f"/{TIDEMOTHER}/", notice)
+
+    def test_what_its_body_links_by_id_or_path_counts_too(self):
+        self.submit_draft(FERRYMAN, body_adds=f"Owes [[{TIDEMOTHER}]], as "
+                                              f"canon/npcs/{SISTER_ANE}.md says.")
+
+        notice = self.notice()
+
+        self.assertIn(f"/{TIDEMOTHER}/", notice)
+        self.assertIn(f"/{SISTER_ANE}/", notice)
 
 
 class WhatItBlocks(DraftTest):

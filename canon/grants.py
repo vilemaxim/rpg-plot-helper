@@ -15,6 +15,7 @@ out. `granted_ids` is the one answer to "which documents has this person
 been granted now"; `access.py` reads it.
 """
 
+import re
 from functools import cached_property
 
 import plotcanon
@@ -155,17 +156,33 @@ def ties_to_offer(world, plot_grant, on=None):
             for document in ties_of(world, plot_grant.document)]
 
 
+def linked_in(body, documents):
+    """Those of `documents` a body links to by path or id, each standing as a
+    word of its own (as `access.Hiding.hide_links` reads a body), in the
+    order the body first does."""
+    found = []
+    for document in documents:
+        words = [word for word in (document.path, document.slug) if word]
+        at = [match.start() for word in words for match in re.finditer(
+            rf"(?<![\w/-]){re.escape(word)}(?![\w/-])", body or "")]
+        if at:
+            found.append((min(at), document))
+    return [document for _, document in sorted(found, key=lambda pair: pair[0])]
+
+
 def referred_to(world, mod):
-    """The documents of the World a Mod refers to, each once, in the order
-    plotcanon's `references` finds them."""
+    """The documents of the World a Mod refers to, each once: those
+    plotcanon's `references` finds in its frontmatter, in that order, then
+    those its body links to (`linked_in`)."""
     # Imported here: presenting reads access, which reads this module.
     from .presenting import as_parsed
 
-    ids = list(dict.fromkeys(ref.id for ref in plotcanon.references(as_parsed(mod))
-                             if isinstance(ref.id, str) and ref.id != mod.slug))
-    found = {document.slug: document for document in
-             Document.objects.filter(organization=world.organization, world=world, slug__in=ids)}
-    return [found[id] for id in ids if id in found]
+    others = {document.slug: document for document in
+              Document.objects.filter(organization=world.organization, world=world)
+              .exclude(pk=mod.pk)}
+    ids = [ref.id for ref in plotcanon.references(as_parsed(mod)) if ref.id in others]
+    ids += [document.slug for document in linked_in(mod.body, others.values())]
+    return [others[id] for id in dict.fromkeys(ids)]
 
 
 def not_granted_to_writer(world, draft):
