@@ -108,6 +108,7 @@ uv run plotcanon sample --write demo --script demo-script
 A Plot Master assigns a Mod Runner to a Mod from its page, while the Mod is approved or in progress. An Assignment is for one Event that has not ended, which is the default, or until a Plot Master revokes it. A Mod can have several, such as one Mod Runner for each group its players split into at one Event.
 
 - **Only someone with the Mod Runner role** in the World can be assigned, and not twice to the same Mod for the same Event, or twice until revoked. Anyone in the World but a Plot Master is answered 403.
+- **Its Features can be granted with it.** The form lists the documents the Mod features, unticked. Each one ticked becomes a Grant to the Mod Runner that belongs to the Assignment and ends when it does.
 - **One for an Event ends by itself** once that Event's last day (`real_date_end`, or `real_date` for a one-day Event) has passed.
 - **Who sees them.** The Mod's page lists its live Assignments to everyone with a role in the World, and revoked and ended ones, with who assigned and revoked each and when, to Plot Masters. A Mod Runner's own live Assignments are listed on the World's page.
 - **Kept in the app alone**, never in a file, so an export leaves them out.

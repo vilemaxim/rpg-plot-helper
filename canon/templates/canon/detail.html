@@ -115,6 +115,14 @@
             {% for event in events_to_come %}<option value="{{ event.slug }}"{% if forloop.first %} selected{% endif %}>{{ event.name }}</option>{% endfor %}
             <option value="">Until revoked</option>
           </select>
+          {% if features_to_grant %}
+            <fieldset class="features">
+              <legend>Also grant them these Features, to read in full while the Assignment lasts</legend>
+              {% for feature in features_to_grant %}
+                <label><input type="checkbox" name="feature" value="{{ feature.slug }}"> {{ feature.name }}</label>
+              {% endfor %}
+            </fieldset>
+          {% endif %}
           <button type="submit">Assign</button>
         </form>
       {% endif %}

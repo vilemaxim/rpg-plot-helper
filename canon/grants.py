@@ -98,6 +98,20 @@ def granted_ids(world, person, on=None):
     return {grant.document_id for grant in live_for(world, person, on)}
 
 
+def features_of(world, mod):
+    """The documents a Mod features: every id under its `features`, in the
+    order its file lists them, that names a document of the World."""
+    features = mod.fields.get("features")
+    ids = []
+    for group in (features.values() if isinstance(features, dict) else []):
+        for id in (group if isinstance(group, list) else []):
+            if isinstance(id, str) and id not in ids:
+                ids.append(id)
+    found = {document.slug: document for document in
+             Document.objects.filter(organization=world.organization, world=world, slug__in=ids)}
+    return [found[id] for id in ids if id in found]
+
+
 def grant(world, document, user_id, by, assignment=None, on=None):
     """Grant a document of the World to the person whose id a form sent, on
     its own, or for one of their live Assignments. Returns the Grant."""
@@ -128,6 +142,24 @@ def grant(world, document, user_id, by, assignment=None, on=None):
         return Grant.objects.create(
             organization=world.organization, world=world, document=document, person=person,
             assignment=assignment, granted_by=by, granted_at=timezone.now())
+
+
+def grant_features(world, assignment, ids, by, on=None):
+    """Grant the Assignment's Mod Runner these Features of its Mod, by id,
+    each Grant belonging to the Assignment so that it ends when the
+    Assignment does. Returns the Grants: none for a Mod Runner on the plot
+    team, who reads every document already. Refused, with nothing granted, if
+    an id is not one of the Mod's Features."""
+    with transaction.atomic():
+        features = {document.slug: document for document in features_of(world, assignment.mod)}
+        for id in ids:
+            if id not in features:
+                raise GrantRefused(f"{assignment.mod.name} has no Feature {id!r}, so nothing "
+                                   f"was assigned or granted.")
+        if not may_be_granted(world).filter(pk=assignment.runner_id).exists():
+            return []
+        return [grant(world, features[id], assignment.runner_id, by, assignment=assignment, on=on)
+                for id in dict.fromkeys(ids)]
 
 
 def revoke(world, document, grant_id, by, on=None):
