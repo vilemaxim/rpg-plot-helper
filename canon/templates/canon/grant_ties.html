@@ -9,6 +9,7 @@
     <p>These documents name {{ plot.name }}, or are named by it. Tick any to grant them to {{ plot_grant.person.email }} as well, each until revoked. Nothing is granted unless ticked.</p>
     <form method="post">
       {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
       <fieldset>
         <legend>Also grant {{ plot_grant.person.email }}</legend>
         {% for document, held in ties %}

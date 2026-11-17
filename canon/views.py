@@ -687,9 +687,9 @@ def flags(request, world_id):
 
 
 def back_to(request, otherwise):
-    """The page to return to after an action: the one the form named, if it
-    is on this site, and `otherwise` if not."""
-    back = request.POST.get("next", "")
+    """The page to return to after an action: the one the form or the address
+    named, if it is on this site, and `otherwise` if not."""
+    back = request.POST.get("next") or request.GET.get("next", "")
     if url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
                                        require_https=request.is_secure()):
         return back
@@ -927,9 +927,9 @@ def grant(request, world_id, slug, kind=None):
         messages.error(request, str(refused))
     else:
         messages.success(request, f"{granted.person.email} is granted {document.name}.")
-        if back == here and document.kind == "plot" and grants.ties_of(world, document):
-            return redirect("canon-grant-ties", world_id=world.pk, slug=document.slug,
-                            grant_id=granted.pk)
+        if document.kind == "plot" and grants.ties_of(world, document):
+            offer = reverse("canon-grant-ties", args=[world.pk, document.slug, granted.pk])
+            return redirect(offer if back == here else f"{offer}?{urlencode({'next': back})}")
     return redirect(back)
 
 
@@ -943,14 +943,17 @@ def in_words(names):
 def grant_ties(request, world_id, slug, grant_id):
     """Offer to grant the holder of a Plot's Grant the documents tied to the
     Plot as well, none of them ticked, and grant those that were; neither
-    once the Plot's Grant is no longer live. For the World's Plot Masters
-    only."""
+    once the Plot's Grant is no longer live. Then go back to the page the
+    Plot was granted from, if it was not the Plot's own (a draft that refers
+    to it), or to the Plot. For the World's Plot Masters only."""
     world = world_or_404(request, world_id)
     plot_master_or_403(request, world)
     plot = document_or_404(world, "plots", slug)
     plot_grant = grants.grants_in(world).filter(document=plot, pk=grant_id).first()
     if plot_grant is None:
         raise Http404("No such Grant")
+    here = reverse("canon-detail", args=[world.pk, "plots", plot.slug])
+    back = back_to(request, here)
     try:
         grants.refuse_unless_live(world, plot_grant)
         if request.method == "POST":
@@ -958,14 +961,15 @@ def grant_ties(request, world_id, slug, grant_id):
                                         request.user)
     except grants.GrantRefused as refused:
         messages.error(request, str(refused))
-        return redirect("canon-detail", world_id=world.pk, kind="plots", slug=plot.slug)
+        return redirect(back)
     if request.method == "POST":
         messages.success(request, f"{plot_grant.person.email} is granted "
                          f"{in_words(g.document.name for g in granted)} as well."
                          if granted else "Nothing more was granted.")
-        return redirect("canon-detail", world_id=world.pk, kind="plots", slug=plot.slug)
+        return redirect(back)
     return render(request, "canon/grant_ties.html", {
         "world": world, "plot": plot, "plot_grant": plot_grant,
+        "next": back if back != here else "",
         "ties": grants.ties_to_offer(world, plot_grant)})
 
 

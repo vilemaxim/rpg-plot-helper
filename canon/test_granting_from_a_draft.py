@@ -201,11 +201,39 @@ class WhoSeesIt(DraftTest):
 
 
 class GrantingAPlotFromIt(DraftTest):
-    def test_brings_the_plot_master_back_to_the_draft_not_to_what_is_tied_to_the_plot(self):
+    def ties_form(self, response):
+        """The fields the page offering a Plot's ties sends, but the boxes."""
+        form = self.section(response, "ties")
+        return dict(
+            (field.split('name="', 1)[1].split('"', 1)[0],
+             field.split('value="', 1)[1].split('"', 1)[0])
+            for field in form.split("<input")[1:]
+            if 'type="hidden"' in field and 'name="csrfmiddlewaretoken"' not in field)
+
+    def test_offers_what_is_tied_to_the_plot_then_brings_the_plot_master_back(self):
         self.submit_draft(FERRYMAN, body_adds=f"Turns on [[{SALT_TAX}]].")
 
-        response = self.grant_from_notice(SALT_TAX)
+        offer = self.grant_from_notice(SALT_TAX)
+
+        self.assertContains(offer, "sam@example.com is granted The Salt Tax Revolt.")
+        self.assertIsNotNone(self.section(offer, "ties"))
+        self.assertIn('value="clerk-pell"', self.section(offer, "ties"))
+
+        response = self.mira.post(offer.redirect_chain[-1][0],
+                                  {**self.ties_form(offer), "document": ["clerk-pell"]},
+                                  follow=True)
 
         self.assertEqual(response.redirect_chain[-1][0], self.mod_page(LANTERN))
-        self.assertContains(response, "sam@example.com is granted The Salt Tax Revolt.")
+        self.assertContains(response, "sam@example.com is granted Clerk Pell as well.")
         self.assertNotIn(f"/{SALT_TAX}/", self.notice())
+        self.assertEqual(self.page("npcs", "clerk-pell", by=self.sam).status_code, 200)
+
+    def test_granting_nothing_more_still_brings_the_plot_master_back(self):
+        self.submit_draft(FERRYMAN, body_adds=f"Turns on [[{SALT_TAX}]].")
+        offer = self.grant_from_notice(SALT_TAX)
+
+        response = self.mira.post(offer.redirect_chain[-1][0], self.ties_form(offer),
+                                  follow=True)
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(LANTERN))
+        self.assertContains(response, "Nothing more was granted.")
