@@ -7,12 +7,14 @@ Mods, and Rhea and Tom only run them."""
 
 import html
 
+from accounts.models import User
+from canon import access
 from canon.models import CanonChange, Document
 from canon.test_mod_submissions import a_mod
 from canon.test_assignments import AssignmentTest
 from canon.test_reports import LEDGER_2, STAIR
 from canon.test_runner_links import LinkTest
-from organizations.models import Membership
+from organizations.models import Membership, World
 
 SISTER_ANE = "sister-ane"              # player-known, in the GM-only drowned bell Plot
 SISTER_ANE_SECRET = "She knows what the tidemother is."
@@ -86,14 +88,40 @@ class AModWriterWithNoModsOfTheirOwn(ReadingTest):
         with self.in_world():
             change = CanonChange.objects.filter(entity="harrow-dunmore").first()
             change.entity, change.summary = FERRYMAN, "Rowed Harrow Dunmore out at night."
-            change.decision = "approved"
-            change.save(update_fields=["entity", "summary", "decision"])
+            change.decision, change.note = "approved", "As Harrow Dunmore paid him to."
+            change.save(update_fields=["entity", "summary", "decision", "note"])
 
         page = self.page("npcs", FERRYMAN, by=self.mira).content.decode()
         self.assertIn("Rowed Harrow Dunmore out at night.", page)
         page = self.page("npcs", FERRYMAN).content.decode()
         self.assertIn(f"Rowed {HIDDEN} out at night.", page)
+        self.assertIn(f"As {HIDDEN} paid him to.", page)
+        self.assertNotIn("Harrow", page)
         self.assertNotIn(f"reports/aa-{LEDGER}-2/", page)
+
+    def test_a_document_as_read_cannot_be_saved(self):
+        with self.in_world():
+            sam = User.objects.get(email="sam@example.com")
+            world = World.objects.get()
+            ferryman = access.readable_documents(world, sam).get(slug=FERRYMAN)
+            as_read = access.as_read(ferryman)
+
+            self.assertNotIn(FERRYMAN_SECRET, as_read.text)
+            with self.assertRaises(access.ReadOnly):
+                as_read.save()
+            with self.assertRaises(access.ReadOnly):
+                as_read.delete()
+        self.assertIn(FERRYMAN_SECRET, self.stored(FERRYMAN).text)
+
+    def test_a_finding_left_out_says_only_the_plot_team_may_read_it(self):
+        with self.in_world():
+            sam = User.objects.get(email="sam@example.com")
+            shown = access.readable_findings(
+                World.objects.get(), sam,
+                f"ERROR  canon/npcs/{TIDEMOTHER}.md: something is wrong")
+
+        self.assertEqual(shown, "There are more errors, about documents only the plot team "
+                                "may read. Ask a Plot Master to look at it.")
 
 
 VIGIL_MOD = "storm-moon-vigil"
@@ -272,6 +300,38 @@ class APrivateLink(LinkTest):
         self.assertNotIn("Harrow", flags)
         self.assertNotIn("harrow-dunmore", page.content.decode())
         self.assertEqual(self.client.get(f"{link}npcs/harrow-dunmore/").status_code, 404)
+
+    def test_names_no_other_document_in_its_body_or_dry_run(self):
+        with self.in_world():
+            for slug in (WARRANT, BELL):
+                mod = Document.objects.get(slug=slug)
+                mod.body = mod.body.replace("## Premise\n\n", f"## Premise\n\n{LINKS_TIDEMOTHER}\n\n", 1)
+                mod.save(update_fields=["body"])
+
+        for page in (self.client.get(self.create_link(WARRANT)),
+                     self.client.get(f"{self.create_link(BELL)}dry-run/")):
+            self.assertContains(page, LINKS_HIDDEN)
+            self.assertNotContains(page, TIDEMOTHER)
+
+
+BELL = "the-bell-beneath"
+LINKS_TIDEMOTHER = f"Ask [[{TIDEMOTHER}]], or read canon/npcs/{TIDEMOTHER}.md."
+LINKS_HIDDEN = f"Ask [[{HIDDEN}]], or read {HIDDEN}."
+
+
+class ADryRunInTheWorld(ReadingTest):
+    def test_names_no_document_its_reader_may_not_read(self):
+        with self.in_world():
+            mod = Document.objects.get(slug=BELL)
+            mod.body = mod.body.replace("## Premise\n\n", f"## Premise\n\n{LINKS_TIDEMOTHER}\n\n", 1)
+            mod.save(update_fields=["body"])
+        self.assign(BELL, "rhea@example.com")
+
+        page = self.rhea.get(f"{self.mod_page(BELL)}dry-run/")
+
+        self.assertContains(page, LINKS_HIDDEN)
+        self.assertNotContains(page, TIDEMOTHER)
+        self.assertContains(self.mira.get(f"{self.mod_page(BELL)}dry-run/"), LINKS_TIDEMOTHER)
 
 
 class CheckErrorsOnThePastePath(ReadingTest):

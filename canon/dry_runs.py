@@ -56,18 +56,20 @@ def passage_at_end_of(story, trail):
     return here
 
 
-def page_for(mod, trail):
+def page_for(mod, trail, hide_links=lambda text: text):
     """What a Dry Run page shows at the end of `trail`, the names of the
     passages chosen so far: the step, or why the Mod has no Dry Run, in words
-    its Mod Writer can paste to their LLM. Raises `NoSuchStep` for a trail
-    that cannot be taken."""
+    its Mod Writer can paste to their LLM. `hide_links` makes each link to a
+    document the reader may not read in the step's prose read "another
+    document" (`canon.access.Hiding`). Raises `NoSuchStep` for a trail that
+    cannot be taken."""
     story = plotcanon.story(mod.body)
     if not story.playable:
         return {"problems": "\n".join(story.problems)}
     here = passage_at_end_of(story, trail)
     return {
         "passage": here,
-        "prose": render_markdown(here.prose),
+        "prose": render_markdown(hide_links(here.prose)),
         "choices": choices_of(here, trail),
         "at_start": not trail,
         "back": address(trail[:-1]),

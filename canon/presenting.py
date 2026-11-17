@@ -13,10 +13,8 @@ import plotcanon
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
+from .access import HIDDEN, Hiding
 from .kinds import ADDRESS_OF, KINDS
-
-# What a document a person may not read is called wherever it is named.
-HIDDEN = "another document"
 
 # Frontmatter that a page shows in its own way, or not at all.
 NOT_PLAIN_FACTS = {"id", "type", "title", "aliases", "state", "status", "features", "involves",
@@ -59,19 +57,22 @@ def as_parsed(document):
 
 class Index:
     """The documents of one World a person may read, looked up by id.
-    `hidden` holds the ids of those they may not, each of which reads
-    "another document" wherever it is named (ADR-0010)."""
+    `hiding` (`canon.access.Hiding`) holds those they may not, each of which
+    reads "another document" wherever it is named (ADR-0010)."""
 
-    def __init__(self, world, documents, hidden=(), hide=None, hide_links=None):
+    def __init__(self, world, documents, hiding=None):
         self.world = world
-        self.hidden = set(hidden)
-        # Each gives a text with the hidden documents in it reading "another
-        # document": `hide` wherever they are mentioned, and `hide_links` only
-        # where they are linked by id or path, for a document's body.
-        self.hide = hide or (lambda text: text)
-        self.hide_links = hide_links or (lambda text: text)
+        self.hiding = hiding or Hiding()
+        self.hidden = self.hiding.slugs
+        self.hide = self.hiding.hide
+        self.hide_links = self.hiding.hide_links
         self.by_slug = {document.slug: document for document in documents}
         self.parsed = {slug: as_parsed(document) for slug, document in self.by_slug.items()}
+
+    @classmethod
+    def of(cls, reading):
+        """What a `canon.access.Reading` reads, as an Index."""
+        return cls(reading.world, reading.documents, reading.hiding)
 
     def references(self, document):
         """Where in the document plotcanon says a value names another

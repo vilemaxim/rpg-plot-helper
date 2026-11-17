@@ -38,8 +38,8 @@ from canon.submitting import Refused
 from canon.models import Document, Flag
 from canon.presenting import wording
 from canon.storing import one_to_a_line
-from canon import views as canon_views
-from canon.views import documents_of, is_draft, may_revise, to_saved_mod
+from canon.views import (documents_of, is_draft, may_revise, readable_mod_or_404,
+                         refusal_as_read, to_saved_mod)
 from organizations.models import World
 from organizations.views import may_write_mods, world_or_404
 
@@ -211,20 +211,14 @@ def interview_or_404(request, world_id):
     return Interviewing(Kind.NEW_MOD, world, config.llm_for(Kind.NEW_MOD))
 
 
-def readable_mod_or_404(request, world, slug):
-    """The Mod as this person reads it (`canon.access`): the Mod an LLM is
-    given is the one they read, without its GM Notes if they read it so.
-    Anyone who may not read it is told there is no such page."""
-    return canon_views.readable_mod_or_404(request, world, slug)
-
-
 def revise_interview_or_404(request, world_id, slug):
     """A revise Interview of a draft, for someone who may revise that Mod
     (`canon.views.may_revise`) and read it (`canon.access`): the draft the
     LLM is given is the one they read. Anyone else is told there is no such
     page."""
     world = world_or_404(request, world_id)
-    mod = readable_mod_or_404(request, world, slug)
+    # The draft the LLM is given is the one they read.
+    mod = readable_mod_or_404(access.reading(world, request.user), slug)
     if not may_revise(request, world, mod):
         raise Http404("No such page")
     conversation.forget_idle()
@@ -437,9 +431,7 @@ def submitted(request, interviewing):
         # As the person may read them, as the fix loop sends them (`fixing`).
         return render(request, "interviews/interview.html",
                       {**context, "file": text,
-                       "refused": access.readable_findings(world, request.user, str(refused)),
-                       "errors": access.readable_findings(world, request.user,
-                                                          refused.errors)})
+                       **refusal_as_read(access.reading(world, request.user), refused)})
     conversation.forget(transcript, world, request.user, mod)
     return interviewing.taken_in(request, saved, form)
 

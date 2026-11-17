@@ -30,14 +30,14 @@ def world_contents(world, user, is_plot_master=False, may_write_mods=False):
     Canon the export. A World with Canon offers someone who may write a Mod
     an Interview to write one in, when Interviews are on, and pasting or
     uploading one."""
-    counts = dict(access.readable_documents(world, user).order_by()
-                  .values_list("kind").annotate(Count("pk")))
+    reader = access.reading(world, user)
+    counts = dict(reader.readable.order_by().values_list("kind").annotate(Count("pk")))
     kinds = [(address, label, counts.get(doc_type, 0))
              for address, (doc_type, label) in KINDS.items()]
     pending = (CanonChange.objects.pending(world).count()
                if access.is_plot_team(world, user) else 0)
-    flags = access.readable_flags(world, user, Flag.objects.open_in(world)).count()
+    flags = reader.flags(Flag.objects.open_in(world)).count()
     has_canon = Document.objects.filter(organization=world.organization, world=world).exists()
-    return {"world": world, "kinds": [k for k in kinds if k[2]], "total": has_canon,
+    return {"world": world, "kinds": [k for k in kinds if k[2]], "has_canon": has_canon,
             "is_plot_master": is_plot_master, "may_write_mods": may_write_mods,
             "pending": pending, "flags": flags}

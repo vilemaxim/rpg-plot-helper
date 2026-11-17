@@ -18,10 +18,14 @@ else.
 
 Each document `readable_documents` returns says whether it is read in full
 (`in_full`). `as_read` gives a document as the person reads it, which is the
-only form its text may reach them in.
+only form its text may reach them in. `reading` gives all of it at once, for
+a request (`Reading`), with the documents they may not read (`Hiding`);
+`through_link` gives what a Private link reads.
 """
 
+import copy
 import re
+from functools import cached_property
 
 import plotcanon
 from django.db.models import BooleanField, Case, Q, Value, When
@@ -30,7 +34,6 @@ from organizations.models import Membership, Role, WorldRole
 
 from . import assignments, writers
 from .models import Document
-from .presenting import HIDDEN
 from .storing import settings_file_of
 
 # What anyone with a role in a World reads, without its GM Notes.
@@ -38,7 +41,7 @@ OPEN_VISIBILITY = ("public", "player-known")
 # The kinds whose files have no `visibility`, the World's calendar, read as
 # open ones are.
 OPEN_KINDS = ("campaign", "event")
-REPORT = "after-action"
+REPORT = "after-action"  # the kind of an After-Action Report
 
 
 def documents_in(world):
@@ -98,16 +101,27 @@ def readable_documents(world, person):
         When(in_full, then=Value(True)), default=Value(False), output_field=BooleanField()))
 
 
+class ReadOnly(Exception):
+    """A document as someone reads it (`as_read`) was saved or deleted. It may
+    lack its GM Notes, so it is never written back."""
+
+
+def _read_only(*args, **kwargs):
+    raise ReadOnly("A document as someone reads it cannot be saved or deleted.")
+
+
 def as_read(document):
-    """A document from `readable_documents` as its reader reads it: whole if
-    they read it in full, and otherwise with `text` and `body` without the
-    GM Notes. The document is changed in place, for showing only, and must
-    never be saved."""
-    if not getattr(document, "in_full", False):
-        document.text = plotcanon.without_gm_notes(document.text)
-        document.body = plotcanon.without_gm_notes(document.body)
-        document.in_full = False
-    return document
+    """A document from `readable_documents` as its reader reads it: a copy,
+    whole if they read it in full, and otherwise with `text` and `body`
+    without the GM Notes. The copy is for showing only: saving or deleting
+    it raises `ReadOnly`, and the document given is left as it was."""
+    shown = copy.copy(document)
+    shown.in_full = bool(getattr(document, "in_full", False))
+    if not shown.in_full:
+        shown.text = plotcanon.without_gm_notes(document.text)
+        shown.body = plotcanon.without_gm_notes(document.body)
+    shown.save = shown.delete = _read_only
+    return shown
 
 
 def read(documents):
@@ -115,71 +129,25 @@ def read(documents):
     return [as_read(document) for document in documents]
 
 
-def readable_one(world, person, **lookup):
-    """The one document matching `lookup` as this person reads it, or None if
-    there is none they may read."""
-    found = readable_documents(world, person).filter(**lookup).first()
-    return None if found is None else as_read(found)
+HIDDEN = "another document"
 
 
-def unreadable_documents(world, person):
-    """The World's documents this person may not read at all."""
-    return documents_in(world).exclude(pk__in=readable_documents(world, person).values("pk"))
+class Hiding:
+    """The documents a reader may not read, from `(path, slug, name)` rows,
+    and how a text names them: "another document". `hide` hides every
+    mention, by path, id or name; `hide_links` only what a body links by, its
+    paths and ids, and leaves its prose alone."""
+
+    def __init__(self, rows=()):
+        rows = list(rows)
+        self.slugs = {slug for _, slug, _ in rows}
+        self.paths = {path for path, _, _ in rows}
+        self.hide = _hider(rows, names=True)
+        self.hide_links = _hider(rows, names=False)
 
 
-def readable_files(world, person):
-    """What this person may read in the World as `{path: text}`, the form
-    plotcanon reads a World in: their readable documents as they read them,
-    and the World's settings file, which holds no Canon, if it has one."""
-    documents = read(readable_documents(world, person))
-    if not documents:
-        return {}
-    return {**{document.path: document.text for document in documents},
-            **settings_file_of(world)}
-
-
-def readable_flags(world, person, flags):
-    """Those of `flags` (a queryset) this person may read in full: on a Mod
-    they may read, raised by a Canon Change from a report they may read, about
-    a Feature they may read. Any other is left out whole, as a finding about a
-    document they may not read is (`readable_findings`)."""
-    readable = readable_documents(world, person)
-    hidden = unreadable_documents(world, person).values("slug")
-    return (flags.filter(mod__in=readable.values("pk"),
-                         change__report__in=readable.values("pk"))
-            .exclude(change__entity__in=hidden))
-
-
-NOT_SHOWN = ("There are more errors, about documents only a Plot Master may read. "
-             "Ask one to look at it.")
-
-
-def readable_findings(world, person, findings):
-    """plotcanon's findings, one to a line, or any message about the World, as
-    this person may read them, with what they may read taken from
-    `readable_documents`. A finding about a document they may not read is
-    left out, and saying so ends the text; any other mention of one, by path,
-    id or name, reads "another document"."""
-    hidden = unreadable_documents(world, person).values_list("path", "slug", "name")
-    paths = {path for path, _, _ in hidden}
-    hide = hiding(hidden)
-    lines, left_out = [], False
-    for line in findings.splitlines():
-        if any(f" {path}: " in line for path in paths):
-            left_out = True
-            continue
-        lines.append(hide(line))
-    if left_out:
-        lines.append(NOT_SHOWN)
-    return "\n".join(lines)
-
-
-def hiding(hidden, names=True):
-    """A function that gives a text with every mention of these documents
-    (`(path, slug, name)` rows) reading "another document": by path or id,
-    and by name too if `names`. Without names it hides what a body links
-    by, and leaves its prose alone."""
-    words = sorted({word for path, slug, name in hidden
+def _hider(rows, names):
+    words = sorted({word for path, slug, name in rows
                     for word in (path, slug, name if names else "") if word},
                    key=len, reverse=True)
     if not words:
@@ -187,3 +155,98 @@ def hiding(hidden, names=True):
     mention = re.compile("|".join(rf"(?<![\w/-]){re.escape(word)}(?![\w/-])"
                                   for word in words))
     return lambda text: mention.sub(HIDDEN, text) if text else text
+
+
+NOT_SHOWN = ("There are more errors, about documents only the plot team may read. "
+             "Ask a Plot Master to look at it.")
+
+
+class Reading:
+    """What one reader may read in a World, worked out once and asked as
+    often as a request needs: `readable` is the queryset of
+    `readable_documents`, and the rest follows from it."""
+
+    def __init__(self, world, readable):
+        self.world = world
+        self.readable = readable
+
+    @cached_property
+    def ids(self):
+        return set(self.readable.values_list("pk", flat=True))
+
+    @cached_property
+    def documents(self):
+        """Every document they may read, as they read it (`as_read`)."""
+        return read(self.readable)
+
+    @cached_property
+    def hiding(self):
+        """The documents they may not read (`Hiding`)."""
+        return Hiding(documents_in(self.world).exclude(pk__in=self.ids)
+                      .values_list("path", "slug", "name"))
+
+    def one(self, **lookup):
+        """The one document matching `lookup` as they read it, or None if
+        there is none they may read."""
+        found = self.readable.filter(**lookup).first()
+        return None if found is None else as_read(found)
+
+    def files(self):
+        """What they may read as `{path: text}`, the form plotcanon reads a
+        World in: their documents as they read them, and the World's settings
+        file, which holds no Canon, if it has one."""
+        if not self.documents:
+            return {}
+        return {**{document.path: document.text for document in self.documents},
+                **settings_file_of(self.world)}
+
+    def flags(self, flags):
+        """Those of `flags` (a queryset) they may read in full: on a Mod they
+        may read, raised by a Canon Change from a report they may read, about
+        a Feature they may read. Any other is left out whole, as a finding
+        about a document they may not read is (`findings`)."""
+        return (flags.filter(mod__in=self.ids, change__report__in=self.ids)
+                .exclude(change__entity__in=self.hiding.slugs))
+
+    def findings(self, findings):
+        """plotcanon's findings, one to a line, or any message about the
+        World, as they may read it. A finding about a document they may not
+        read is left out, and saying so ends the text; any other mention of
+        one, by path, id or name, reads "another document"."""
+        lines, left_out = [], False
+        for line in (findings or "").splitlines():
+            if any(f" {path}: " in line for path in self.hiding.paths):
+                left_out = True
+                continue
+            lines.append(self.hiding.hide(line))
+        if left_out:
+            lines.append(NOT_SHOWN)
+        return "\n".join(lines)
+
+
+def reading(world, person):
+    """What this person may read in the World (`Reading`)."""
+    return Reading(world, readable_documents(world, person))
+
+
+def through_link(link):
+    """What a Private link reads: its own Mod in full, and nothing else in
+    the World (`Reading`)."""
+    world = link.world
+    return Reading(world, documents_in(world).filter(pk=link.mod_id)
+                   .annotate(in_full=Value(True, output_field=BooleanField())))
+
+
+def readable_files(world, person):
+    """`Reading.files` for this person."""
+    return reading(world, person).files()
+
+
+def readable_flags(world, person, flags):
+    """`Reading.flags` for this person."""
+    return reading(world, person).flags(flags)
+
+
+def readable_findings(world, person, findings):
+    """`Reading.findings` for this person."""
+    return reading(world, person).findings(findings)

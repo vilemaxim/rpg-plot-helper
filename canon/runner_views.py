@@ -15,7 +15,7 @@ from django.views.decorators.http import require_GET
 from django.views.defaults import page_not_found
 
 from . import access, links
-from .models import Document, Flag
+from .models import Flag
 from .presenting import Index, render_markdown
 from .views import dry_run_page_or_404, flags_shown, state_of, twee_download
 
@@ -43,16 +43,13 @@ def through_a_link(view):
     return wrapper
 
 
-def page(request, link, template, **extra):
+def page(request, link, reader, template, **extra):
     """A page about the link's Mod. A link reads its own Mod and nothing else
     in the World (ADR-0010), so every other document its Flags name reads
     "another document"."""
-    world, mod = link.world, link.mod
-    flags = Flag.objects.open_in(world).filter(mod=mod)
-    others = list(Document.objects.filter(organization=world.organization, world=world)
-                  .exclude(pk=mod.pk).values_list("path", "slug", "name"))
-    index = Index(world, [mod], hidden={slug for _, slug, _ in others},
-                  hide=access.hiding(others))
+    mod = link.mod
+    flags = Flag.objects.open_in(link.world).filter(mod=mod)
+    index = Index.of(reader)
     return render(request, template, {
         "link": link, "mod": mod, "state": state_of(mod), "flags": flags_shown(index, flags),
         **extra})
@@ -62,7 +59,9 @@ def page(request, link, template, **extra):
 @require_GET
 def mod(request, link):
     """The Mod, as its Mod Runner reads it."""
-    return page(request, link, "canon/run_mod.html", body=render_markdown(link.mod.body))
+    reader = access.through_link(link)
+    return page(request, link, reader, "canon/run_mod.html",
+                body=render_markdown(reader.hiding.hide_links(link.mod.body)))
 
 
 @through_a_link
@@ -70,8 +69,9 @@ def mod(request, link):
 def dry_run(request, link):
     """The Mod's Dry Run, for its Mod Runner in the field. Its way back is to
     the Mod as the link shows it, never into the World."""
-    return page(request, link, "canon/dry_run.html", full_mod="../",
-                **dry_run_page_or_404(link.mod, request))
+    reader = access.through_link(link)
+    return page(request, link, reader, "canon/dry_run.html", full_mod="../",
+                **dry_run_page_or_404(link.mod, request, reader.hiding))
 
 
 @through_a_link

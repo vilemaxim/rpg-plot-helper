@@ -1,4 +1,5 @@
 from functools import wraps
+from types import SimpleNamespace
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import plotcanon
@@ -32,18 +33,6 @@ def documents_of(world):
     """This World's documents. The filter repeats what the database already
     enforces for the Organization, and adds the World."""
     return Document.objects.filter(organization=world.organization, world=world)
-
-
-def reading(request, world):
-    """What this person reads of the World (`canon.access`), as an `Index`:
-    the documents they may read, as they read them, with every other one
-    named "another document"."""
-    readable = access.read(access.readable_documents(world, request.user))
-    readable_slugs = {document.slug for document in readable}
-    hidden = [row for row in documents_of(world).values_list("path", "slug", "name")
-              if row[1] not in readable_slugs]
-    return Index(world, readable, {slug for _, slug, _ in hidden},
-                 hide=access.hiding(hidden), hide_links=access.hiding(hidden, names=False))
 
 
 def plot_team_only(view):
@@ -247,7 +236,8 @@ def listing(request, world_id, kind):
 def detail(request, world_id, kind, slug):
     world = world_or_404(request, world_id)
     doc_type, label = kind_or_404(kind)
-    index = reading(request, world)
+    reader = access.reading(world, request.user)
+    index = Index.of(reader)
     document = index.by_slug.get(slug)
     if document is None or document.kind != doc_type:
         raise Http404("No such document")
@@ -259,7 +249,8 @@ def detail(request, world_id, kind, slug):
                    .prefetch_related("undos__decided_by", "undos__undone_by")) \
         if doc_type in ("after-action", interludes.RECORD) else []
     # A Canon Change about a document the reader may not read is left out.
-    report_changes = [{**change_row(index, c), "undos": c.undos.all()} for c in changes
+    report_changes = [{**change_row(index, c), "undos": undos_shown(index, c)}
+                      for c in changes
                       if c.entity not in index.hidden]
     selected, refused_change_id = selection(request)
     return render(request, "canon/detail.html", {
@@ -274,13 +265,11 @@ def detail(request, world_id, kind, slug):
         "plot_mods": index.mods_of(document),
         "plot_entities": index.links(entities) if isinstance(entities, list) else [],
         "referred_to_by": index.referred_to_by(document),
-        "flags": flags_shown(index, access.readable_flags(
-            world, request.user, Flag.objects.open_in(world).filter(mod=document)))
+        "flags": flags_shown(index, reader.flags(Flag.objects.open_in(world)
+                                                 .filter(mod=document)))
         if doc_type == "mod" else [],
-        "resolved_flags": flags_shown(index, access.readable_flags(
-            world, request.user, Flag.objects.filter(
-                organization=world.organization, world=world, mod=document)
-            .exclude(resolution="")))
+        "resolved_flags": flags_shown(index, reader.flags(Flag.objects.filter(
+            organization=world.organization, world=world, mod=document).exclude(resolution="")))
         if doc_type == "mod" else [],
         "sent_back": draft and document.sent_back_at is not None,
         "may_approve": draft,
@@ -322,10 +311,11 @@ def detail(request, world_id, kind, slug):
     })
 
 
-def readable_mod_or_404(request, world, slug):
-    """The Mod, as this person reads it (`canon.access`), or no page if they
-    may not read it: the same answer as for a Mod that does not exist."""
-    mod = access.readable_one(world, request.user, kind="mod", slug=slug)
+def readable_mod_or_404(reader, slug):
+    """The Mod, as the reader reads it (a `canon.access.Reading`), or no page
+    if they may not read it: the same answer as for a Mod that does not
+    exist."""
+    mod = reader.one(kind="mod", slug=slug)
     if mod is None:
         raise Http404("No such Mod")
     return mod
@@ -351,14 +341,16 @@ def twee_download(mod):
 def twee(request, world_id, slug):
     """Download a Mod for Twine. For anyone who can read the Mod."""
     world = world_or_404(request, world_id)
-    return twee_download(readable_mod_or_404(request, world, slug))
+    return twee_download(readable_mod_or_404(access.reading(world, request.user), slug))
 
 
-def dry_run_page_or_404(mod, request):
-    """What the Dry Run page at this address shows, or no page for a step
-    that cannot be reached."""
+def dry_run_page_or_404(mod, request, hiding):
+    """What the Dry Run page at this address shows, with the documents in
+    `hiding` (`canon.access.Hiding`) reading "another document", or no page
+    for a step that cannot be reached."""
     try:
-        return dry_runs.page_for(mod, request.GET.getlist(dry_runs.TRAIL_PARAMETER))
+        return dry_runs.page_for(mod, request.GET.getlist(dry_runs.TRAIL_PARAMETER),
+                                 hide_links=hiding.hide_links)
     except dry_runs.NoSuchStep:
         raise Http404("No such step") from None
 
@@ -367,9 +359,10 @@ def dry_run_page_or_404(mod, request):
 def dry_run(request, world_id, slug):
     """Play a Mod's Dry Run. For anyone who can read the Mod, in any state."""
     world = world_or_404(request, world_id)
-    mod = readable_mod_or_404(request, world, slug)
+    reader = access.reading(world, request.user)
+    mod = readable_mod_or_404(reader, slug)
     return render(request, "canon/dry_run.html", {
-        "world": world, "mod": mod, **dry_run_page_or_404(mod, request),
+        "world": world, "mod": mod, **dry_run_page_or_404(mod, request, reader.hiding),
         "full_mod": reverse("canon-detail", args=[world.pk, "mods", mod.slug])})
 
 
@@ -378,7 +371,8 @@ def report(request, world_id, slug):
     """File an After-Action Report on a Mod, pasted or uploaded. For anyone
     who can read the Mod."""
     world = world_or_404(request, world_id)
-    mod = readable_mod_or_404(request, world, slug)
+    reader = access.reading(world, request.user)
+    mod = readable_mod_or_404(reader, slug)
     context = {"world": world, "mod": mod,
                "can_be_reported_on": submitting.can_be_reported_on(mod),
                "state": state_of(mod)}
@@ -394,17 +388,15 @@ def report(request, world_id, slug):
         # Give back what was sent, so it can be corrected and sent again.
         again = ReportForm(initial={"text": form.cleaned_data["contents"]})
         return render(request, "canon/report.html",
-                      {**context, "form": again,
-                       **refusal_as_read(request, world, refused)})
+                      {**context, "form": again, **refusal_as_read(reader, refused)})
     messages.success(request, "Report filed. Its Canon Changes are waiting to be decided.")
     return redirect("canon-detail", world_id=world.pk, kind="reports", slug=filed.slug)
 
 
-def refusal_as_read(request, world, refused):
-    """Why a file was refused, and its errors, as this person may read them
-    (`canon.access.readable_findings`)."""
-    return {"refused": access.readable_findings(world, request.user, str(refused)),
-            "errors": access.readable_findings(world, request.user, refused.errors or "")}
+def refusal_as_read(reader, refused):
+    """Why a file was refused, and its errors, as the reader (a
+    `canon.access.Reading`) may read them."""
+    return {"refused": reader.findings(str(refused)), "errors": reader.findings(refused.errors)}
 
 
 def is_draft(mod):
@@ -449,7 +441,8 @@ def mod_form(request, context, save):
         again = ModForm(initial={"text": form.cleaned_data["contents"]})
         return render(request, "canon/mod_form.html",
                       {**context, "form": again,
-                       **refusal_as_read(request, context["world"], refused),
+                       **refusal_as_read(access.reading(context["world"], request.user),
+                                         refused),
                        "twine_warnings": twine_warnings,
                        "twine_warned": TWINE_WARNED})
     return to_saved_mod(request, saved, twine_warnings)
@@ -507,13 +500,22 @@ def change_row(index, change):
         "before": index.hide(change.before),
         "after": index.hide(change.after),
         "summary": index.hide(change.summary),
+        "note": index.hide(change.note),
         "report": index.link(change.report.slug),
         "submitted_by": change.report.submitted_by,
         "submitted_at": change.report.submitted_at,
         "decided_by": change.decided_by,
         "decided_at": change.decided_at,
-        "note": change.note,
     }
+
+
+def undos_shown(index, change):
+    """A Canon Change's undone decisions as rows a page can show, their notes
+    naming no document the reader may not read."""
+    return [SimpleNamespace(decision=undo.decision, decided_by=undo.decided_by,
+                            undone_by=undo.undone_by, undone_at=undo.undone_at,
+                            note=index.hide(undo.note))
+            for undo in change.undos.all()]
 
 
 # How many decided changes to show beside each entity's pending ones.
@@ -658,7 +660,7 @@ def flags_shown(index, flags):
         "resolution": flag.get_resolution_display(),
         "resolved_by": flag.resolved_by,
         "resolved_at": flag.resolved_at,
-        "note": flag.note,
+        "note": index.hide(flag.note),
         "mod": index.link(flag.mod.slug),
         "entity": index.link(flag.change.entity),
         "kind": wording(flag.change.kind),
@@ -675,10 +677,10 @@ def flags_shown(index, flags):
 def flags(request, world_id):
     """Every open Flag in the World that this person may read, by Mod."""
     world = world_or_404(request, world_id)
-    index = reading(request, world)
+    reader = access.reading(world, request.user)
     return render(request, "canon/flags.html", {
-        "world": world, "flags": flags_shown(index, access.readable_flags(
-            world, request.user, Flag.objects.open_in(world))),
+        "world": world, "flags": flags_shown(Index.of(reader),
+                                             reader.flags(Flag.objects.open_in(world))),
         "may_decide": is_plot_master(request, world)})
 
 
@@ -923,4 +925,4 @@ def decided_changes(index, world, document, decision):
 
 def reported_on(world, mod):
     """Whether any After-Action Report has been filed on this Mod."""
-    return documents_of(world).filter(kind="after-action", fields__mod=mod.slug).exists()
+    return documents_of(world).filter(kind=access.REPORT, fields__mod=mod.slug).exists()

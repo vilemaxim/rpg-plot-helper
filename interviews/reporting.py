@@ -31,12 +31,13 @@ from plotcanon import editing
 from canon import access, submitting
 from canon.forms import ReportForm
 from canon.presenting import render_markdown
+from canon.views import readable_mod_or_404
 from organizations.views import world_or_404
 
 from . import config, conversation, walking
 from .config import Kind
 from .conversation import Tampered
-from .views import (SURFACE, Interviewing, a_turn, readable_mod_or_404, started_over,
+from .views import (SURFACE, Interviewing, a_turn, started_over,
                     submitted)
 
 # The values the form to file a report may give for `finished`, as YAML.
@@ -160,7 +161,7 @@ def report_interview_or_404(request, world_id, slug):
     (anyone who can open the World, #41) and may read it. Anyone else is told
     there is no such page."""
     world = world_or_404(request, world_id)
-    mod = readable_mod_or_404(request, world, slug)
+    mod = readable_mod_or_404(access.reading(world, request.user), slug)
     conversation.forget_idle()
     return Reporting(Kind.REPORT, world, config.llm_for(Kind.REPORT), mod)
 
