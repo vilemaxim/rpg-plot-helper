@@ -183,15 +183,21 @@ def grant_features(world, assignment, ids, by, on=None):
                 for id in dict.fromkeys(ids)]
 
 
+def refuse_unless_live(world, plot_grant, on=None):
+    """Refuse to grant anything more along with a Plot's Grant that is no
+    longer live."""
+    if Liveness(world, on).ended(plot_grant):
+        raise GrantRefused(f"{plot_grant.person.email}'s Grant of {plot_grant.document.name} "
+                           f"is no longer live, so nothing more was granted.")
+
+
 def grant_ties(world, plot_grant, ids, by, on=None):
     """Grant the holder of a Plot's live Grant these documents tied to the
     Plot as well, by id, each on its own and until revoked. Returns the
     Grants. All or none: refused if the Plot's Grant is no longer live or an
     id is not tied to the Plot."""
     with transaction.atomic():
-        if Liveness(world, on).ended(plot_grant):
-            raise GrantRefused(f"{plot_grant.person.email}'s Grant of {plot_grant.document.name} "
-                               f"is no longer live, so nothing more was granted.")
+        refuse_unless_live(world, plot_grant, on)
         ties = {document.slug: document for document in ties_of(world, plot_grant.document)}
         for id in ids:
             if id not in ties:

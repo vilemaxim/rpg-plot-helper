@@ -916,24 +916,27 @@ def in_words(names):
 @require_http_methods(["GET", "POST"])
 def grant_ties(request, world_id, slug, grant_id):
     """Offer to grant the holder of a Plot's Grant the documents tied to the
-    Plot as well, none of them ticked, and grant those that were. For the
-    World's Plot Masters only."""
+    Plot as well, none of them ticked, and grant those that were; neither
+    once the Plot's Grant is no longer live. For the World's Plot Masters
+    only."""
     world = world_or_404(request, world_id)
     plot_master_or_403(request, world)
     plot = document_or_404(world, "plots", slug)
     plot_grant = grants.grants_in(world).filter(document=plot, pk=grant_id).first()
     if plot_grant is None:
         raise Http404("No such Grant")
-    if request.method == "POST":
-        try:
+    try:
+        grants.refuse_unless_live(world, plot_grant)
+        if request.method == "POST":
             granted = grants.grant_ties(world, plot_grant, request.POST.getlist("document"),
                                         request.user)
-        except grants.GrantRefused as refused:
-            messages.error(request, str(refused))
-        else:
-            messages.success(request, f"{plot_grant.person.email} is granted "
-                             f"{in_words(g.document.name for g in granted)} as well."
-                             if granted else "Nothing more was granted.")
+    except grants.GrantRefused as refused:
+        messages.error(request, str(refused))
+        return redirect("canon-detail", world_id=world.pk, kind="plots", slug=plot.slug)
+    if request.method == "POST":
+        messages.success(request, f"{plot_grant.person.email} is granted "
+                         f"{in_words(g.document.name for g in granted)} as well."
+                         if granted else "Nothing more was granted.")
         return redirect("canon-detail", world_id=world.pk, kind="plots", slug=plot.slug)
     return render(request, "canon/grant_ties.html", {
         "world": world, "plot": plot, "plot_grant": plot_grant,

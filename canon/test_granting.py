@@ -259,6 +259,17 @@ class GrantingAPlot(GrantingTest):
         self.assertContains(response, "is no longer live, so nothing more was granted.")
         self.assertEqual(self.page("npcs", "clerk-pell", by=self.rhea).status_code, 404)
 
+    def test_nothing_is_offered_once_the_plots_grant_is_revoked(self):
+        offer = self.grant("plots", SALT_TAX, "rhea@example.com")
+        [grant_id] = self.grant_ids(SALT_TAX)
+        self.revoke_grant("plots", SALT_TAX, grant_id)
+
+        response = self.mira.get(offer.redirect_chain[-1][0], follow=True)
+
+        self.assertEqual(response.redirect_chain[-1][0], self.doc_page("plots", SALT_TAX))
+        self.assertContains(response, "is no longer live, so nothing more was granted.")
+        self.assertIsNone(self.section(response, "ties"))
+
     def test_what_they_already_hold_a_grant_of_is_not_offered(self):
         self.grant("npcs", "clerk-pell", "rhea@example.com")
         self.grant("npcs", "oslo-reth", "sam@example.com")
