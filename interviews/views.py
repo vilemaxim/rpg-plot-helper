@@ -38,7 +38,8 @@ from canon.submitting import Refused
 from canon.models import Document, Flag
 from canon.presenting import wording
 from canon.storing import one_to_a_line
-from canon.views import documents_of, is_draft, may_revise, mod_or_404, to_saved_mod
+from canon import views as canon_views
+from canon.views import documents_of, is_draft, may_revise, to_saved_mod
 from organizations.models import World
 from organizations.views import may_write_mods, world_or_404
 
@@ -211,13 +212,10 @@ def interview_or_404(request, world_id):
 
 
 def readable_mod_or_404(request, world, slug):
-    """The Mod, if this person may read it (`canon.access`): the Mod an LLM is
-    given is the one they read. Anyone else is told there is no such page."""
-    mod = access.readable_documents(world, request.user).filter(
-        pk=mod_or_404(world, slug).pk).first()
-    if mod is None:
-        raise Http404("No such page")
-    return mod
+    """The Mod as this person reads it (`canon.access`): the Mod an LLM is
+    given is the one they read, without its GM Notes if they read it so.
+    Anyone who may not read it is told there is no such page."""
+    return canon_views.readable_mod_or_404(request, world, slug)
 
 
 def revise_interview_or_404(request, world_id, slug):

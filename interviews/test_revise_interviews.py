@@ -307,7 +307,7 @@ class WhoMayReviseInAnInterview(ReviseInterviewTest):
         kay = self.join("kay@example.com")
         self.give("kay@example.com", "mod-writer")
         with self.provider(FakeProvider(QUESTION)) as fake:
-            self.assertNotContains(kay.get(self.mod_page(NEW)), "interview/")
+            self.assertEqual(kay.get(self.mod_page(NEW)).status_code, 404)
             self.assertEqual(kay.get(self.revise_interview(NEW)).status_code, 404)
             response = kay.post(self.revise_interview(NEW), {"said": "Hello", "transcript": ""})
             self.assertEqual(response.status_code, 404)

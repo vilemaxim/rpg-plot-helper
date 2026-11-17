@@ -254,6 +254,8 @@ class WritingAReport(SpendingTest):
 
     def test_its_turns_count_and_a_paused_one_offers_pasting_a_report(self):
         report = f"{self.mod_page('storm-moon-vigil')}report/"
+        self.mira.post(f"{self.mod_page('storm-moon-vigil')}assignments/",
+                       {"user": self.user_id("rhea@example.com"), "event": ""})
         with self.limited(turns_per_person_per_day=1), \
                 self.provider(FakeProvider(QUESTION)) as fake, self.on(2026, 11, 3, 9):
             first = self.rhea.post(f"{report}interview/", {"transcript": ""})

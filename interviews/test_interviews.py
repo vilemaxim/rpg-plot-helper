@@ -96,8 +96,9 @@ class WritingAModInAnInterview(InterviewTest):
         self.assertEqual(stored.submitted_by.email, "sam@example.com")
 
     def test_the_system_prompt_is_plotcanons_new_mod_instructions_for_the_web(self):
+        # Given the whole World, as the plot team reads it.
         with self.provider(FakeProvider(QUESTION)) as fake:
-            self.say("Hello")
+            self.say("Hello", by=self.mira)
 
         system, messages = fake.asked[0]
         expected = plotcanon.interview_instructions(
@@ -219,15 +220,26 @@ class WhatTheLlmMayRead(InterviewTest):
         self.assertNotIn(left_out, system)
         self.assertIn("clerk-pell", system)
 
-    def test_today_a_mod_writer_may_read_the_whole_world(self):
-        with self.in_world():
-            from canon.models import Document
-            from django.contrib.auth import get_user_model
-            from organizations.models import World
-            world = World.objects.get(pk=self.first_world.rstrip("/").rsplit("/", 1)[1])
-            sam = get_user_model().objects.get(email="sam@example.com")
-            self.assertEqual(set(access.readable_documents(world, sam)),
-                             set(Document.objects.filter(world=world)))
+    def test_a_mod_writer_with_no_mods_of_their_own_gives_it_no_gm_only_facts(self):
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.say("Hello")
+
+        system = fake.asked[0][0]
+        self.assertIn("the-ferryman", system)
+        self.assertIn("Rows the harbour mouth", system)
+        self.assertNotIn("A good NPC to bring back.", system)
+        self.assertNotIn("the-tidemother", system)
+        self.assertNotIn("a-warrant-for-dunmore", system)
+
+    def test_their_own_mods_are_given_in_full(self):
+        self.mira.post(f"{self.first_world}mod-writers/",
+                       {"handle": "sam", "user": self.user_id("sam@example.com")})
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.say("Hello")
+
+        system = fake.asked[0][0]
+        self.assertIn("a-warrant-for-dunmore", system)
+        self.assertIn("Pointless if the smuggler is already dead or gone when it runs.", system)
 
 
 BROKEN = a_mod(**{"type: mod": "type: nonsense"})
@@ -351,7 +363,24 @@ class FixingWithinWhatThePersonMayRead(InterviewTest):
         self.assertNotIn(LEFT_OUT, page.replace(html.escape(NAMES_IT), ""))
         self.assertFalse(self.exists(NEW))
 
+    def test_an_error_naming_a_gm_only_document_reads_another_document(self):
+        names_gm_only = a_mod(**{"npcs: [mirelle-vale, tobren-vale, ysolde-marr]":
+                                 "npcs: [mirelle-vale, tobren-vale, ysolde-marr, "
+                                 "a-warrant-for-dunmore]"})
+        with self.provider(FakeProvider(fenced(names_gm_only), fenced(names_gm_only)), 1) \
+                as fake:
+            page = self.say("Write it")
+
+        fix = fake.asked[1][1][2].text
+        self.assertIn("points at a `mod`", fix)
+        self.assertNotIn("a-warrant-for-dunmore", fix)
+        self.assertIn(access.HIDDEN, fix)
+        self.assertNotIn("a-warrant-for-dunmore",
+                         page.replace(html.escape(names_gm_only), ""))
+
     def test_the_same_error_names_a_document_the_person_may_read(self):
+        self.mira.post(f"{self.first_world}mod-writers/",
+                       {"handle": "kay", "user": self.user_id("sam@example.com")})
         with self.provider(FakeProvider(fenced(NAMES_IT), fenced(a_mod()))) as fake:
             self.say("Write it")
 
@@ -364,7 +393,7 @@ class FixingWithinWhatThePersonMayRead(InterviewTest):
         everything = access.readable_documents
         findings = ("ERROR  inbox/new.md: `features.npcs: the-wardens-ball` points at a `mod`\n"
                     "ERROR  mods/shelved/the-wardens-ball.md: `requires` does not resolve\n"
-                    "ERROR  canon/npcs/clerk-pell.md: something about clerk-pell")
+                    "ERROR  canon/npcs/the-ferryman.md: something about the-ferryman")
         with self.in_world(), mock.patch.object(
                 access, "readable_documents",
                 lambda world, person: everything(world, person).exclude(slug=LEFT_OUT)):
@@ -374,7 +403,7 @@ class FixingWithinWhatThePersonMayRead(InterviewTest):
 
         self.assertEqual(shown.splitlines(), [
             "ERROR  inbox/new.md: `features.npcs: another document` points at a `mod`",
-            "ERROR  canon/npcs/clerk-pell.md: something about clerk-pell",
+            "ERROR  canon/npcs/the-ferryman.md: something about the-ferryman",
             access.NOT_SHOWN])
 
 

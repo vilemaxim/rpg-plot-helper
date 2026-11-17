@@ -8,8 +8,13 @@ from unittest import mock
 import plotcanon
 import yaml
 
+from django.utils import timezone
+
+from accounts.models import User
 from canon.test_reports import VIGIL
 from canon import access
+from canon.models import Assignment
+from organizations.models import World
 from interviews import config
 from interviews.providers import ProviderError
 from interviews.test_interviews import (FIXING, QUESTION, FakeProvider, InterviewTest, fenced,
@@ -35,6 +40,19 @@ def a_report(path, finished, id="aa-the-bell-beneath"):
 
 
 class ReportInterviewTest(InterviewTest):
+    """Rhea runs the bell Mod and the vigil Mod, so she may read them."""
+
+    def setUp(self):
+        super().setUp()
+        for mod in (BELL, NO_DRY_RUN):
+            self.mira.post(f"{self.mod_page(mod)}assignments/",
+                           {"user": self.user_id("rhea@example.com"), "event": ""})
+
+    def files_rhea_reads(self):
+        with self.in_world():
+            world = World.objects.get(pk=self.first_world.rstrip("/").rsplit("/", 1)[1])
+            return access.readable_files(world, User.objects.get(email="rhea@example.com"))
+
     def report_page(self, mod):
         return f"{self.mod_page(mod)}report/"
 
@@ -107,7 +125,7 @@ class WalkingThePath(ReportInterviewTest):
 
     def system_prompt_for(self, path, mod=BELL, continues_from=None):
         return plotcanon.interview_instructions(
-            "report", "web", world=self.stored_files(), mod=self.stored(mod).text,
+            "report", "web", world=self.files_rhea_reads(), mod=self.stored(mod).text,
             path=path, continues_from=continues_from)
 
 
@@ -231,7 +249,7 @@ class AModInProgress(WalkingThePath):
         with self.provider(FakeProvider(QUESTION)) as fake:
             self.begin(BELL, self.stop_at(BELL, [1]))
 
-        stop = plotcanon.last_stop(self.stored_files(), BELL)
+        stop = plotcanon.last_stop(self.files_rhea_reads(), BELL)
         self.assertEqual(stop, plotcanon.LastStop(DESCENT))
         self.assertEqual(fake.asked[0][0], self.system_prompt_for(path, continues_from=stop))
         walked = plotcanon.check_path(plotcanon.story(self.stored(BELL).text), path,
@@ -245,7 +263,7 @@ class AModInProgress(WalkingThePath):
             self.assertContains(page, html.escape(SISTER))
             self.begin(BELL, self.stop_at(BELL, [0, 1], start="hook"))
 
-        stop = plotcanon.last_stop(self.stored_files(), BELL)
+        stop = plotcanon.last_stop(self.files_rhea_reads(), BELL)
         self.assertEqual(fake.asked[0][0], self.system_prompt_for(path, continues_from=stop))
 
     def test_a_scene_the_last_report_did_not_stop_at_cannot_be_a_start(self):
@@ -276,7 +294,7 @@ class AModWhoseLastReportHasNoPath(WalkingThePath):
         with self.provider(FakeProvider(QUESTION)) as fake:
             self.begin(BELL, self.stop_at(BELL, [2], start=WHO))
 
-        stop = plotcanon.last_stop(self.stored_files(), BELL)
+        stop = plotcanon.last_stop(self.files_rhea_reads(), BELL)
         self.assertEqual(stop, plotcanon.LastStop(known=False))
         self.assertEqual(fake.asked[0][0], self.system_prompt_for(path, continues_from=stop))
 
@@ -443,7 +461,9 @@ class FilingTheReport(WalkingThePath):
 
 
 class WhoMayWriteAReport(WalkingThePath):
-    def test_anyone_with_a_role_in_the_world_may_as_they_may_file_one(self):
+    def test_anyone_who_may_read_the_mod_may_as_they_may_file_one(self):
+        self.mira.post(f"{self.first_world}mod-writers/",
+                       {"handle": "sam", "user": self.user_id("sam@example.com")})
         with self.provider(FakeProvider(QUESTION, QUESTION)) as fake:
             self.begin(BELL, self.stop_at(BELL, [0], by=self.sam), by=self.sam)
             self.begin(BELL, self.stop_at(BELL, [0], by=self.mira), by=self.mira)
@@ -461,13 +481,15 @@ class WhoMayWriteAReport(WalkingThePath):
 
     def test_a_mod_that_cannot_be_reported_on_sends_the_person_to_the_report_page(self):
         with self.provider(FakeProvider()) as fake:
-            response = self.rhea.get(self.report_interview("the-wardens-ball"))
+            response = self.mira.get(self.report_interview("the-wardens-ball"))
 
         self.assertRedirects(response, self.report_page("the-wardens-ball"),
                              fetch_redirect_response=False)
         self.assertEqual(fake.asked, [])
 
     def test_one_persons_walk_is_not_anothers(self):
+        self.mira.post(f"{self.first_world}mod-writers/",
+                       {"handle": "sam", "user": self.user_id("sam@example.com")})
         with self.provider(FakeProvider()):
             page = self.stop_at(BELL, [0])
             response = self.sam.post(self.report_interview(BELL),
@@ -489,7 +511,25 @@ class WhatTheLlmMayRead(WalkingThePath):
 
         system = fake.asked[0][0]
         self.assertNotIn("the-wardens-ball", system)
-        self.assertIn("clerk-pell", system)
+        self.assertIn("the-ferryman", system)
+
+    def test_a_mod_runner_is_given_no_gm_notes_but_those_of_the_mod_they_run(self):
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.begin(BELL, self.stop_at(BELL, [0]))
+
+        system = fake.asked[0][0]
+        self.assertNotIn("A good NPC to bring back.", system)
+        self.assertNotIn("the-tidemother.md", system)
+        self.assertIn(self.stored(BELL).text, system)
+
+    def test_once_the_assignment_is_revoked_there_is_no_report_interview(self):
+        with self.in_world():
+            Assignment.objects.filter(mod__slug=BELL).update(revoked_at=timezone.now())
+        with self.provider(FakeProvider()) as fake:
+            self.assertEqual(self.rhea.get(self.walk(BELL)).status_code, 404)
+            self.assertEqual(self.rhea.get(self.report_interview(BELL)).status_code, 404)
+
+        self.assertEqual(fake.asked, [])
 
     def test_a_mod_the_person_may_not_read_has_no_report_interview(self):
         with self.provider(FakeProvider()) as fake, self.reading_all_but(BELL):
