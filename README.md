@@ -60,8 +60,8 @@ What each person may read is narrowed per document ([ADR-0010](./docs/adr/0010-r
 
 - **The plot team**, a World's Plot Masters and its Organization's Admins, reads everything in full.
 - **Anyone else with a role in the World** reads every `public` and `player-known` document, and every Campaign and Event (their files have no `visibility`), with its `## GM Notes` removed (`plotcanon.without_gm_notes`). A Mod Writer also reads their own Mods in full, draft or not, and a Mod Runner the Mods they hold a live [Assignment](#assigning-mod-runners) for, for as long as it is live. An After-Action Report is read as its Mod is.
-- **A document someone may not read** is not listed, its page is not found, the same answer as for one that does not exist, and wherever it is mentioned (a relationship, a Feature, a Plot, a link in a body, a Canon Change) it reads "another document". A readable report leaves out its Canon Changes about such documents, and says there are more.
-- **The Canon Changes waiting to be decided**, on their page or on a document's, are for the plot team only.
+- **A document someone may not read** is not listed, its page is not found, the same answer as for one that does not exist, and wherever it is mentioned (a relationship, a Feature, a Plot, a link in a body or a Dry Run, a Canon Change or a decision's note) it reads "another document". A readable report leaves out its Canon Changes about such documents, and says there are more.
+- **The Canon Changes waiting to be decided**, on their page or on a document's, and the records of Canon Changes made during an Interlude, are for the plot team only.
 - **A private link** reads its own Mod in full and nothing else in the World.
 
 To try it, make a zip of the sample World that ships with [plotcanon](https://github.com/vilemaxim/plotcanon):
