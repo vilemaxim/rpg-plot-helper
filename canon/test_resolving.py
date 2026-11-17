@@ -7,6 +7,7 @@ import plotcanon
 from canon.models import Document, Flag
 from canon.test_decisions import DecisionTest
 from canon.test_reports import STAIR, VIGIL
+from organizations.models import Membership
 from organizations.tests import sign_in
 
 WARRANT = "a-warrant-for-dunmore"
@@ -227,6 +228,9 @@ class WhoMayResolve(ResolvingTest):
         self.assertEqual(self.state_shown(WARRANT), "Approved")
 
     def test_they_still_see_the_warning_but_not_the_buttons(self):
+        # An Organization Admin reads the Flags, but is not a Plot Master.
+        with self.in_world():
+            Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
         page = self.sam.get(self.mod_page(WARRANT))
 
         self.assertContains(page, 'class="warning"')

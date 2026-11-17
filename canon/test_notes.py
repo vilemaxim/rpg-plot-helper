@@ -8,6 +8,7 @@ from canon.test_decisions import DecisionTest
 from canon.test_exporting import unzipped
 from canon.test_reports import STAIR, VIGIL
 from canon.tests import upload
+from organizations.models import Membership
 
 STAIR_ID = "aa-blood-on-the-salt-stair"
 WHY = "Harrow is needed alive for the Second Lantern; the fall was survivable."
@@ -157,12 +158,18 @@ class OnlyAPlotMaster(NoteTest):
         self.assertNotIn("note", self.stored_change(STAIR_ID))
 
     def test_others_are_not_offered_the_box(self):
+        # An Organization Admin reads both pages, but is not a Plot Master.
+        with self.in_world():
+            Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
         self.assertNotContains(self.sam.get(self.pending), 'name="note"')
         self.assertNotContains(self.sam.get(f"{self.first_world}reports/{STAIR_ID}/"),
                                'name="note"')
 
     def test_others_can_read_it(self):
         self.rule_with_note(self.death, "reject", WHY)
+        # Anyone who may read the change: here an Organization Admin.
+        with self.in_world():
+            Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
 
         self.assertContains(self.sam.get(f"{self.first_world}reports/{STAIR_ID}/"), WHY)
         self.assertContains(self.sam.get(f"{self.first_world}npcs/harrow-dunmore/"), WHY)

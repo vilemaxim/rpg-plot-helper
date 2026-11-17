@@ -229,7 +229,7 @@ class RevisingADraft(SubmissionTest):
         kay = self.join("kay@example.com")
         self.give("kay@example.com", "mod-writer")
 
-        self.assertNotContains(kay.get(self.mod_page(NEW)), "revise/")
+        self.assertEqual(kay.get(self.mod_page(NEW)).status_code, 404)
         self.assertEqual(self.revise(NEW, a_mod(title="Mine Now"), by=kay).status_code, 404)
         self.assertEqual(self.stored(NEW).text, a_mod())
 

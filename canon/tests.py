@@ -490,7 +490,7 @@ class Browsing(CanonTest):
         self.give("sam@example.com", "mod-runner")
 
         self.assertEqual(self.page("npcs/", by=sam).status_code, 200)
-        self.assertEqual(self.page("mods/storm-moon-vigil/", by=sam).status_code, 200)
+        self.assertEqual(self.page("npcs/the-ferryman/", by=sam).status_code, 200)
 
     def test_someone_with_no_role_in_the_world_cannot(self):
         sam = self.join("sam@example.com")

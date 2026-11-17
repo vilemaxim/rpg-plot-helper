@@ -396,10 +396,12 @@ class WhoSeesThem(AssignmentTest):
         self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)
         self.assign(VIGIL, "tom@example.com")
 
-        for someone in (self.mira, self.rhea, self.tom, self.sam):
+        for someone in (self.mira, self.rhea, self.tom):
             live = self.live_shown(VIGIL, by=someone)
             self.assertIn("rhea@example.com, for Storm Moon", live)
             self.assertIn("tom@example.com, until revoked", live)
+        # Sam may not read the Mod at all (ADR-0010).
+        self.assertEqual(self.sam.get(self.mod_page(VIGIL)).status_code, 404)
 
     def test_a_mod_runner_sees_their_own_live_assignments_on_the_world_page(self):
         self.assign(VIGIL, "rhea@example.com", event=STORM_MOON)

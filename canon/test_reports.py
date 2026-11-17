@@ -515,17 +515,26 @@ class WhoMaySubmit(ReportTest):
         self.eve = sign_in("eve@example.com")
 
     def test_anyone_with_a_role_in_the_world_can(self):
+        # Each may read the Mod: a Plot Master reads everything, the Mod
+        # Writer writes it, and the Mod Runner is assigned to it (ADR-0010).
         reports = dict(zip(Role, (VIGIL, STAIR, KEEPER), strict=True))
         for role, scripted in reports.items():
             with self.subTest(role=role):
                 email = f"{role}@example.com"
                 browser = self.join(email)
                 self.give(email, role)
+                if role == Role.MOD_WRITER:
+                    self.mira.post(f"{self.first_world}mod-writers/",
+                                   {"handle": "dev", "user": User.objects.get(email=email).pk})
+                if role == Role.MOD_RUNNER:
+                    self.mira.post(f"{self.mod_page('what-the-keeper-saw')}assignments/",
+                                   {"user": User.objects.get(email=email).pk, "event": ""})
 
                 response = self.submit(scripted, by=browser)
 
                 self.assertContains(response, f"Submitted by {email}")
-                self.assertEqual(browser.get(self.pending).status_code, 200)
+                self.assertEqual(browser.get(self.pending).status_code,
+                                 200 if role == Role.PLOT_MASTER else 404)
 
     def test_someone_with_no_role_in_the_world_cannot(self):
         for browser in (self.sam, self.eve):

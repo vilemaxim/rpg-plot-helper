@@ -66,7 +66,7 @@ class CreatingALink(LinkTest):
         sam = self.join("sam@example.com")
         self.give("sam@example.com", "mod-runner")
 
-        self.assertNotContains(sam.get(self.mod_page(VIGIL_MOD)), self.links_page(VIGIL_MOD))
+        self.assertEqual(sam.get(self.mod_page(VIGIL_MOD)).status_code, 404)
         self.assertEqual(sam.post(self.links_page(VIGIL_MOD), {"label": "x"}).status_code, 404)
         self.assertEqual(self.link_rows(), [])
 

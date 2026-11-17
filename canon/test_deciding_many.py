@@ -4,6 +4,7 @@ requests, with plotcanon's sample World and script."""
 from canon.models import CanonChange
 from canon.test_decisions import DecisionTest, report_text
 from canon.test_reports import LEDGER_2, STAIR, VIGIL
+from organizations.models import Membership
 
 
 class DecidingManyTest(DecisionTest):
@@ -268,6 +269,9 @@ class WhoMayDecideMany(DecidingManyTest):
         self.assertEqual(set(self.decisions_of("aa-blood-on-the-salt-stair")), {"proposed"})
 
     def test_they_are_not_offered_the_checkboxes(self):
+        # An Organization Admin reads both pages, but is not a Plot Master.
+        with self.in_world():
+            Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
         for page in (self.pending, f"{self.first_world}reports/aa-blood-on-the-salt-stair/"):
             response = self.sam.get(page)
             self.assertNotContains(response, 'name="change"')

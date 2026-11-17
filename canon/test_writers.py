@@ -132,7 +132,7 @@ class Reassigning(WriterTest):
         self.revise(NEW, a_mod(title="Kay's Version"), by=self.kay)
         self.assertEqual(self.stored(NEW).name, "Kay's Version")
         self.assertEqual(self.revise(NEW, a_mod(), by=self.sam).status_code, 404)
-        self.assertNotContains(self.sam.get(self.mod_page(NEW)), "revise/")
+        self.assertEqual(self.sam.get(self.mod_page(NEW)).status_code, 404)
 
     def test_an_imported_draft_can_be_given_a_mod_writer(self):
         self.reassign(DAUGHTER, "sam@example.com")

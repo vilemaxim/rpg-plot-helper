@@ -16,10 +16,10 @@ from canon.test_runner_links import VIGIL_MOD, LinkTest
 class DownloadingForTwine(SubmissionTest):
     def test_a_reader_of_the_mod_downloads_it_as_twee(self):
         self.submit_mod(a_mod())
-        page = self.rhea.get(self.mod_page(NEW))
+        page = self.sam.get(self.mod_page(NEW))
         self.assertContains(page, f'href="{self.mod_page(NEW)}twee/"')
 
-        response = self.rhea.get(f"{self.mod_page(NEW)}twee/")
+        response = self.sam.get(f"{self.mod_page(NEW)}twee/")
 
         self.assertEqual(response.content.decode(), plotcanon.to_twee(self.stored(NEW).text))
         self.assertIn(f'filename="{NEW}.twee"', response["Content-Disposition"])

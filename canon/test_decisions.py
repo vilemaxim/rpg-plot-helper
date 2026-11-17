@@ -7,6 +7,7 @@ import plotcanon
 
 from canon.models import CanonChange, Document
 from canon.test_reports import LEDGER_2, STAIR, VIGIL, ReportTest
+from organizations.models import Membership
 from organizations.tests import sign_in
 
 
@@ -425,6 +426,9 @@ class WhoMayDecide(DecisionTest):
                          "proposed")
 
     def test_they_are_not_offered_the_buttons(self):
+        # An Organization Admin reads both pages, but is not a Plot Master.
+        with self.in_world():
+            Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
         self.assertNotContains(self.sam.get(self.pending), "/approve/")
         self.assertNotContains(
             self.sam.get(f"{self.first_world}reports/aa-blood-on-the-salt-stair/"), "approve/")

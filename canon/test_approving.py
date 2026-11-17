@@ -144,6 +144,9 @@ class RefusedApprovals(ApprovingTest):
         sam = self.join("sam@example.com")
         self.give("sam@example.com", "mod-writer")
         before = self.stored(DAUGHTER).text
+        # Sam writes the draft, so may read it.
+        self.mira.post(f"{self.first_world}mod-writers/",
+                       {"handle": "kay", "user": self.user_id("sam@example.com")})
 
         self.assertNotContains(sam.get(self.mod_page(DAUGHTER)), "approve/")
         response = self.approve(DAUGHTER, campaign="lanternlight", by=sam)

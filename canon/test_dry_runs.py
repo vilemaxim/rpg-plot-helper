@@ -147,6 +147,10 @@ class WhoMayPlayIt(DryRunTest):
             self.assertEqual(self.mira.get(self.dry_run(mod)).status_code, 200)
 
     def test_a_mod_runner_may_play_it(self):
+        self.assertEqual(self.rhea.get(self.dry_run()).status_code, 404)
+        self.mira.post(f"{self.mod_page(BELL)}assignments/",
+                       {"user": self.user_id("rhea@example.com"), "event": ""})
+
         self.assertContains(self.rhea.get(self.dry_run()), "<h2>Premise")
 
     def test_someone_with_no_role_in_the_world_may_not(self):

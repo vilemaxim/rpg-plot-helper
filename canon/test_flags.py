@@ -178,11 +178,19 @@ class WhoSeesThem(FlagTest):
         self.submit(STAIR)
         self.sam = self.join("sam@example.com")
 
-    def test_a_mod_runner_sees_the_warning_on_the_mod_they_run(self):
+    def test_a_mod_runner_sees_no_warning_about_what_they_may_not_read(self):
+        # Both Flags on the warrant Mod are about Harrow Dunmore, a GM-only
+        # NPC, raised by a report on a Mod Sam does not run (ADR-0010).
         self.give("sam@example.com", "mod-runner")
+        self.mira.post(f"{self.mod_page('a-warrant-for-dunmore')}assignments/",
+                       {"user": self.user_id("sam@example.com"), "event": ""})
 
-        self.assertContains(self.sam.get(self.mod_page("a-warrant-for-dunmore")), 'class="warning"')
+        page = self.sam.get(self.mod_page("a-warrant-for-dunmore"))
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'class="warning"')
         self.assertEqual(self.sam.get(self.flags_page).status_code, 200)
+        self.assertContains(self.mira.get(self.mod_page("a-warrant-for-dunmore")),
+                            'class="warning"')
 
     def test_someone_with_no_role_in_the_world_cannot(self):
         self.assertEqual(self.sam.get(self.flags_page).status_code, 404)
