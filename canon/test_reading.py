@@ -5,7 +5,10 @@ GM-only, and some NPCs, Locations and Factions are public or player-known.
 Mira is the plot team (Plot Master and Organization Admin). Sam only writes
 Mods, and Rhea and Tom only run them."""
 
+from canon.models import CanonChange, Document
 from canon.test_assignments import AssignmentTest
+from canon.test_reports import LEDGER_2, STAIR
+from organizations.models import Membership
 
 SISTER_ANE = "sister-ane"              # player-known, in the GM-only drowned bell Plot
 SISTER_ANE_SECRET = "She knows what the tidemother is."
@@ -126,3 +129,94 @@ class AReadableReport(ReadingTest):
 
         self.assertContains(page, "npcs/clerk-pell/")
         self.assertNotContains(page, "There are more Canon Changes")
+
+
+VIGIL_SECRET = "Whatever happens to the crypt sets up the Lanternlight bell mod."
+
+
+class AModRunner(ReadingTest):
+    def mod_pages(self, mod, by):
+        """The status of a Mod's page, its Dry Run and its Twine download."""
+        base = self.mod_page(mod)
+        return [by.get(f"{base}{page}").status_code for page in ("", "dry-run/", "twee/")]
+
+    def test_reads_a_mod_in_full_while_assigned_to_it(self):
+        self.assertEqual(self.mod_pages(VIGIL_MOD, self.rhea), [404, 404, 404])
+
+        self.assign(VIGIL_MOD, "rhea@example.com")
+
+        self.assertEqual(self.mod_pages(VIGIL_MOD, self.rhea), [200, 200, 200])
+        self.assertContains(self.rhea.get(self.mod_page(VIGIL_MOD)), VIGIL_SECRET)
+        self.assertIn(VIGIL_SECRET,
+                      self.rhea.get(f"{self.mod_page(VIGIL_MOD)}twee/").content.decode())
+        self.assertEqual(self.mod_pages(VIGIL_MOD, self.tom), [404, 404, 404])
+
+    def test_not_once_the_assignment_is_revoked(self):
+        self.assign(VIGIL_MOD, "rhea@example.com")
+        self.revoke(VIGIL_MOD, self.assignment_ids(VIGIL_MOD)[0])
+
+        self.assertEqual(self.mod_pages(VIGIL_MOD, self.rhea), [404, 404, 404])
+
+    def test_not_once_the_event_it_was_for_has_ended(self):
+        self.assign(VIGIL_MOD, "rhea@example.com", event="e03-storm-moon")
+        self.assertEqual(self.mod_pages(VIGIL_MOD, self.rhea), [200, 200, 200])
+
+        self.set_dates("e03-storm-moon", real_date="2020-01-01")
+
+        self.assertEqual(self.mod_pages(VIGIL_MOD, self.rhea), [404, 404, 404])
+
+    def test_reads_a_public_mod_without_its_gm_notes_once_it_ended(self):
+        self.assign(VIGIL_MOD, "rhea@example.com", event="e03-storm-moon")
+        with self.in_world():
+            mod =Document.objects.get(slug=VIGIL_MOD)
+            mod.fields["visibility"] = "public"
+            mod.save(update_fields=["fields"])
+        self.set_dates("e03-storm-moon", real_date="2020-01-01")
+
+        self.assertEqual(self.mod_pages(VIGIL_MOD, self.rhea), [200, 200, 200])
+        self.assertNotContains(self.rhea.get(self.mod_page(VIGIL_MOD)), VIGIL_SECRET)
+        self.assertNotIn(VIGIL_SECRET,
+                         self.rhea.get(f"{self.mod_page(VIGIL_MOD)}twee/").content.decode())
+
+
+class ThePendingPage(ReadingTest):
+    def setUp(self):
+        super().setUp()
+        self.submit(LEDGER_2)
+        with self.in_world():
+            self.change_id = CanonChange.objects.filter(decision="proposed").first().pk
+
+    def test_and_deciding_are_not_found_outside_the_plot_team(self):
+        for someone in (self.sam, self.rhea):
+            self.assertEqual(someone.get(self.pending).status_code, 404)
+            self.assertEqual(someone.post(f"{self.pending}{self.change_id}/approve/")
+                             .status_code, 404)
+            self.assertEqual(someone.post(f"{self.pending}decide/",
+                                          {"decision": "approve", "change": self.change_id})
+                             .status_code, 404)
+            self.assertNotContains(someone.get(self.first_world), self.pending)
+        self.assertEqual(self.mira.get(self.pending).status_code, 200)
+
+    def test_a_document_page_shows_no_one_else_the_changes_waiting_for_it(self):
+        self.submit(STAIR)
+
+        self.assertContains(self.page("locations", "the-salt-stair", by=self.mira),
+                            "Waiting to be decided")
+        self.assertNotContains(self.page("locations", "the-salt-stair"),
+                               "Waiting to be decided")
+
+
+class ThePlotTeam(ReadingTest):
+    def setUp(self):
+        super().setUp()
+        self.ada = self.join("ada@example.com")
+        with self.in_world():
+            Membership.objects.filter(user__email="ada@example.com").update(is_admin=True)
+
+    def test_plot_masters_and_organization_admins_read_everything_in_full(self):
+        for someone in (self.mira, self.ada):
+            self.assertContains(self.page("npcs", TIDEMOTHER, by=someone), "GM Notes")
+            self.assertContains(self.page("npcs", FERRYMAN, by=someone), FERRYMAN_SECRET)
+            self.assertContains(self.page("mods", VIGIL_MOD, by=someone), VIGIL_SECRET)
+            self.assertIn(f"npcs/{TIDEMOTHER}/", self.listed("npcs", by=someone))
+            self.assertEqual(someone.get(self.pending).status_code, 200)

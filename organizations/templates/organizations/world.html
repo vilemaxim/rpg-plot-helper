@@ -22,7 +22,7 @@
     <p><a href="{% url 'canon-mod-writers' world.pk %}">Mod Writers</a></p>
     <p><a href="{% url 'canon-dry-run-structure' world.pk %}">Dry Run structure</a></p>
   {% endif %}
-  {% world_contents world is_plot_master may_write_mods %}
+  {% world_contents world user is_plot_master may_write_mods %}
   {% my_drafts world user %}
   {% my_assignments world user %}
 {% endblock %}
