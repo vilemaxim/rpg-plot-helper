@@ -23,7 +23,7 @@ from django.utils import timezone
 
 from organizations.models import Role, World
 
-from . import assignments
+from . import assignments, writers
 from .kinds import ADDRESS_OF
 from .models import Document, Grant
 from .roles import chosen, people_holding, plot_team
@@ -153,6 +153,36 @@ def ties_to_offer(world, plot_grant, on=None):
     held = granted_ids(world, plot_grant.person, on)
     return [(document, document.pk in held)
             for document in ties_of(world, plot_grant.document)]
+
+
+def referred_to(world, mod):
+    """The documents of the World a Mod refers to, each once, in the order
+    plotcanon's `references` finds them."""
+    # Imported here: presenting reads access, which reads this module.
+    from .presenting import as_parsed
+
+    ids = list(dict.fromkeys(ref.id for ref in plotcanon.references(as_parsed(mod))
+                             if isinstance(ref.id, str) and ref.id != mod.slug))
+    found = {document.slug: document for document in
+             Document.objects.filter(organization=world.organization, world=world, slug__in=ids)}
+    return [found[id] for id in ids if id in found]
+
+
+def not_granted_to_writer(world, draft):
+    """What a draft Mod refers to that its Mod Writer may not read in full,
+    for the plot team to grant them if they choose: `(writer, documents)`.
+    No documents if the app knows no Mod Writer of it, or they cannot be
+    given a Grant."""
+    # Imported here: access reads this module.
+    from .access import readable_documents
+
+    writer = writers.writer_of(draft)
+    if writer is None or not may_be_granted(world).filter(pk=writer.pk).exists():
+        return writer, []
+    in_full = set(readable_documents(world, writer).filter(in_full=True)
+                  .values_list("pk", flat=True))
+    return writer, [document for document in referred_to(world, draft)
+                    if document.pk not in in_full]
 
 
 def grant(world, document, user_id, by, assignment=None, on=None):

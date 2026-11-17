@@ -23,7 +23,7 @@ from . import (access, approving, assignments, deciding, dry_runs, exporting, gr
                interludes, links, resolving, submitting, world_settings, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
-from .kinds import KINDS
+from .kinds import ADDRESS_OF, KINDS
 from .models import CanonChange, Decision, Document, Flag, ModLink
 from .presenting import Index, render_markdown, wording
 from .storing import one_to_a_line
@@ -282,6 +282,7 @@ def detail(request, world_id, kind, slug):
         "may_reassign": draft and is_plot_master(request, world),
         **(assignments_shown(request, world, document) if doc_type == "mod" else {}),
         **grants_shown(request, world, document, plot_team),
+        **not_granted_shown(world, document, draft and plot_team),
         "mod_links": ModLink.objects.filter(organization=world.organization, world=world,
                                             mod=document).select_related("created_by")
         if doc_type == "mod" and is_plot_master(request, world) else None,
@@ -877,6 +878,17 @@ def grants_shown(request, world, document, plot_team):
     }
 
 
+def not_granted_shown(world, draft, plot_team):
+    """What a draft's page tells the plot team of what it refers to that its
+    Mod Writer may not read in full, to grant them if they choose."""
+    if not plot_team:
+        return {"not_granted": []}
+    writer, documents = grants.not_granted_to_writer(world, draft)
+    return {"not_granted_to": writer, "not_granted": [
+        {"name": document.name, "kind": ADDRESS_OF[document.kind], "slug": document.slug}
+        for document in documents if document.kind in ADDRESS_OF]}
+
+
 def document_or_404(world, kind, slug):
     """A document of the World, as stored, whatever its visibility: for the
     plot team, who read everything."""
@@ -891,20 +903,24 @@ def document_or_404(world, kind, slug):
 @require_POST
 def grant(request, world_id, kind, slug):
     """Grant a document to a Mod Writer or Mod Runner, to read in full until
-    revoked. For the World's Plot Masters only."""
+    revoked, and go back to the page the form named, if it named one (a
+    draft that refers to it), or to the document's own. For the World's Plot
+    Masters only."""
     world = world_or_404(request, world_id)
     plot_master_or_403(request, world)
     document = document_or_404(world, kind, slug)
+    here = reverse("canon-detail", args=[world.pk, kind, document.slug])
+    back = back_to(request, here)
     try:
         granted = grants.grant(world, document, request.POST.get("user", ""), request.user)
     except grants.GrantRefused as refused:
         messages.error(request, str(refused))
     else:
         messages.success(request, f"{granted.person.email} is granted {document.name}.")
-        if document.kind == "plot" and grants.ties_of(world, document):
+        if back == here and document.kind == "plot" and grants.ties_of(world, document):
             return redirect("canon-grant-ties", world_id=world.pk, slug=document.slug,
                             grant_id=granted.pk)
-    return redirect("canon-detail", world_id=world.pk, kind=kind, slug=document.slug)
+    return redirect(back)
 
 
 def in_words(names):

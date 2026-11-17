@@ -168,6 +168,24 @@
       {% endif %}
     </section>
   {% endif %}
+  {% if not_granted %}
+    <section class="not-granted">
+      <p>{{ not_granted_to.email }} refers to documents they haven't been granted:</p>
+      <p>Probably an oversight. Grant any to let them read it in full, GM Notes included, until revoked. It is up to you: nothing waits on it.</p>
+      <ul>
+        {% for other in not_granted %}
+          <li><a href="{% url 'canon-detail' world.pk other.kind other.slug %}">{{ other.name }}</a>{% if may_grant %}
+            <form method="post" action="{% url 'canon-grant' world.pk other.kind other.slug %}" class="inline">
+              {% csrf_token %}
+              <input type="hidden" name="user" value="{{ not_granted_to.pk }}">
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <button type="submit">Grant</button>
+            </form>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
   {% if may_reassign %}
     <form method="post" action="{% url 'canon-reassign' world.pk document.slug %}" class="reassign">
       {% csrf_token %}
