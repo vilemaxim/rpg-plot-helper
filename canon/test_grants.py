@@ -64,6 +64,16 @@ class Reading(GrantTest):
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, VIGIL_SECRET)
 
+    def test_a_granted_mods_twine_download_is_whole_until_revoked(self):
+        twee = f"{self.mod_page(VIGIL_MOD)}twee/"
+        self.assertEqual(self.sam.get(twee).status_code, 404)
+        granted = self.grant(VIGIL_MOD, "sam@example.com")
+
+        self.assertIn(VIGIL_SECRET, self.sam.get(twee).content.decode())
+
+        self.revoke_grant(VIGIL_MOD, granted.pk)
+        self.assertEqual(self.sam.get(twee).status_code, 404)
+
     def test_not_once_revoked(self):
         granted = self.grant(TIDEMOTHER, "sam@example.com")
 
