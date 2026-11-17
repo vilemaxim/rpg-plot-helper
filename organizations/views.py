@@ -75,6 +75,13 @@ def home(request):
 
 
 def is_plot_master(request, world):
+    """Whether the person may do what a Plot Master of this World does: they
+    hold the role in it, or they are an Admin of its Organization, who has
+    every right a Plot Master has in each of its Worlds."""
+    membership = request.membership
+    if membership is not None and membership.is_admin \
+            and membership.organization_id == world.organization_id:
+        return True
     return holds_role(request, world, Role.PLOT_MASTER)
 
 
@@ -94,15 +101,15 @@ def world(request, world_id):
     return render(request, "organizations/world.html", {
         "world": world,
         "roles": [role.get_role_display() for role in roles],
-        "is_plot_master": any(role.role == Role.PLOT_MASTER for role in roles),
+        "is_plot_master": is_plot_master(request, world),
         "may_write_mods": any(role.role in WRITES_MODS for role in roles),
     })
 
 
 @require_http_methods(["GET", "POST"])
 def rename_world(request, world_id):
-    """Rename a World. For its Plot Masters only; anyone else, an Organization
-    Admin included, gets "not found". The World's address uses its id, so
+    """Rename a World. For its Plot Masters and its Organization's Admins;
+    anyone else gets "not found". The World's address uses its id, so
     renaming does not change it."""
     world = world_or_404(request, world_id)
     if not is_plot_master(request, world):

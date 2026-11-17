@@ -94,10 +94,10 @@ class WhoMayChangeTheWorldsSetting(DryRunStructureTest):
         self.assertEqual(self.choose("off", by=sam).status_code, 404)
         self.assertEqual(self.chosen(), ["encouraged"])
 
-    def test_an_organization_admin_who_is_not_its_plot_master_cannot(self):
+    def test_an_organization_admin_who_is_not_its_plot_master_can(self):
         second = self.make_world("Second World")
 
-        self.assertEqual(self.mira.get(self.setting_page(second)).status_code, 404)
+        self.assertEqual(self.mira.get(self.setting_page(second)).status_code, 200)
 
 
 class TheOrganizationsDefault(DryRunStructureTest):

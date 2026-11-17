@@ -157,13 +157,13 @@ class OnlyAPlotMaster(NoteTest):
         self.assertEqual(self.reloaded(self.death).note, "")
         self.assertNotIn("note", self.stored_change(STAIR_ID))
 
-    def test_others_are_not_offered_the_box(self):
-        # An Organization Admin reads both pages, but is not a Plot Master.
+    def test_an_organization_admin_is_offered_the_box_as_a_plot_master_is(self):
+        # An Organization Admin has every right a Plot Master has.
         with self.in_world():
             Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
-        self.assertNotContains(self.sam.get(self.pending), 'name="note"')
-        self.assertNotContains(self.sam.get(f"{self.first_world}reports/{STAIR_ID}/"),
-                               'name="note"')
+        self.assertContains(self.sam.get(self.pending), 'name="note"')
+        self.assertContains(self.sam.get(f"{self.first_world}reports/{STAIR_ID}/"),
+                            'name="note"')
 
     def test_others_can_read_it(self):
         self.rule_with_note(self.death, "reject", WHY)

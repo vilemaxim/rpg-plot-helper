@@ -425,12 +425,12 @@ class WhoMayDecide(DecisionTest):
         self.assertEqual(self.change("harrow-dunmore", "aa-blood-on-the-salt-stair").decision,
                          "proposed")
 
-    def test_they_are_not_offered_the_buttons(self):
-        # An Organization Admin reads both pages, but is not a Plot Master.
+    def test_an_organization_admin_is_offered_them_as_a_plot_master_is(self):
+        # An Organization Admin has every right a Plot Master has.
         with self.in_world():
             Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
-        self.assertNotContains(self.sam.get(self.pending), "/approve/")
-        self.assertNotContains(
+        self.assertContains(self.sam.get(self.pending), "/approve/")
+        self.assertContains(
             self.sam.get(f"{self.first_world}reports/aa-blood-on-the-salt-stair/"), "approve/")
 
     def test_an_organization_admin_who_is_not_its_plot_master_cannot(self):

@@ -9,7 +9,7 @@ A group that runs one or more Worlds, such as a LARP company or a solo GM. Each 
 _Avoid_: Tenant, account, group
 
 **Organization Admin**:
-The role that creates Worlds in an Organization, invites people and assigns their roles. It is the only role held across a whole Organization; all others are held per World.
+The role that creates Worlds in an Organization, invites people and assigns their roles. It is the only role held across a whole Organization; all others are held per World. An Organization Admin may also do everything a Plot Master does, in every World of the Organization.
 _Avoid_: Owner, superuser
 
 **World**:

@@ -189,13 +189,12 @@ class RenamingAWorld(RenamingTest):
 
         self.assertContains(self.mira.get(self.first_world), "Sam&#x27;s World")
 
-    def test_an_organization_admin_who_is_not_its_plot_master_cannot(self):
+    def test_an_organization_admin_who_is_not_its_plot_master_can(self):
         second = self.make_world("Second World")
 
-        response = self.rename_world("Renamed", world=second)
+        self.rename_world("Renamed", world=second)
 
-        self.assertEqual(response.status_code, 404)
-        self.assertContains(self.mira.get(second), "Second World")
+        self.assertContains(self.mira.get(second), "Renamed")
 
     def test_a_person_in_another_organization_gets_not_found(self):
         self.assertEqual(self.eve.get(self.rename_page).status_code, 404)

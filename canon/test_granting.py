@@ -107,7 +107,7 @@ class WhoMayGrant(GrantingTest):
         self.assertIn("sam@example.com", live)
         self.assertNotIn("tom@example.com", live)
 
-    def test_an_admin_who_is_not_a_plot_master_sees_them_and_cannot_grant(self):
+    def test_an_admin_who_is_not_a_plot_master_grants_and_revokes_as_one(self):
         self.grant("npcs", TIDEMOTHER, "sam@example.com")
         with self.in_world():
             Membership.objects.filter(user__email="mira@example.com").update(is_admin=True)
@@ -115,10 +115,13 @@ class WhoMayGrant(GrantingTest):
         admin = self.mira
 
         self.assertIn("sam@example.com", self.live_grants_shown("npcs", TIDEMOTHER, by=admin))
-        self.assertNotIn("grants/", self.section(admin.get(self.doc_page("npcs", TIDEMOTHER)),
-                                                 "grants"))
+        self.assertIn("grants/", self.section(admin.get(self.doc_page("npcs", TIDEMOTHER)),
+                                              "grants"))
         self.assertEqual(self.grant("npcs", TIDEMOTHER, "tom@example.com", by=admin)
-                         .status_code, 403)
+                         .status_code, 200)
+        self.assertIn("tom@example.com", self.live_grants_shown("npcs", TIDEMOTHER, by=admin))
+        self.revoke_grant("npcs", TIDEMOTHER, min(self.grant_ids(TIDEMOTHER)), by=admin)
+        self.assertNotIn("sam@example.com", self.live_grants_shown("npcs", TIDEMOTHER, by=admin))
 
     def test_someone_outside_the_world_is_told_there_is_no_such_page(self):
         eve = sign_in("eve@example.com")

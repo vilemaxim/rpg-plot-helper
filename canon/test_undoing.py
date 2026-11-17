@@ -8,7 +8,6 @@ from canon.test_decisions import DecisionTest
 from canon.test_interludes import QUIET, RECORD, InterludeTest
 from canon.test_reports import LEDGER_2
 from canon.test_resolving import WARRANT, ResolvingTest
-from organizations.models import Membership
 
 LEDGER_2_ID = "aa-the-tax-collectors-ledger-2"
 
@@ -196,11 +195,7 @@ class WhoMayUndo(UndoTest):
         sam = self.join("sam@example.com")
         self.give("sam@example.com", "mod-writer")
         before = self.stored("clerk-pell").text
-        # An Organization Admin reads the report, but is not a Plot Master.
-        with self.in_world():
-            Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
 
-        self.assertNotContains(sam.get(self.report_page), "/undo/")
         self.assertEqual(self.undo(self.pell, by=sam).status_code, 404)
 
         self.assertEqual(self.reloaded(self.pell).decision, "approved")

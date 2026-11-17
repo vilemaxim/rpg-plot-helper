@@ -268,14 +268,13 @@ class WhoMayDecideMany(DecidingManyTest):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(set(self.decisions_of("aa-blood-on-the-salt-stair")), {"proposed"})
 
-    def test_they_are_not_offered_the_checkboxes(self):
-        # An Organization Admin reads both pages, but is not a Plot Master.
+    def test_an_organization_admin_is_offered_them_as_a_plot_master_is(self):
+        # An Organization Admin has every right a Plot Master has.
         with self.in_world():
             Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
         for page in (self.pending, f"{self.first_world}reports/aa-blood-on-the-salt-stair/"):
             response = self.sam.get(page)
-            self.assertNotContains(response, 'name="change"')
-            self.assertNotContains(response, "Approve all")
+            self.assertContains(response, 'name="change"')
 
     def test_changes_of_another_world_are_not_decided_from_this_one(self):
         other = self.make_world("Second World")

@@ -227,15 +227,15 @@ class WhoMayResolve(ResolvingTest):
         self.assertEqual(len(self.flags_on(WARRANT)), 2)
         self.assertEqual(self.state_shown(WARRANT), "Approved")
 
-    def test_they_still_see_the_warning_but_not_the_buttons(self):
-        # An Organization Admin reads the Flags, but is not a Plot Master.
+    def test_an_organization_admin_sees_the_warning_and_the_buttons(self):
+        # An Organization Admin has every right a Plot Master has.
         with self.in_world():
             Membership.objects.filter(user__email="sam@example.com").update(is_admin=True)
         page = self.sam.get(self.mod_page(WARRANT))
 
         self.assertContains(page, 'class="warning"')
-        self.assertNotContains(page, "/dismiss/")
-        self.assertNotContains(page, "send-back/")
+        self.assertContains(page, "/dismiss/")
+        self.assertContains(page, "send-back/")
 
     def test_a_plot_master_of_another_organization_cannot(self):
         eve = sign_in("eve@example.com")

@@ -327,10 +327,10 @@ class WhoMayImport(CanonTest):
         self.assertContains(self.mira.get(self.first_world), self.import_page)
         self.assertNotContains(self.sam.get(self.first_world), self.import_page)
 
-    def test_an_organization_admin_who_is_not_its_plot_master_cannot(self):
+    def test_an_organization_admin_who_is_not_its_plot_master_can(self):
         second = self.make_world("Second World")
 
-        self.assertEqual(self.mira.get(f"{second}import/").status_code, 404)
+        self.assertEqual(self.mira.get(f"{second}import/").status_code, 200)
 
     def test_a_signed_out_person_is_sent_to_sign_in(self):
         response = self.client.get(self.import_page)

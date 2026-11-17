@@ -157,10 +157,10 @@ class WhoMayExport(ExportTest):
         self.assertEqual(sam.get(self.export_page).status_code, 404)
         self.assertEqual(sam.get(self.download).status_code, 404)
 
-    def test_an_organization_admin_who_is_not_its_plot_master_cannot(self):
+    def test_an_organization_admin_who_is_not_its_plot_master_can(self):
         second = self.make_world("Second World")
 
-        self.assertEqual(self.mira.get(f"{second}export/download/").status_code, 404)
+        self.assertRedirects(self.mira.get(f"{second}export/download/"), f"{second}export/")
 
     def test_someone_from_another_organization_cannot(self):
         self.assertEqual(sign_in("eve@example.com").get(self.download).status_code, 404)
