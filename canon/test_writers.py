@@ -149,9 +149,10 @@ class Reassigning(WriterTest):
         page = self.mira.get(self.mod_page(NEW))
 
         self.assertContains(page, f'action="{self.mod_page(NEW)}reassign/"')
-        self.assertContains(page, f'<option value="{self.user_id("kay@example.com")}"')
+        form = page.content.decode().split('class="reassign"', 1)[1].split("</form>", 1)[0]
+        self.assertIn(f'<option value="{self.user_id("kay@example.com")}"', form)
         # Someone who only runs Mods is not offered.
-        self.assertNotContains(page, f'<option value="{self.user_id("rhea@example.com")}"')
+        self.assertNotIn(f'<option value="{self.user_id("rhea@example.com")}"', form)
 
     def test_no_file_changes(self):
         before = self.files()
