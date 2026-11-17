@@ -7,8 +7,8 @@ The zip opens to one folder named after the World, which importing accepts.
 It is made in memory: nothing is written to the app's disk.
 
 What lives only in the app, such as who submitted or decided what, Flags and
-their resolutions, Mod Writers and private links, and accounts, is not in the
-files, and so not in an export.
+their resolutions, Mod Writers, Assignments, Grants and private links, and
+accounts, is not in the files, and so not in an export.
 """
 
 import io

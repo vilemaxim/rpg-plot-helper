@@ -6,12 +6,17 @@ with plotcanon's sample World.
 Mira is the plot team (Plot Master and Organization Admin). Sam only writes
 Mods, and Rhea and Tom only run them."""
 
+from django.db import IntegrityError, ProgrammingError, transaction
+from django.utils import timezone
+
 from accounts.models import User
 from canon import grants
 from canon.models import Assignment, Document, Grant
 from canon.test_assignments import VIGIL as VIGIL_MOD
+from canon.test_exporting import unzipped
 from canon.test_reading import (FERRYMAN, FERRYMAN_SECRET, TIDEMOTHER, VIGIL_SECRET,
                                 ReadingTest)
+from organizations import tenancy
 from organizations.models import Membership, World
 from organizations.tests import sign_in
 
@@ -190,3 +195,105 @@ class Refused(GrantTest):
         with self.assertRaises(grants.GrantRefused):
             self.revoke_grant(FERRYMAN, granted.pk)
         self.assertContains(self.page("npcs", TIDEMOTHER), TIDEMOTHER_SECRET)
+
+
+class KeptOutOfTheFiles(GrantTest):
+    def test_no_file_in_the_world_changes(self):
+        before = self.stored_files()
+
+        granted = self.grant(TIDEMOTHER, "sam@example.com")
+        self.grant(VIGIL_MOD, "rhea@example.com")
+        self.revoke_grant(TIDEMOTHER, granted.pk)
+
+        self.assertEqual(self.stored_files(), before)
+
+    def test_an_export_leaves_them_out(self):
+        before = unzipped(self.mira.get(f"{self.first_world}export/download/").content)
+
+        self.grant(TIDEMOTHER, "sam@example.com")
+
+        self.assertEqual(unzipped(self.mira.get(f"{self.first_world}export/download/").content),
+                         before)
+        self.assertContains(self.mira.get(f"{self.first_world}export/"),
+                            "who has been granted which documents")
+
+
+class TheDatabaseOnItsOwn(GrantTest):
+    """Eve has an Organization and World of her own."""
+
+    def setUp(self):
+        super().setUp()
+        self.grant(TIDEMOTHER, "sam@example.com")
+        self.assign(VIGIL_MOD, "rhea@example.com")
+        sign_in("eve@example.com")
+        self.eve = User.objects.get(email="eve@example.com")
+        with tenancy.acting_as(user=self.eve):
+            self.eves = Membership.objects.get().organization_id
+        with tenancy.acting_as(user=self.eve, organization=self.eves):
+            self.eves_world = World.objects.get()
+        with self.in_world():
+            self.miras = Membership.objects.filter(user__email="mira@example.com") \
+                .get().organization_id
+            self.tidemother = Document.objects.get(slug=TIDEMOTHER)
+            self.sam_user = User.objects.get(email="sam@example.com")
+            self.rheas = Assignment.objects.get()
+
+    def as_eve(self):
+        return tenancy.acting_as(user=self.eve, organization=self.eves)
+
+    def a_grant(self, **fields):
+        """Eve writes a Grant to herself in her own World, of Mira's
+        document unless `fields` say otherwise."""
+        return Grant.objects.create(**{
+            "organization_id": self.eves, "world_id": self.eves_world.pk,
+            "document_id": self.tidemother.pk, "person_id": self.eve.pk,
+            "granted_at": timezone.now(), **fields})
+
+    def test_another_organization_sees_no_grants(self):
+        with self.as_eve():
+            self.assertEqual(Grant.objects.count(), 0)
+        with tenancy.acting_as():
+            self.assertEqual(Grant.objects.count(), 0)
+        with self.in_world():
+            self.assertEqual(Grant.objects.count(), 1)
+
+    def test_another_organization_cannot_change_or_delete_one(self):
+        with self.as_eve():
+            changed = Grant.objects.update(revoked_at=timezone.now())
+            deleted, _ = Grant.objects.all().delete()
+
+        self.assertEqual((changed, deleted), (0, 0))
+        with self.in_world():
+            self.assertIsNone(Grant.objects.get().revoked_at)
+
+    def test_one_cannot_be_written_into_another_organization(self):
+        with self.assertRaises(ProgrammingError), transaction.atomic():
+            with self.as_eve():
+                self.a_grant(organization_id=self.miras, world_id=self.tidemother.world_id,
+                             person_id=self.sam_user.pk)
+
+    def test_one_cannot_point_at_another_organizations_world(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with self.as_eve():
+                self.a_grant(world_id=self.tidemother.world_id)
+
+    def test_one_cannot_point_at_another_organizations_document(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with self.as_eve():
+                self.a_grant()
+
+    def test_one_cannot_point_at_another_organizations_assignment(self):
+        with self.as_eve():
+            eves_document = Document.objects.create(
+                organization_id=self.eves, world=self.eves_world, kind="npc", slug="eves-npc",
+                path="canon/npcs/eves-npc.md", name="Eve's NPC", text="", fields={})
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with self.as_eve():
+                self.a_grant(document_id=eves_document.pk, assignment_id=self.rheas.pk)
+
+    def test_one_cannot_name_someone_outside_the_organization(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            with self.in_world():
+                Grant.objects.create(
+                    organization_id=self.miras, world_id=self.tidemother.world_id,
+                    document=self.tidemother, person=self.eve, granted_at=timezone.now())
