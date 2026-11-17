@@ -10,8 +10,9 @@ from canon import grants
 from canon.models import Assignment, Document, Grant
 from canon.test_assignments import VIGIL
 from canon.test_grants import TIDEMOTHER_SECRET
-from canon.test_reading import DROWNED_BELL, TIDEMOTHER, ReadingTest
-from organizations.models import World
+from canon.test_reading import DROWNED_BELL, FERRYMAN, TIDEMOTHER, ReadingTest
+from organizations.models import Membership, World
+from organizations.tests import sign_in
 
 
 class GrantingTest(ReadingTest):
@@ -90,3 +91,59 @@ class Granting(GrantingTest):
 
         self.assertIn("ending with their Assignment to Storm Moon Vigil",
                       self.live_grants_shown("npcs", TIDEMOTHER))
+
+
+class WhoMayGrant(GrantingTest):
+    def test_anyone_else_in_the_world_is_forbidden(self):
+        self.grant("npcs", TIDEMOTHER, "sam@example.com")
+        [grant_id] = self.grant_ids(TIDEMOTHER)
+
+        for someone in (self.rhea, self.sam):
+            self.assertEqual(self.grant("npcs", TIDEMOTHER, "tom@example.com",
+                                        by=someone).status_code, 403)
+            self.assertEqual(self.revoke_grant("npcs", TIDEMOTHER, grant_id,
+                                               by=someone).status_code, 403)
+        live = self.live_grants_shown("npcs", TIDEMOTHER)
+        self.assertIn("sam@example.com", live)
+        self.assertNotIn("tom@example.com", live)
+
+    def test_an_admin_who_is_not_a_plot_master_sees_them_and_cannot_grant(self):
+        self.grant("npcs", TIDEMOTHER, "sam@example.com")
+        with self.in_world():
+            Membership.objects.filter(user__email="mira@example.com").update(is_admin=True)
+        self.take("mira@example.com", "plot-master")
+        admin = self.mira
+
+        self.assertIn("sam@example.com", self.live_grants_shown("npcs", TIDEMOTHER, by=admin))
+        self.assertNotIn("grants/", self.section(admin.get(self.doc_page("npcs", TIDEMOTHER)),
+                                                 "grants"))
+        self.assertEqual(self.grant("npcs", TIDEMOTHER, "tom@example.com", by=admin)
+                         .status_code, 403)
+
+    def test_someone_outside_the_world_is_told_there_is_no_such_page(self):
+        eve = sign_in("eve@example.com")
+
+        self.assertEqual(self.grant("npcs", TIDEMOTHER, "sam@example.com", by=eve)
+                         .status_code, 404)
+
+    def test_a_document_that_does_not_exist_is_not_found(self):
+        self.assertEqual(self.grant("npcs", "nobody-at-all", "sam@example.com").status_code, 404)
+        self.assertEqual(self.grant("npcs", DROWNED_BELL, "sam@example.com").status_code, 404)
+        self.assertEqual(self.grant("nothing", TIDEMOTHER, "sam@example.com").status_code, 404)
+
+    def test_it_cannot_be_done_with_a_link(self):
+        self.assertEqual(self.mira.get(f"{self.doc_page('npcs', TIDEMOTHER)}grants/")
+                         .status_code, 405)
+
+
+class WhoSeesThem(GrantingTest):
+    def test_nobody_but_the_plot_team_sees_a_documents_grants(self):
+        self.grant("npcs", TIDEMOTHER, "sam@example.com")
+        self.grant("npcs", FERRYMAN, "rhea@example.com")
+
+        for someone in (self.sam, self.rhea, self.tom):
+            for slug in (TIDEMOTHER, FERRYMAN):
+                page = self.page("npcs", slug, by=someone)
+                if page.status_code == 200:
+                    self.assertIsNone(self.section(page, "grants"))
+                    self.assertNotIn("Grant", page.content.decode())
