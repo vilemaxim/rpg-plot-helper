@@ -19,8 +19,8 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from organizations.forms import DryRunStructureForm
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import (access, approving, assignments, deciding, dry_runs, exporting, intake, interludes, links,
-               resolving, submitting, world_settings, writers)
+from . import (access, approving, assignments, deciding, dry_runs, exporting, grants, intake,
+               interludes, links, resolving, submitting, world_settings, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import KINDS
@@ -814,6 +814,7 @@ def assignments_shown(request, world, mod):
         "may_assign": plot_master and submitting.can_be_reported_on(mod),
         "mod_runners": assignments.may_run_mods_in(world) if plot_master else [],
         "events_to_come": assignments.events_to_come(world) if plot_master else [],
+        "features_to_grant": grants.features_of(world, mod) if plot_master else [],
     }
 
 
@@ -825,18 +826,24 @@ def plot_master_or_403(request, world):
 
 @require_POST
 def assign(request, world_id, slug):
-    """Assign a Mod Runner to a Mod, for one Event or until revoked. For the
-    World's Plot Masters only."""
+    """Assign a Mod Runner to a Mod, for one Event or until revoked, and grant
+    them the Features of it that were ticked, for as long as the Assignment
+    lasts. All of it or none. For the World's Plot Masters only."""
     world = world_or_404(request, world_id)
     plot_master_or_403(request, world)
     mod = mod_or_404(world, slug)
     try:
-        assignment = assignments.assign(world, mod, request.POST.get("user", ""),
-                                        request.POST.get("event", ""), request.user)
-    except assignments.AssignmentRefused as refused:
+        with transaction.atomic():
+            assignment = assignments.assign(world, mod, request.POST.get("user", ""),
+                                            request.POST.get("event", ""), request.user)
+            granted = grants.grant_features(world, assignment, request.POST.getlist("feature"),
+                                            request.user)
+    except (assignments.AssignmentRefused, grants.GrantRefused) as refused:
         messages.error(request, str(refused))
     else:
-        messages.success(request, f"{assignment.runner.email} is assigned to {mod.name}.")
+        messages.success(request, f"{assignment.runner.email} is assigned to {mod.name}"
+                         + (", and granted " + ", ".join(g.document.name for g in granted)
+                            + " while the Assignment lasts." if granted else "."))
     return redirect("canon-detail", world_id=world.pk, kind="mods", slug=mod.slug)
 
 
