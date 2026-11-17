@@ -6,10 +6,11 @@ Mira is the plot team (Plot Master and Organization Admin). Sam only writes
 Mods, and Rhea and Tom only run them."""
 
 from canon.test_approving import DAUGHTER
-from canon.test_granting import GrantingTest
+from canon.test_granting import SALT_TAX, GrantingTest
 from canon.test_mod_submissions import a_mod
 from canon.test_reading import FERRYMAN, FERRYMAN_SECRET, SISTER_ANE, TIDEMOTHER
 from canon.test_resolving import WARRANT
+from organizations.models import Membership
 
 LANTERN = "the-lamplighters-debt"  # the draft Sam submits
 HARROW = "harrow-dunmore"          # a GM-only NPC the warrant Mod features
@@ -142,3 +143,32 @@ class WhoSeesIt(DraftTest):
     def test_not_when_the_draft_has_no_linked_mod_writer(self):
         # The sample draft names its writer by a handle nobody is linked to.
         self.assertIsNone(self.section(self.mira.get(self.mod_page(DAUGHTER)), "not-granted"))
+
+    def test_not_when_its_mod_writer_may_no_longer_be_granted_anything(self):
+        self.submit_draft(TIDEMOTHER)
+        self.take("sam@example.com", "mod-writer")
+
+        self.assertIsNone(self.notice())
+
+    def test_an_admin_who_is_not_a_plot_master_sees_it_and_grants_from_it(self):
+        self.submit_draft(TIDEMOTHER)
+        with self.in_world():
+            Membership.objects.filter(user__email="mira@example.com").update(is_admin=True)
+        self.take("mira@example.com", "plot-master")
+
+        self.assertIn(f"/{TIDEMOTHER}/", self.notice())
+        response = self.grant_from_notice(TIDEMOTHER)
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(LANTERN))
+        self.assertEqual(self.page("npcs", TIDEMOTHER, by=self.sam).status_code, 200)
+
+
+class GrantingAPlotFromIt(DraftTest):
+    def test_brings_the_plot_master_back_to_the_draft_not_to_what_is_tied_to_the_plot(self):
+        self.submit_draft(FERRYMAN, body_adds=f"Turns on [[{SALT_TAX}]].")
+
+        response = self.grant_from_notice(SALT_TAX)
+
+        self.assertEqual(response.redirect_chain[-1][0], self.mod_page(LANTERN))
+        self.assertContains(response, "sam@example.com is granted The Salt Tax Revolt.")
+        self.assertNotIn(f"/{SALT_TAX}/", self.notice())
