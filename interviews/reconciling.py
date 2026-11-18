@@ -21,6 +21,7 @@ tells the plot team so, with the Reconcile button (`not_reconciled`).
 """
 
 import logging
+from dataclasses import dataclass
 
 import plotcanon
 from django.db.models import OuterRef, Subquery
@@ -144,7 +145,7 @@ def naming(mod):
             .exclude(mod=mod).filter(pk=Subquery(latest)).select_related("mod", "ran_by"))
 
 
-def shown_on(world, mod):
+def shown_on(mod):
     """What a Mod's page shows its Plot Masters of its Reconciliations: the
     latest, the earlier ones, and those of other drafts naming it."""
     latest, *earlier = list(of(mod)) or [None]
@@ -164,13 +165,22 @@ def on_submission(sender, mod, **kwargs):
         log.info("The draft %s was not reconciled on submission: %s", mod.pk, refused)
 
 
-def not_reconciled(world, mod):
-    """Whether to tell the plot team that this draft, as it now stands, has
-    not been reconciled although its World reconciles drafts on submission,
-    and why if that can still be told: None if there is nothing to tell, and
-    otherwise a sentence, empty if the reason has passed (the LLM failed)."""
+@dataclass(frozen=True)
+class Unreconciled:
+    """A draft, as it now stands, not reconciled although its World
+    reconciles drafts on submission. `why` is a sentence for the plot team,
+    or None if the reason has passed (the LLM failed)."""
+
+    why: str | None = None
+
+
+def not_reconciled(mod):
+    """`Unreconciled` if the plot team should be told this draft, as it now
+    stands, has not been reconciled although its World reconciles drafts on
+    submission, and None if there is nothing to tell."""
+    world = mod.world
     if not reconciles_on_submission(world) or of(mod).filter(draft=mod.text).exists():
         return None
     if config.reconciliation_llm() is None:
-        return OFF
-    return spending.tokens_refused(world.organization_id) or ""
+        return Unreconciled(OFF)
+    return Unreconciled(spending.tokens_refused(world.organization_id) or None)

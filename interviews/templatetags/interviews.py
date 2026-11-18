@@ -40,14 +40,14 @@ def finished_in(report):
 
 
 @register.inclusion_tag("interviews/reconciliations_on_mod.html", takes_context=True)
-def reconciliations(context, world, mod, draft):
+def reconciliations(context, mod, is_draft):
     """A Mod's Reconciliations, the latest in full and the earlier ones
     listed, a note when another draft's latest Reconciliation says it may
     conflict with this one, the Reconcile button on a draft when
     Reconciliation is on, and whether a draft its World reconciles on
     submission is not reconciled.
     The page shows it to its World's Plot Masters only."""
-    return {"csrf_token": context.get("csrf_token"), "world": world, "mod": mod,
-            "may_reconcile": draft and config.reconciliation_llm() is not None,
-            "not_reconciled": reconciling.not_reconciled(world, mod) if draft else None,
-            **reconciling.shown_on(world, mod)}
+    return {"csrf_token": context.get("csrf_token"), "world": mod.world, "mod": mod,
+            "may_reconcile": is_draft and config.reconciliation_llm() is not None,
+            "not_reconciled": reconciling.not_reconciled(mod) if is_draft else None,
+            **reconciling.shown_on(mod)}
