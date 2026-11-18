@@ -6,7 +6,10 @@
   <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a>{% if not walk.at_start %} · <a href="{{ walk.back }}">Back a step</a> · <a href="./">Start over</a>{% endif %}</p>
   <h1>Report on {{ mod.name }}: the Path</h1>
   <p>Walk the way play went through the Mod's Dry Run: the Hook taken, each scene, each Contest's result, and where play stopped. No LLM is involved, and nothing is kept until you say where play stopped. The LLM then writes the report with you from this Path.</p>
-  {% if walk.at_start and walk.starts %}
+  {% if group %}<p>This report is for the Group <strong>{{ group }}</strong>. <a href="{{ group_page }}">Change it</a></p>{% endif %}
+  {% if walk.at_start and walk.stop.among %}
+    <p class="warning">The players split into Groups, and the Groups that had not finished stopped at {% for passage in walk.stop.among %}{% if not forloop.first %}{% if forloop.last %} and {% else %}, {% endif %}{% endif %}<strong>{{ passage }}</strong>{% endfor %}. Coming back together, this Stretch picks up at <strong>{{ walk.here.name }}</strong>.{% for other in walk.other_stops %} <a href="{{ other.url }}">Pick up at {{ other.label }} instead</a>.{% endfor %}</p>
+  {% elif walk.at_start and walk.starts %}
     <p class="warning">The last report on {{ mod.name }} says play stopped at <strong>{{ walk.starts }}</strong>, so this Stretch picks up there. <a href="{{ walk.from_a_hook }}">Start from a Hook instead</a>.</p>
   {% elif walk.from_the_stop %}
     <p><a href="{{ walk.from_the_stop }}">Pick up where the last report's Path stopped instead</a>.</p>

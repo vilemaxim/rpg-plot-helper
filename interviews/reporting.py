@@ -8,6 +8,10 @@ where play stopped. Saying where play stopped starts the Interview from that
 Path; on such a Mod there is no other way in. A Mod with no Dry Run skips the
 walk, and the LLM asks what happened and where play stopped.
 
+Before the walk, when the Mod has more than one live Assignment at one of
+its Events, the Mod Runner says which Event and Group the report is for
+(`groups`, ADR-0011), and the walk starts where that Group stopped.
+
 From there it runs as the Mod Interviews do (`views.Interviewing`), with
 plotcanon's report instructions. The report it writes is checked and fixed
 as a pasted one is checked (`canon.submitting.check`), and must also give
@@ -24,6 +28,7 @@ import yaml
 from django.contrib import messages as notices
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 from plotcanon import editing
@@ -34,7 +39,7 @@ from canon.presenting import render_markdown
 from canon.views import readable_mod_or_404
 from organizations.views import world_or_404
 
-from . import config, conversation, walking
+from . import config, conversation, groups, walking
 from .config import Kind
 from .conversation import Tampered
 from .views import (SURFACE, Interviewing, a_turn, started_over,
@@ -51,6 +56,11 @@ class Reporting(Interviewing):
     with the Interview's turns (`opened`, `in_progress`)."""
 
     walked: walking.Walked | None = None
+    # The Event and Group the report is for, when they were asked
+    # (`groups`): the Event's id, or "" when not asked, and the Group's
+    # label, or "" for the whole Mod.
+    event: str = ""
+    group: str = ""
 
     pasted = "a report"
     intro = "interviews/intro_report.html"
@@ -80,7 +90,19 @@ class Reporting(Interviewing):
         return None if ends is None else ("true" if ends else "false")
 
     def context(self, turns=()):
-        return {**super().context(turns), "path": self.path, "finished": self.finished}
+        return {**super().context(turns), "path": self.path, "finished": self.finished,
+                "group": self.group, "group_page": self.urls()["group"]}
+
+    def urls(self):
+        return {**super().urls(), "group": reverse("report-group",
+                                                   args=[self.world.pk, self.mod.slug])}
+
+    def stop(self, person):
+        """Where play stopped on the Mod before this report, for its Group
+        at its Event when they were asked, as this person may read the
+        World."""
+        return plotcanon.last_stop(access.readable_files(self.world, person), self.mod.slug,
+                                   group=self.group or None, event=self.event or None)
 
     def in_progress(self, person):
         transcript, turns = super().in_progress(person)
@@ -93,27 +115,40 @@ class Reporting(Interviewing):
         return turns
 
     def _take_up_walk(self, transcript, person):
-        self.walked = walking.Walked.from_json(
-            conversation.walk_of(transcript, self.world, person, self.mod))
+        kept = conversation.kept_with(transcript, self.world, person, self.mod)
+        self.walked = walking.Walked.from_json(kept.walk if kept else None)
+        self.event, self.group = (kept.event, kept.group) if kept else ("", "")
 
     def system_prompt(self, person):
         """plotcanon's report instructions, given the Mod, the Path walked if
         any and where play last stopped, with only what this person may read
         in the World."""
         world = access.readable_files(self.world, person)
-        stop = (self.walked.last_stop if self.walked
-                else plotcanon.last_stop(world, self.mod.slug))
+        stop = self.walked.last_stop if self.walked else self.stop(person)
         return plotcanon.interview_instructions(
             self.kind, SURFACE, world=world, mod=self.mod.text, path=self.path,
-            continues_from=stop)
+            continues_from=stop, event=self.event or None)
 
     @property
     def opener(self):
-        return plotcanon.interview_report_opener(self.path)
+        """plotcanon's, and, when the Group was asked, what the Mod Runner
+        said of it, so the LLM need not ask whether the players split."""
+        said = plotcanon.interview_report_opener(self.path)
+        if self.group:
+            said += (f"\n\nThe players split into Groups at this Event, each with its own "
+                     f"Mod Runner, and this report is for my Group: give `group: "
+                     f"{self.group}`.")
+        elif self.event:
+            said += ("\n\nThe players were not split into Groups for this Stretch, so "
+                     "leave `group` out.")
+        return said
 
     def agrees(self, report):
         """Refuse a report whose `path` is not the Path walked, or that has a
-        `path` when none was walked."""
+        `path` when none was walked; whose `group` is not the Group asked
+        for, or that has one when none was; or whose `event` is not the
+        Event asked for."""
+        groups.agrees(report, self.mod, self.event, self.group)
         given = report.fields.get("path")
         if self.walked is None:
             if given not in (None, []):
@@ -152,6 +187,9 @@ class Reporting(Interviewing):
         return redirect("canon-detail", world_id=self.world.pk, kind="reports",
                         slug=saved.slug)
 
+    def to_group(self):
+        return redirect(self.urls()["group"])
+
     def to_walk(self):
         return redirect("report-walk", world_id=self.world.pk, slug=self.mod.slug)
 
@@ -175,20 +213,36 @@ def elsewhere(reporting):
     return None
 
 
-def not_walked(request, reporting):
-    """Whether this request would open a report Interview with no Path on a
-    Mod that has a Dry Run: none in progress, or one with no Path walked."""
+def taken_up(request, reporting):
+    """The report Interview this request is about, taken up into
+    `reporting`, as its transcript and turns: the one in progress for a
+    page, or the one a posted transcript names. None for one tampered with,
+    which is refused when the turn is taken."""
+    if request.method == "GET":
+        return reporting.in_progress(request.user)
+    transcript = request.POST.get("transcript", "")
+    try:
+        return transcript, reporting.opened(transcript, request.user)
+    except Tampered:
+        return None
+
+
+def not_walked(reporting, transcript):
+    """Whether a report Interview would open with no Path on a Mod that has a
+    Dry Run: none in progress, or one with no Path walked."""
     if not reporting.story.playable:
         return False
-    if request.method == "GET":
-        transcript, _ = reporting.in_progress(request.user)
-    else:
-        transcript = request.POST.get("transcript", "")
-        try:
-            reporting.opened(transcript, request.user)
-        except Tampered:
-            return False  # refused as tampered with when the turn is taken
     return not transcript or reporting.walked is None
+
+
+def to_ask_for_a_group(reporting, turns):
+    """Whether the person is to be asked which Event and Group the report is
+    for before it goes on: the Mod has more than one live Assignment at one
+    of its Events (`groups`), and the Interview in hand has not been told,
+    nor begun. One begun before it was needed goes on without."""
+    if reporting.event or turns or reporting.walked is not None:
+        return False
+    return bool(groups.events_needing_a_group(reporting.mod))
 
 
 @never_cache
@@ -201,8 +255,13 @@ def interview(request, world_id, slug):
     away = elsewhere(reporting)
     if away is not None:
         return away
-    if not_walked(request, reporting):
-        return reporting.to_walk()
+    found = taken_up(request, reporting)
+    if found is not None:
+        transcript, turns = found
+        if to_ask_for_a_group(reporting, turns):
+            return reporting.to_group()
+        if not_walked(reporting, transcript):
+            return reporting.to_walk()
     return a_turn(request, reporting)
 
 
@@ -220,7 +279,10 @@ def walk_page(request, world_id, slug):
     world, mod, story = reporting.world, reporting.mod, reporting.story
     if not story.playable:
         return reporting.to_start()
-    stop = plotcanon.last_stop(access.readable_files(world, request.user), mod.slug)
+    _, turns = reporting.in_progress(request.user)
+    if to_ask_for_a_group(reporting, turns):
+        return reporting.to_group()
+    stop = reporting.stop(request.user)
     try:
         so_far = walking.walk_from(story, stop,
                                    request.POST if request.method == "POST" else request.GET)
@@ -230,13 +292,56 @@ def walk_page(request, world_id, slug):
         if not so_far.stoppable:
             return HttpResponseBadRequest("Play stops at a scene or an ending.")
         conversation.begin_from_walk(so_far.walked().to_json(), world, request.user,
-                                     reporting.kind, mod)
+                                     reporting.kind, mod, reporting.event, reporting.group)
         return reporting.to_start()
     return render(request, "interviews/walk.html", {
         **reporting.context(), "walk": so_far,
         "prose": render_markdown(so_far.here.prose),
         "scenes": walking.scenes_to_pick_up_at(story, stop) if so_far.at_premise else [],
         "names": {"from": walking.FROM, "choice": walking.CHOICE}})
+
+
+@never_cache
+@require_http_methods(["GET", "POST"])
+def group_page(request, world_id, slug):
+    """Ask which Event the report is for, and, at an Event where the Mod has
+    more than one live Assignment, which Group (`groups`). Posted, it starts
+    the report Interview for them, in place of any in progress, from the
+    walk if the Mod has a Dry Run. A Mod for which no Event needs a Group
+    sends the person on to the Interview."""
+    reporting = report_interview_or_404(request, world_id, slug)
+    away = elsewhere(reporting)
+    if away is not None:
+        return away
+    mod, person = reporting.mod, request.user
+    if not groups.events_needing_a_group(mod):
+        return reporting.to_start()
+    events = groups.events_of_mod(mod)
+    if request.method == "GET":
+        reporting.in_progress(person)
+        chosen = reporting.event or groups.events_needing_a_group(mod)[0]
+        return render(request, "interviews/group.html", {
+            **reporting.context(), "events": events, "chosen": chosen})
+    event = request.POST.get("event", "")
+    if event not in dict(events):
+        return HttpResponseBadRequest("That is not one of the Mod's Events.")
+    group = ""
+    if groups.needs_a_group(mod, event):
+        if "asked" not in request.POST:
+            return render(request, "interviews/group.html", {
+                **reporting.context(), "event": event, "event_name": dict(events)[event],
+                "suggested": groups.suggested(mod, event, person),
+                "longest": groups.LONGEST})
+        group = groups.label(request.POST.get("group", ""))
+        if len(group) > groups.LONGEST or "\n" in group:
+            return render(request, "interviews/group.html", {
+                **reporting.context(), "event": event, "event_name": dict(events)[event],
+                "suggested": group[:groups.LONGEST], "longest": groups.LONGEST,
+                "refused": f"A Group's label is one line of at most {groups.LONGEST} "
+                           f"characters."}, status=400)
+    conversation.begin_from_walk(None, reporting.world, person, reporting.kind, mod,
+                                 event, group)
+    return reporting.to_start()
 
 
 @never_cache

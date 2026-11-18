@@ -23,7 +23,8 @@ class TokenUsage(models.Model):
 class Interview(models.Model):
     """One person's Interview in a World, kept so that it survives a reload
     (ADR-0008): its kind, the draft it revises or the Mod it reports on, the
-    Path walked for a report, and its turns so far,
+    Path walked for a report and the Event and Group it is for, and its
+    turns so far,
     each `{"role", "text"}`, the latest file being in the last reply that
     holds one. It goes when its Mod is
     submitted, when its person starts over, or after `IDLE_FOR` without
@@ -45,6 +46,12 @@ class Interview(models.Model):
     # `{"path": [...], "last_stop": {"passage": ..., "known": ...}}`. None
     # when no Path was walked.
     walk = models.JSONField(null=True, blank=True)
+    # A report Interview's Event and Group (#67, ADR-0011), asked for only
+    # when its Mod has more than one live Assignment at an Event: the
+    # Event's id, or "" when it was not asked, and the Group's label, or ""
+    # for the whole Mod. Not linked to any Assignment.
+    event = models.CharField(max_length=200, blank=True, default="")
+    group = models.CharField(max_length=60, blank=True, default="")
     started_at = models.DateTimeField(auto_now_add=True)
     active_at = models.DateTimeField(auto_now=True)
 

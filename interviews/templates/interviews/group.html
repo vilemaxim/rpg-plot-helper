@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Which Group — Report on {{ mod.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a></p>
+  <h1>Report on {{ mod.name }}: which Group</h1>
+  {% if refused %}<p class="error">{{ refused }}</p>{% endif %}
+  {% if event %}
+    <p>More than one Mod Runner is assigned to {{ mod.name }} at {{ event_name }}, so its players may have split into Groups, each playing it apart with its own Mod Runner. Each Group's Mod Runner files their own report, and its Path carries on from where that Group stopped.</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="event" value="{{ event }}">
+      <input type="hidden" name="asked" value="1">
+      <p><label for="group">Your Group</label><br>
+        <input type="text" id="group" name="group" value="{{ suggested }}" maxlength="{{ longest }}"></p>
+      <p>A short label, the same on every report from your Group at {{ event_name }}. Leave it empty if the players played together, or have come back together after splitting.</p>
+      <button type="submit">Next</button>
+    </form>
+    <p><a href="./">Another Event</a></p>
+  {% else %}
+    <form method="post">
+      {% csrf_token %}
+      <fieldset>
+        <legend>Which Event was this Stretch played at?</legend>
+        {% for id, name in events %}
+          <label><input type="radio" name="event" value="{{ id }}"{% if id == chosen %} checked{% endif %}> {{ name }}</label><br>
+        {% endfor %}
+      </fieldset>
+      <button type="submit">Next</button>
+    </form>
+  {% endif %}
+  <p>Rather paste or upload a report your own LLM wrote? <a href="{{ urls.paste }}">Paste or upload it instead</a>.</p>
+{% endblock %}
