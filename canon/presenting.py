@@ -24,11 +24,18 @@ LABELS = {"mod_writer": "Mod Writer", "mod_runner": "Mod Runner", "pcs": "PCs", 
           "as_of": "As of", "canon": "In Canon", "recorded_by": "Recorded by"}
 
 
+# Stopgap until plotcanon #69 gives these: plotcanon's `group_label` and
+# `group_of`, read the same way, with "" in place of None.
+def group_label(value):
+    """A `group` as the label of a Group: its text stripped, or "" when it
+    is not text or is blank, which is no Group."""
+    return value.strip() if isinstance(value, str) else ""
+
+
 def group_of(document):
     """The Group a report covers (ADR-0011), or nothing for a report with no
     `group`, or any other document."""
-    group = document.fields.get("group") if document.kind == REPORT else None
-    return group if isinstance(group, str) else ""
+    return group_label(document.fields.get("group")) if document.kind == REPORT else ""
 
 
 def label(field):
@@ -100,8 +107,9 @@ class Index:
         if document is None or document.kind not in ADDRESS_OF:
             return plain(value)
         shown = {"text": document.name, "url": self.address(document)}
-        if group_of(document):
-            shown["group"] = group_of(document)
+        group = group_of(document)
+        if group:
+            shown["group"] = group
         return shown
 
     def links(self, values):

@@ -115,6 +115,12 @@ class AReportsGroup(GroupTest):
         self.assertContains(response, "Group: The Reef, north side")
         self.assertIn("group: The Reef, north side\n", self.stored("aa-storm-moon-vigil").text)
 
+    def test_a_group_is_read_as_plotcanon_reads_it_stripped(self):
+        self.file(REEF.replace("group: reef", "group: '  reef  '"))
+
+        self.assertContains(self.report_page("aa-storm-moon-vigil"),
+                            '<p class="group">Group: reef</p>', html=False)
+
 
 class TheClashWarning(GroupTest):
     def test_both_reports_show_the_plot_team_plotcanons_warning(self):

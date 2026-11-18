@@ -14,6 +14,7 @@ Assignment in the database: the Assignments only decide whether to ask.
 from canon import assignments, submitting
 from canon.access import REPORT, documents_in
 from canon.models import WriterHandle
+from canon.presenting import group_label as label
 
 # The longest a Group's label may be, as plotcanon reads it.
 LONGEST = 60
@@ -50,12 +51,6 @@ def suggested(mod, event, person):
                                        world_id=mod.world_id, user=person) \
         .order_by("handle").first()
     return link.handle[:LONGEST] if link else ""
-
-
-def label(value):
-    """A `group` as plotcanon reads a label: its text stripped, or "" for
-    none."""
-    return value.strip() if isinstance(value, str) else ""
 
 
 def has_split(mod):
