@@ -283,3 +283,28 @@ class ComingBackTogether(SplitTest):
                   "The bell is silenced"],
             continues_from=stop, event=SECOND_LANTERN))
         self.assertIn("leave `group` out", fake.asked[0][1][0].text)
+
+    def test_the_llm_is_told_the_players_came_back_together_after_the_split(self):
+        self.choose("")
+        with self.provider(FakeProvider(QUESTION)) as fake:
+            self.begin(BELL, self.stop_at(BELL, [1], start=WHO))
+
+        opener = fake.asked[0][1][0].text
+        self.assertIn("came back together after splitting into Groups", opener)
+        self.assertNotIn("not split", opener)
+
+    def test_a_report_with_a_group_is_refused_as_come_back_together(self):
+        self.choose("")
+        path = [WHO, {"contest": "stop her before the last stroke", "result": "win"},
+                "The bell is silenced"]
+        report = with_group(a_report(path, "false", id="aa-the-bell-beneath-4"), "tom")
+        with self.provider(FakeProvider(fenced(report)), max_fix_attempts=0):
+            page = self.begin(BELL, self.stop_at(BELL, [1], start=WHO))
+        with self.provider(FakeProvider()):
+            response = self.rhea.post(f"{self.report_interview(BELL)}submit/",
+                                      {"text": file_in(page), "finished": "false",
+                                       "transcript": hidden(page, "transcript")}, follow=True)
+
+        self.assertContains(response, "came back together after splitting into Groups")
+        self.assertNotContains(response, "not split")
+        self.assertFalse(self.exists("aa-the-bell-beneath-4"))

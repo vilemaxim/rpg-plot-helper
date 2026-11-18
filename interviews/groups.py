@@ -12,6 +12,7 @@ Assignment in the database: the Assignments only decide whether to ask.
 """
 
 from canon import assignments, submitting
+from canon.access import REPORT, documents_in
 from canon.models import WriterHandle
 
 # The longest a Group's label may be, as plotcanon reads it.
@@ -57,6 +58,15 @@ def label(value):
     return value.strip() if isinstance(value, str) else ""
 
 
+def has_split(mod):
+    """Whether the Mod's players have split into Groups before: one of its
+    reports has a `group`. A report with none after that is for players who
+    came back together. Anyone filing on the Mod reads its reports, so this
+    tells them nothing new."""
+    reports = documents_in(mod.world).filter(kind=REPORT, fields__mod=mod.slug)
+    return any(label(report.fields.get("group")) for report in reports)
+
+
 def agrees(report, mod, event, group):
     """Refuse a report whose `group` is not `group` (a label, or "" for
     none), or, when `event` was asked, whose `event` is not it."""
@@ -66,9 +76,11 @@ def agrees(report, mod, event, group):
             f"That report's `group` must be `{group}`, the Group its Mod Runner said it "
             f"is for. Give `group: {group}`.")
     if not group and given is not None:
+        why = ("its players came back together after splitting into Groups"
+               if event and has_split(mod) else "its players were not split into Groups for it")
         raise submitting.ReportRefused(
-            f"That report has a `group`, but it covers the whole of {mod.name}: its "
-            f"players were not split into Groups for it. Leave `group` out.")
+            f"That report has a `group`, but it covers the whole of {mod.name}: {why}. "
+            f"Leave `group` out.")
     if event and report.fields.get("event") != event:
         raise submitting.ReportRefused(
             f"That report's `event` must be `{event}`, the Event its Mod Runner said it "

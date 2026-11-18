@@ -138,6 +138,9 @@ class Reporting(Interviewing):
             said += (f"\n\nThe players split into Groups at this Event, each with its own "
                      f"Mod Runner, and this report is for my Group: give `group: "
                      f"{self.group}`.")
+        elif self.event and groups.has_split(self.mod):
+            said += ("\n\nThe players came back together after splitting into Groups, "
+                     "and this report covers them all, so leave `group` out.")
         elif self.event:
             said += ("\n\nThe players were not split into Groups for this Stretch, so "
                      "leave `group` out.")
