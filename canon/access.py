@@ -20,7 +20,8 @@ Each document `readable_documents` returns says whether it is read in full
 (`in_full`). `as_read` gives a document as the person reads it, which is the
 only form its text may reach them in. `reading` gives all of it at once, for
 a request (`Reading`), with the documents they may not read (`Hiding`);
-`through_link` gives what a Private link reads.
+`through_link` gives what a Private link reads, and `as_plot_team` what the
+plot team reads, whoever asks.
 """
 
 import copy
@@ -255,6 +256,14 @@ def through_link(link):
     the World (`Reading`)."""
     world = link.world
     return Reading(world, documents_in(world).filter(pk=link.mod_id)
+                   .annotate(in_full=Value(True, output_field=BooleanField())))
+
+
+def as_plot_team(world):
+    """What the World's plot team reads: everything, in full (`Reading`),
+    whoever is asking. For what the app's LLM reads on the plot team's
+    behalf, such as a Reconciliation."""
+    return Reading(world, documents_in(world)
                    .annotate(in_full=Value(True, output_field=BooleanField())))
 
 
