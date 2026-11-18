@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import reporting, views
+from . import reconciliation_pages, reporting, views
 
 urlpatterns = [
     path("worlds/<uuid:world_id>/interview/", views.interview, name="interview"),
@@ -21,4 +21,8 @@ urlpatterns = [
          name="report-interview-submit"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/start-over/",
          reporting.start_over, name="report-interview-start-over"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/reconcile/", reconciliation_pages.reconcile,
+         name="reconcile"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/reconciliations/<int:reconciliation_id>/",
+         reconciliation_pages.reconciliation, name="reconciliation"),
 ]

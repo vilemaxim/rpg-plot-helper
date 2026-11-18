@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Reconciliation of {{ mod.name }} — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-detail' world.pk 'mods' mod.slug %}">{{ mod.name }}</a></p>
+  <h1>Reconciliation of {{ mod.name }}</h1>
+  {% include "interviews/reconciliation_report.html" %}
+{% endblock %}
