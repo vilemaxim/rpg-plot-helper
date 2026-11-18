@@ -56,6 +56,16 @@ max_tokens = 32000
 # As for a Mod: how many times the LLM is sent its report's errors.
 max_fix_attempts = 3
 
+# Reconciliation: the LLM checks a draft Mod against the World's Canon and
+# the other drafts, and writes a report for the plot team. It is one report,
+# not an Interview, so it has no fix attempts. Leave it out and there is no
+# Reconcile button. Its tokens count toward the Organization's monthly cap.
+[reconciliation]
+provider = "anthropic"
+model = "claude-opus-5-5"
+effort = "high"
+max_tokens = 32000
+
 # What Interviews may spend, since the deployment pays for every Organization
 # on it. Either may be left out, for no limit. Days and months are UTC.
 # [limits]
