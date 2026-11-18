@@ -213,6 +213,7 @@
       <button type="submit">Approve this Mod</button>
     </form>
   {% endif %}
+  {% if may_decide and kind == "mods" %}{% reconciliations world document may_approve %}{% endif %}
   {% if may_record %}
     <p><a href="{% url 'canon-record-changes' world.pk document.slug %}">Record Canon Changes made during this Interlude</a></p>
   {% endif %}

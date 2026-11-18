@@ -1,0 +1,1 @@
+{{ reconciliation.ran_at|date:"j F Y, H:i" }}, {% if reconciliation.on_submission %}on submission{% elif reconciliation.ran_by %}by {{ reconciliation.ran_by.email }}{% else %}by someone no longer here{% endif %}

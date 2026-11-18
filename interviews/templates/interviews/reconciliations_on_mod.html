@@ -1,0 +1,23 @@
+{% if may_reconcile or latest %}
+  <section class="reconciliation">
+    <h2>Reconciliation</h2>
+    <p>The LLM checks this draft against the World's Canon and the other drafts waiting for approval. Only the plot team reads what it finds, and it is advice: nothing waits on it.</p>
+    {% if latest %}
+      {% include "interviews/reconciliation_report.html" with reconciliation=latest %}
+    {% endif %}
+    {% if earlier %}
+      <h3>Earlier Reconciliations</h3>
+      <ul>
+        {% for reconciliation in earlier %}
+          <li><a href="{% url 'reconciliation' world.pk mod.slug reconciliation.pk %}">{% include "interviews/reconciliation_when.html" %}</a>{% if reconciliation.verdict %}: {{ reconciliation.verdict }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% if may_reconcile %}
+      <form method="post" action="{% url 'reconcile' world.pk mod.slug %}" class="reconcile">
+        {% csrf_token %}
+        <button type="submit">Reconcile</button>
+      </form>
+    {% endif %}
+  </section>
+{% endif %}

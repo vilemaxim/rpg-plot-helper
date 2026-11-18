@@ -22,6 +22,12 @@ naming the key (ADR-0008).
     max_tokens = 32000
     max_fix_attempts = 3            # times the LLM is sent its file's errors
 
+    [reconciliation]                # the LLM that reconciles a draft Mod
+    provider = "anthropic"          # `reconciliation_llm`; no fix attempts
+    model = "claude-opus-5-5"
+    effort = "high"
+    max_tokens = 32000
+
     [limits]                        # either may be left out: no limit
     turns_per_person_per_day = 40
     tokens_per_organization_per_month = 5000000
@@ -104,6 +110,8 @@ class Config:
     providers: dict[str, ProviderSettings] = field(default_factory=dict)
     interviews: dict[str, InterviewSettings] = field(default_factory=dict)
     limits: Limits = field(default_factory=Limits)
+    # The `[reconciliation]` entry, or None for none: Reconciliation is off.
+    reconciliation: InterviewSettings | None = None
 
 
 @dataclass(frozen=True)
@@ -139,8 +147,12 @@ INTERVIEW_KEYS = {"provider": _text, "model": _text, "effort": _text,
                   "max_tokens": _positive, "max_fix_attempts": _not_negative}
 LIMIT_KEYS = {"turns_per_person_per_day": _positive,
               "tokens_per_organization_per_month": _positive}
+# A Reconciliation is one report, not a conversation: no file to fix.
+RECONCILIATION_KEYS = {key: check for key, check in INTERVIEW_KEYS.items()
+                       if key != "max_fix_attempts"}
 REQUIRED_INTERVIEW_KEYS = ("provider", "model")
-TOP_LEVEL_KEYS = ("providers", "interviews", "limits")
+TOP_LEVEL_KEYS = ("providers", "interviews", "reconciliation", "limits")
+RECONCILIATION = "reconciliation"
 
 
 def load(path, *, required=True):
@@ -188,13 +200,9 @@ def _checked(raw, where):
             name, values.get("key_env", adapter.default_key_env or None), kind,
             values.get("base_url"))
 
-    interviews = {}
-    for kind, table in _tables(raw, "interviews", refuse).items():
-        prefix = f"interviews.{kind}"
-        if kind not in Kind:
-            refuse(prefix, f"is not a kind of Interview. Known: "
-                           f"{_listed(Kind)}")
-        values = _values(table, prefix, INTERVIEW_KEYS, refuse)
+    def entry(table, prefix, known):
+        """An LLM entry's values, checked against the providers."""
+        values = _values(table, prefix, known, refuse)
         for key in REQUIRED_INTERVIEW_KEYS:
             if key not in values:
                 refuse(f"{prefix}.{key}", "is missing")
@@ -210,13 +218,29 @@ def _checked(raw, where):
         if not adapter.check_effort(effort):
             refuse(f"{prefix}.effort", f"is `{effort}`, which {provider} does not take. "
                                        f"It takes {_listed(adapter.efforts)}")
+        return values
+
+    interviews = {}
+    for kind, table in _tables(raw, "interviews", refuse).items():
+        prefix = f"interviews.{kind}"
+        if kind not in Kind:
+            refuse(prefix, f"is not a kind of Interview. Known: "
+                           f"{_listed(Kind)}")
+        values = entry(table, prefix, INTERVIEW_KEYS)
         interviews[Kind(kind)] = InterviewSettings(kind=Kind(kind), **values)
+
+    reconciliation = raw.get(RECONCILIATION)
+    if reconciliation is not None:
+        if not isinstance(reconciliation, dict):
+            refuse(RECONCILIATION, "must be a table, [reconciliation]")
+        reconciliation = InterviewSettings(
+            kind=RECONCILIATION, **entry(reconciliation, RECONCILIATION, RECONCILIATION_KEYS))
 
     limits = raw.get("limits", {})
     if not isinstance(limits, dict):
         refuse("limits", "must be a table, [limits]")
     limits = Limits(**_values(limits, "limits", LIMIT_KEYS, refuse))
-    return Config(providers, interviews, limits)
+    return Config(providers, interviews, limits, reconciliation)
 
 
 def _tables(raw, key, refuse):
@@ -272,7 +296,18 @@ def llm_for(kind, loaded=None):
     no entry, or its provider names a key that is not set in the environment.
     `loaded` is a `Config`, the one the app started with if not given."""
     loaded = loaded or current()
-    entry = loaded.interviews.get(kind)
+    return _llm(loaded.interviews.get(kind), loaded)
+
+
+def reconciliation_llm(loaded=None):
+    """The LLM that reconciles a draft Mod, or None if Reconciliation is off:
+    there is no `[reconciliation]` entry, or its provider's key is not set.
+    `loaded` is as for `llm_for`."""
+    loaded = loaded or current()
+    return _llm(loaded.reconciliation, loaded)
+
+
+def _llm(entry, loaded):
     if entry is None:
         return None
     provider = loaded.providers[entry.provider]

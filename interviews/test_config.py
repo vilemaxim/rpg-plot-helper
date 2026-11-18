@@ -288,3 +288,52 @@ class StartingUp(ConfigTest):
                     self.assertRaisesMessage(ImproperlyConfigured,
                                              "interviews.new-mod.provider"):
                 apps.get_app_config("interviews").ready()
+
+
+RECONCILING = GOOD.split("[interviews.new-mod]")[0] + """\
+[reconciliation]
+provider = "anthropic"
+model = "claude-opus-5-5"
+effort = "high"
+max_tokens = 16000
+"""
+
+
+class AReconciliationEntry(ConfigTest):
+    def test_it_is_read_as_written_and_is_on_with_its_providers_key(self):
+        loaded = self.load(RECONCILING)
+
+        with mock.patch.dict(os.environ, {"TEST_ANTHROPIC_KEY": "sk-test"}):
+            llm = config.reconciliation_llm(loaded)
+
+        self.assertEqual((llm.settings.provider, llm.settings.model, llm.settings.effort,
+                          llm.settings.max_tokens),
+                         ("anthropic", "claude-opus-5-5", "high", 16000))
+
+    def test_it_is_off_without_an_entry_or_without_the_key(self):
+        with mock.patch.dict(os.environ, {"TEST_ANTHROPIC_KEY": "sk-test"}):
+            self.assertIsNone(config.reconciliation_llm(self.load(GOOD)))
+        with mock.patch.dict(os.environ, {"TEST_ANTHROPIC_KEY": ""}):
+            self.assertIsNone(config.reconciliation_llm(self.load(RECONCILING)))
+
+    def test_the_committed_file_sets_one_up(self):
+        loaded = config.load(Path(settings.BASE_DIR) / "interviews.toml")
+
+        self.assertEqual(loaded.reconciliation.provider, "anthropic")
+
+    def test_a_key_it_does_not_take_is_named(self):
+        self.assertIn("`reconciliation.max_fix_attempts`",
+                      self.refused(RECONCILING + "max_fix_attempts = 3\n"))
+
+    def test_a_missing_model_is_named(self):
+        self.assertIn("`reconciliation.model`",
+                      self.refused(RECONCILING.replace('model = "claude-opus-5-5"\n', "")))
+
+    def test_an_effort_the_provider_rejects_is_named(self):
+        self.assertIn("`reconciliation.effort`",
+                      self.refused(RECONCILING.replace('effort = "high"', 'effort = "hard"')))
+
+    def test_an_unknown_provider_is_named(self):
+        self.assertIn("`reconciliation.provider`",
+                      self.refused(RECONCILING.replace('provider = "anthropic"',
+                                                       'provider = "nobody"')))

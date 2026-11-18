@@ -1,11 +1,14 @@
 """Whether each kind of Interview is on, for pages outside this app (canon's)
-to offer it, so that canon never imports Interview code; and what a report
-the LLM wrote proposes for `finished`, for the form to file it."""
+to offer it, so that canon never imports Interview code; a Mod's
+Reconciliations and the Reconcile button, for the plot team on its page; and
+what a report the LLM wrote proposes for `finished`, for the form to file
+it."""
 
 from django import template
 
 from canon.submitting import said
 
+from .. import config, reconciling
 from ..config import Kind, is_on
 
 register = template.Library()
@@ -34,3 +37,13 @@ def finished_in(report):
     """What a report file gives for `finished`, as written ("true",
     "false"), or None."""
     return said(report, "finished")
+
+
+@register.inclusion_tag("interviews/reconciliations_on_mod.html", takes_context=True)
+def reconciliations(context, world, mod, draft):
+    """A Mod's Reconciliations, the latest in full and the earlier ones
+    listed, and the Reconcile button on a draft when Reconciliation is on.
+    The page shows it to its World's Plot Masters only."""
+    return {"csrf_token": context.get("csrf_token"), "world": world, "mod": mod,
+            "may_reconcile": draft and config.reconciliation_llm() is not None,
+            **reconciling.shown_on(world, mod)}

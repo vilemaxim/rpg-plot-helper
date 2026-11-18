@@ -6,6 +6,9 @@ the person's turns, `turn_refused` says whether a limit has been reached, and
 counts the turn if not. Every LLM call an Interview makes, the person's turns
 and fix attempts alike, reports its tokens to `record`. Days and months are
 UTC, and both counts are kept in Postgres, shared by every process.
+
+A Reconciliation spends from the same monthly tokens (`tokens_refused`
+before it runs, and `record` after), but takes no person's turn.
 """
 
 from datetime import UTC, date, datetime, time, timedelta
@@ -50,6 +53,25 @@ def record(organization, usage):
             [organization_id, _month(_now()), usage.total])
 
 
+def tokens_refused(organization, spent_on="the LLM"):
+    """Why the Organization (an object or an id) may not spend more tokens
+    this month: a sentence saying it has used this month's and when more
+    are allowed, or None if it may. Its tokens have reached the cap: the
+    call that crosses it is allowed to finish. Counts nothing."""
+    cap = config.current().limits.tokens_per_organization_per_month
+    if cap is None:
+        return None
+    now = _now()
+    with tenancy.working_in(organization) as organization_id:
+        used = (TokenUsage.objects.filter(organization_id=organization_id, month=_month(now))
+                .values_list("tokens", flat=True).first() or 0)
+    if used < cap:
+        return None
+    starts = _next_month(now)
+    return (f"Your Organization has used this month's tokens for {spent_on}. "
+            f"More are allowed from {starts.day} {starts:%B} (UTC).")
+
+
 def turn_refused(person, organization):
     """Count one more of `person`'s turns in `organization`, and say why it
     may not be taken: a sentence naming the limit reached and when it starts
@@ -59,16 +81,9 @@ def turn_refused(person, organization):
     the cap: the turn that crosses it is allowed to finish."""
     limits = config.current().limits
     now = _now()
-    cap = limits.tokens_per_organization_per_month
-    if cap is not None:
-        with tenancy.working_in(organization) as organization_id:
-            used = (TokenUsage.objects.filter(organization_id=organization_id,
-                                              month=_month(now))
-                    .values_list("tokens", flat=True).first() or 0)
-        if used >= cap:
-            starts = _next_month(now)
-            return (f"Your Organization has used this month's tokens for Interviews. "
-                    f"More are allowed from {starts.day} {starts:%B} (UTC).")
+    refused = tokens_refused(organization, "Interviews")
+    if refused:
+        return refused
     allowed = limits.turns_per_person_per_day
     if allowed is None:
         return None

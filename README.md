@@ -189,6 +189,15 @@ A Mod is written in an [Interview](#writing-a-mod-in-an-interview) with the app'
 
 A Plot Master approves a draft from its page, which makes it Canon and ready to be run. Its file moves to its Campaign's folder and says `state: approved` and `canon: approved`. A Mod that names no Campaign has one chosen as it is approved, and that is written into its file. The whole World is checked by plotcanon first, and nothing is saved if it finds an error, or a new warning on the Mod: a draft that names something the World does not have cannot be approved until it is revised. A Mod's open Flags stay open when it is approved. Its page says who approved it and when.
 
+### Reconciling a draft
+
+A Plot Master, or an Organization Admin, can press **Reconcile** on a draft's page: the app's LLM checks the draft against the whole World's Canon and the other drafts waiting for approval, and writes a report for the plot team to read before approving it or sending it back.
+
+- **What the LLM is told** is plotcanon's (`plotcanon.reconciliation_instructions`), with the draft, the World as the plot team reads it, every other draft Mod in the World, and plotcanon's check findings on the draft, so it does not repeat them. What it writes is read by `plotcanon.read_reconciliation` into a verdict and its sections, Conflicts to Proposed changes, with Other drafts naming the drafts it may conflict with.
+- **The plot team alone reads it.** The draft's page shows its Plot Masters the latest report, with the earlier ones listed as its history, each on a page of its own; anyone else is told there is no such page. A report is kept for each run, through every revision, and is never written into the World's files or exports.
+- **It is advice.** Approving and sending back work as before, whatever it says.
+- **Configured by the deployment**, as `[reconciliation]` in `interviews.toml`: provider, model, `effort` and `max_tokens`, checked at startup as the Interviews' are. Without a valid entry and its provider's key there is no Reconcile button. A run is one LLM call inside the request, and its tokens count toward the Organization's monthly cap; at the cap it does not run, and the page says why.
+
 ### Writing a Mod in an Interview
 
 In an Interview the LLM asks about the Mod, works it through with the Mod Writer and writes its file. The file is shown with a Submit button; pressing it sends the file through the intake above, with the same checks and errors. The LLM never submits. Pasting or uploading a file stays a link away on every page of it.
