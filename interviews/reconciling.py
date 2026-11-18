@@ -55,18 +55,20 @@ def other_drafts_of(mod):
             .exclude(pk=mod.pk).order_by("slug"))
 
 
-def findings_on(mod):
-    """plotcanon's check findings on the draft, as the World now stands."""
-    report = plotcanon.load_world(access.as_plot_team(mod.world).files())
+def findings_on(mod, world):
+    """plotcanon's check findings on the draft in `world`, the World's files
+    as they now stand."""
+    report = plotcanon.load_world(world)
     return [finding for finding in report.findings if finding.path == mod.path]
 
 
 def instructions(mod, others):
     """plotcanon's instructions for reconciling the draft `mod` against the
     World as the plot team reads it and the other drafts `others`."""
+    world = access.as_plot_team(mod.world).files()
     return plotcanon.reconciliation_instructions(
-        SURFACE, draft=mod.text, world=access.as_plot_team(mod.world).files(),
-        other_drafts=[other.text for other in others], findings=findings_on(mod))
+        SURFACE, draft=mod.text, world=world,
+        other_drafts=[other.text for other in others], findings=findings_on(mod, world))
 
 
 def reconcile(mod, *, by):
