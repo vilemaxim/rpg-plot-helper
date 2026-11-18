@@ -128,11 +128,17 @@ def of(mod):
 
 
 def naming(mod):
-    """The Reconciliations of the World's other Mods whose Other drafts
-    name `mod` as one that may conflict with theirs, each the latest of its
-    Mod's, so one a revision has since reconciled away is not among them."""
+    """The Reconciliations of the World's other drafts whose Other drafts
+    name the draft `mod` as one that may conflict with theirs, each the
+    latest of its Mod's, so one a revision has since reconciled away is not
+    among them. None once either Mod is no longer a draft: an approved Mod
+    is Canon, which a later draft is reconciled against anyway."""
+    draft = states().draft
+    if mod.fields.get("state") != draft:
+        return Reconciliation.objects.none()
     latest = Reconciliation.objects.filter(mod=OuterRef("mod")).values("pk")[:1]
-    return (Reconciliation.objects.filter(world=mod.world, other_drafts__contains=[mod.slug])
+    return (Reconciliation.objects.filter(world=mod.world, other_drafts__contains=[mod.slug],
+                                          mod__fields__state=draft)
             .exclude(mod=mod).filter(pk=Subquery(latest)).select_related("mod", "ran_by"))
 
 

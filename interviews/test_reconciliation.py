@@ -351,3 +351,13 @@ class ALaterDraftMayConflict(ReconciliationTest):
             self.reconcile(DAUGHTER)
 
         self.assertNotContains(self.mira.get(self.mod_page(NEW)), "may conflict with this one")
+
+    def test_it_goes_once_the_naming_draft_is_approved(self):
+        self.approve(DAUGHTER, campaign="lanternlight")
+
+        self.assertNotContains(self.mira.get(self.mod_page(NEW)), "may conflict with this one")
+
+    def test_an_approved_mod_has_no_such_note(self):
+        self.approve(NEW, campaign="lanternlight")
+
+        self.assertNotContains(self.mira.get(self.mod_page(NEW)), "may conflict with this one")
