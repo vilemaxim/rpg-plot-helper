@@ -40,6 +40,17 @@
     <button type="submit">Save</button>
   </form>
 
+  <h3 id="reconciliation">Reconciliation</h3>
+  <p>Reconciliation checks a draft Mod against its World's Canon, and against the other drafts waiting for approval, with the LLM, for the plot team to read. With this on, it runs each time a draft is submitted or revised, and each run counts toward the Organization's monthly token limit. A World can be set on or off on its own from its Reconciliation page.</p>
+  <form method="post" action="{% url 'organization-reconciliation' %}">
+    {% csrf_token %}
+    <div class="field">
+      {{ reconciling_form.on.errors }}
+      <label class="quiet">{{ reconciling_form.on }} {{ reconciling_form.on.label }}</label>
+    </div>
+    <button type="submit">Save</button>
+  </form>
+
   <h2>People</h2>
   {% if refused %}<p class="errorlist"><strong>{{ refused }}</strong></p>{% endif %}
   <ul>

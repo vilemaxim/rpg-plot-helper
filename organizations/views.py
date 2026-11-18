@@ -12,7 +12,9 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from accounts.models import User
 
 from . import signup, tenancy
-from .forms import DryRunStructureForm, InvitationForm, NameForm, WorldForm
+from . import reconciling
+from .forms import (DryRunStructureForm, InvitationForm, NameForm, ReconcilingForm, WorldForm,
+                    WorldReconcilingForm)
 from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole
 
 
@@ -125,16 +127,42 @@ def rename_world(request, world_id):
     return render(request, "organizations/rename_world.html", {"world": world, "form": form})
 
 
+@require_http_methods(["GET", "POST"])
+def world_reconciling(request, world_id):
+    """Whether this World's drafts are reconciled when they are submitted, and
+    where that comes from. Its Plot Masters see it; only an Admin of its
+    Organization may change it. Anyone else gets "not found"."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    may_change = request.membership.is_admin
+    if request.method == "POST" and not may_change:
+        raise Http404("No such page")
+    form = None
+    if request.method == "POST":
+        form = WorldReconcilingForm(request.POST)
+        if form.is_valid():
+            reconciling.set_for_world(world, form.cleaned_data["choice"])
+            return redirect("world-reconciliation", world_id=world.pk)
+    setting = reconciling.setting_of(world)
+    if may_change and form is None:
+        form = WorldReconcilingForm(initial={"choice": setting.choice})
+    return render(request, "organizations/world_reconciliation.html",
+                  {"world": world, "setting": setting, "form": form})
+
+
 # ── The Organization: its Worlds, its people, invitations ───────────────────
 
 def organization_page(request, *, name_form=None, world_form=None, invitation_form=None,
-                      structure_form=None, refused=None):
+                      structure_form=None, reconciling_form=None, refused=None):
     organization = request.organization
     return render(request, "organizations/organization.html", {
         "refused": refused,
         "name_form": name_form or NameForm(initial={"name": organization.name}),
         "structure_form": structure_form or DryRunStructureForm(
             initial={"structure": organization.dry_run_structure}),
+        "reconciling_form": reconciling_form or ReconcilingForm(
+            initial={"on": organization.reconciles_on_submission}),
         "worlds": World.objects.filter(organization=organization),
         "memberships": (Membership.objects.filter(organization=organization)
                         .select_related("user").order_by("user__email")),
@@ -172,6 +200,19 @@ def set_dry_run_structure(request):
         return organization_page(request, structure_form=form)
     request.organization.dry_run_structure = form.cleaned_data["structure"]
     request.organization.save(update_fields=["dry_run_structure"])
+    return redirect("organization")
+
+
+@organization_admin_only
+@require_POST
+def set_reconciling(request):
+    """Turn reconciling each draft on submission on or off for every World
+    that does not say otherwise."""
+    form = ReconcilingForm(request.POST)
+    if not form.is_valid():
+        return organization_page(request, reconciling_form=form)
+    request.organization.reconciles_on_submission = form.cleaned_data["on"]
+    request.organization.save(update_fields=["reconciles_on_submission"])
     return redirect("organization")
 
 

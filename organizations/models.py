@@ -56,6 +56,11 @@ class Organization(models.Model):
     # would leave every World created after with a settings file it refuses.
     dry_run_structure = models.CharField(max_length=20, default=default_dry_run_structure,
                                          validators=[a_dry_run_structure])
+    # Whether each draft Mod is reconciled when it is submitted or revised,
+    # in every World that does not say otherwise (see `reconciling.py`). Off
+    # until an Organization Admin turns it on, since each run is paid for in
+    # LLM tokens. Kept in the database, not in any World's settings file.
+    reconciles_on_submission = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -150,6 +155,20 @@ class WorldRole(models.Model):
             models.UniqueConstraint(fields=["world", "user", "role"],
                                     name="one_of_each_role_per_person"),
         ]
+
+
+class ReconcilingOverride(models.Model):
+    """An Organization Admin's say on whether one World's drafts are
+    reconciled when they are submitted, over the Organization's setting. A
+    World with no row follows the Organization (see `reconciling.py`)."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="+")
+    # The database also requires the World to be in the same Organization as
+    # this row; see `rls.same_organization` in the migrations.
+    world = models.OneToOneField(World, on_delete=models.CASCADE,
+                                 related_name="reconciling_override")
+    reconciles = models.BooleanField()
 
 
 class InvitationQuerySet(models.QuerySet):

@@ -3,6 +3,7 @@ import unicodedata
 from django import forms
 
 from .models import dry_run_structures
+from .reconciling import Choice
 
 # Characters that turn the text after them back to front, or embed or isolate
 # a run of it. In a name they let one thing be shown and another be meant.
@@ -61,3 +62,18 @@ class DryRunStructureForm(forms.Form):
 
     structure = forms.ChoiceField(label="Dry Run structure", choices=structure_choices,
                                   widget=forms.RadioSelect)
+
+
+class ReconcilingForm(forms.Form):
+    """Whether an Organization's drafts are reconciled when they are
+    submitted."""
+
+    on = forms.BooleanField(label="Reconcile each draft when it's submitted", required=False)
+
+
+class WorldReconcilingForm(forms.Form):
+    """Whether one World's drafts are reconciled when they are submitted, or
+    whether it follows its Organization."""
+
+    choice = forms.ChoiceField(label="Reconcile each draft when it's submitted",
+                               choices=Choice.choices, widget=forms.RadioSelect)
