@@ -115,7 +115,7 @@ class Reporting(Interviewing):
         return turns
 
     def _take_up_walk(self, transcript, person):
-        kept = conversation.kept_with(transcript, self.world, person, self.mod)
+        kept = conversation.interview_named(transcript, self.world, person, self.mod)
         self.walked = walking.Walked.from_json(kept.walk if kept else None)
         self.event, self.group = (kept.event, kept.group) if kept else ("", "")
 
@@ -134,6 +134,7 @@ class Reporting(Interviewing):
         """plotcanon's, and, when the Group was asked, what the Mod Runner
         said of it, so the LLM need not ask whether the players split."""
         said = plotcanon.interview_report_opener(self.path)
+        # Stopgap until plotcanon #69 says this in its opener.
         if self.group:
             said += (f"\n\nThe players split into Groups at this Event, each with its own "
                      f"Mod Runner, and this report is for my Group: give `group: "
@@ -216,7 +217,7 @@ def elsewhere(reporting):
     return None
 
 
-def taken_up(request, reporting):
+def transcript_and_turns(request, reporting):
     """The report Interview this request is about, taken up into
     `reporting`, as its transcript and turns: the one in progress for a
     page, or the one a posted transcript names. None for one tampered with,
@@ -238,7 +239,7 @@ def not_walked(reporting, transcript):
     return not transcript or reporting.walked is None
 
 
-def to_ask_for_a_group(reporting, turns):
+def group_still_to_ask(reporting, turns):
     """Whether the person is to be asked which Event and Group the report is
     for before it goes on: the Mod has more than one live Assignment at one
     of its Events (`groups`), and the Interview in hand has not been told,
@@ -258,10 +259,10 @@ def interview(request, world_id, slug):
     away = elsewhere(reporting)
     if away is not None:
         return away
-    found = taken_up(request, reporting)
+    found = transcript_and_turns(request, reporting)
     if found is not None:
         transcript, turns = found
-        if to_ask_for_a_group(reporting, turns):
+        if group_still_to_ask(reporting, turns):
             return reporting.to_group()
         if not_walked(reporting, transcript):
             return reporting.to_walk()
@@ -283,7 +284,7 @@ def walk_page(request, world_id, slug):
     if not story.playable:
         return reporting.to_start()
     _, turns = reporting.in_progress(request.user)
-    if to_ask_for_a_group(reporting, turns):
+    if group_still_to_ask(reporting, turns):
         return reporting.to_group()
     stop = reporting.stop(request.user)
     try:

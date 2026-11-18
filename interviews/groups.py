@@ -16,7 +16,8 @@ from canon.access import REPORT, documents_in
 from canon.models import WriterHandle
 from canon.presenting import group_label as label
 
-# The longest a Group's label may be, as plotcanon reads it.
+# Stopgap until plotcanon #69 gives it, as it reads a label (`label` too):
+# the longest a Group's label may be.
 LONGEST = 60
 
 
@@ -42,9 +43,9 @@ def events_needing_a_group(mod):
 
 
 def suggested(mod, event, person):
-    """The Group label suggested to `person` for a report at the Event: their
-    handle in the World when they are one of the Mod Runners assigned there,
-    and nothing otherwise."""
+    """The Group label suggested to `person` for a report at the Event: the
+    name the World's Mod files give them as a Mod Writer, when they are one
+    of the Mod Runners assigned there, and nothing otherwise."""
     if not any(a.runner_id == person.pk for a in assignments.live_at(mod, event)):
         return ""
     link = WriterHandle.objects.filter(organization_id=mod.organization_id,
@@ -65,6 +66,7 @@ def has_split(mod):
 def agrees(report, mod, event, group):
     """Refuse a report whose `group` is not `group` (a label, or "" for
     none), or, when `event` was asked, whose `event` is not it."""
+    # Stopgap until plotcanon #69 says these to the LLM itself.
     given = report.fields.get("group")
     if group and label(given) != group:
         raise submitting.ReportRefused(

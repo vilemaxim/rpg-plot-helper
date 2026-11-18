@@ -104,7 +104,7 @@ def begin_from_walk(walk, world, person, kind, mod, event="", group=""):
     return _reference(interview, world, person)
 
 
-def kept_with(transcript, world, person, mod=None):
+def interview_named(transcript, world, person, mod=None):
     """The Interview a page's transcript names, for what is kept with it
     besides its turns (its walk, Event and Group), or None for no
     transcript. Raises `Tampered`."""
