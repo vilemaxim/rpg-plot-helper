@@ -7,6 +7,13 @@
   <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'canon-list' world.pk kind %}">{{ label }}</a></p>
   <h1>{{ document.name }}</h1>
   {% if state %}<p><span class="state">{{ state }}</span></p>{% endif %}
+  {% if group %}<p class="group">Group: {{ group }}</p>{% endif %}
+  {% if clashes %}
+    <div class="warning clashes">
+      <p><strong>Another Group that played alongside this one changes the same thing.</strong> Their changes are decided in order of report id, not in the order they were played, so check that they agree before deciding them.</p>
+      <ul>{% for clash in clashes %}<li>{{ clash }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
   {% if aliases %}<p class="aliases">Also called: {{ aliases|join:", " }}</p>{% endif %}
   {% if writer %}<p class="writer">Mod Writer: {{ writer.email }}{% if document.reassigned_by and document.writer_id == writer.pk %}, reassigned by {{ document.reassigned_by.email }} on {{ document.reassigned_at|date:"j F Y" }}{% endif %}</p>{% endif %}
   {% if filed_through %}<p>Filed through the private link for {{ filed_through.label|default:"a Mod Runner" }}, on {{ submitted_at|date:"j F Y" }}.</p>{% endif %}

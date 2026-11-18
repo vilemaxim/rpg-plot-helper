@@ -19,13 +19,13 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from organizations.forms import DryRunStructureForm
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import (access, approving, assignments, deciding, dry_runs, exporting, grants, intake,
-               interludes, links, resolving, submitting, world_settings, writers)
+from . import (access, approving, assignments, deciding, dry_runs, exporting, grants, groups,
+               intake, interludes, links, resolving, submitting, world_settings, writers)
 from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
 from .importing import ImportRefused, import_world
 from .kinds import ADDRESS_OF, KINDS, has_page
 from .models import CanonChange, Decision, Document, Flag, ModLink
-from .presenting import Index, render_markdown, wording
+from .presenting import Index, group_of, render_markdown, wording
 from .storing import one_to_a_line
 
 
@@ -259,6 +259,9 @@ def detail(request, world_id, kind, slug):
         "label": label,
         "document": document,
         "state": state_of(document),
+        "group": group_of(document),
+        "clashes": groups.clashes(world, document)
+        if doc_type == access.REPORT and is_plot_master(request, world) else [],
         "aliases": [str(a) for a in aliases_of(document) if str(a) != document.name],
         "facts": index.facts(document),
         "features": index.grouped(document),

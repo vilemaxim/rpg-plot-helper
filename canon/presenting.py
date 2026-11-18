@@ -13,15 +13,22 @@ import plotcanon
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
-from .access import HIDDEN, Hiding
+from .access import HIDDEN, REPORT, Hiding
 from .kinds import ADDRESS_OF, KINDS
 
 # Frontmatter that a page shows in its own way, or not at all.
 NOT_PLAIN_FACTS = {"id", "type", "title", "aliases", "state", "status", "features", "involves",
-                   "canon_changes", "requires", "expected_changes", "mods", "entities"}
+                   "canon_changes", "requires", "expected_changes", "mods", "entities", "group"}
 
 LABELS = {"mod_writer": "Mod Writer", "mod_runner": "Mod Runner", "pcs": "PCs", "npcs": "NPCs",
           "as_of": "As of", "canon": "In Canon", "recorded_by": "Recorded by"}
+
+
+def group_of(document):
+    """The Group a report covers (ADR-0011), or nothing for a report with no
+    `group`, or any other document."""
+    group = document.fields.get("group") if document.kind == REPORT else None
+    return group if isinstance(group, str) else ""
 
 
 def label(field):
@@ -92,7 +99,10 @@ class Index:
         document = self.by_slug.get(value) if isinstance(value, str) else None
         if document is None or document.kind not in ADDRESS_OF:
             return plain(value)
-        return {"text": document.name, "url": self.address(document)}
+        shown = {"text": document.name, "url": self.address(document)}
+        if group_of(document):
+            shown["group"] = group_of(document)
+        return shown
 
     def links(self, values):
         values = values if isinstance(values, list) else [values]

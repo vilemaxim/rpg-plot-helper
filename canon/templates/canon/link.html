@@ -1,1 +1,1 @@
-{% if value.url %}<a href="{{ value.url }}">{{ value.text }}</a>{% else %}{{ value.text }}{% endif %}
+{% if value.url %}<a href="{{ value.url }}">{{ value.text }}</a>{% else %}{{ value.text }}{% endif %}{% if value.group %} <span class="group">(Group: {{ value.group }})</span>{% endif %}
