@@ -314,3 +314,40 @@ class KeptApart(ReconciliationTest):
                 Reconciliation.objects.create(
                     organization_id=self.olgas, world=world, mod_id=kept.mod_id,
                     draft="", model="m", text="")
+
+
+class ALaterDraftMayConflict(ReconciliationTest):
+    """A report naming another draft puts a note on that draft's page (#66)."""
+
+    def setUp(self):
+        super().setUp()
+        self.submit_mod(a_mod())
+        names_new = REPORT.replace(
+            "## Other drafts\n\nNone.",
+            f"## Other drafts\n\n- `{NEW}`: both end the feud.")
+        with self.reconciling(FakeProvider(names_new)):
+            self.reconcile(DAUGHTER)
+        self.naming, = self.kept(DAUGHTER)
+
+    def test_the_named_drafts_page_tells_the_plot_team_with_a_link_to_the_report(self):
+        page = self.mira.get(self.mod_page(NEW))
+
+        self.assertContains(page, "A later draft may conflict with this one")
+        self.assertContains(page, f'href="{self.report_page(DAUGHTER, self.naming)}"')
+
+    def test_a_mod_writer_never_sees_it(self):
+        page = self.sam.get(self.mod_page(NEW))
+
+        self.assertNotContains(page, "may conflict with this one")
+        self.assertNotContains(page, self.report_page(DAUGHTER, self.naming))
+
+    def test_the_draft_the_report_is_on_has_no_such_note(self):
+        page = self.mira.get(self.mod_page(DAUGHTER))
+
+        self.assertNotContains(page, "A later draft may conflict with this one")
+
+    def test_it_goes_once_the_naming_drafts_latest_report_no_longer_names_it(self):
+        with self.reconciling(FakeProvider(REPORT)):
+            self.reconcile(DAUGHTER)
+
+        self.assertNotContains(self.mira.get(self.mod_page(NEW)), "may conflict with this one")

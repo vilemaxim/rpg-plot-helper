@@ -15,6 +15,7 @@ monthly cap (ADR-0008, `spending`): at the cap it does not run.
 """
 
 import plotcanon
+from django.db.models import OuterRef, Subquery
 
 from canon import access
 from canon.submitting import states
@@ -115,8 +116,17 @@ def of(mod):
     return Reconciliation.objects.filter(world=mod.world, mod=mod).select_related("ran_by")
 
 
+def naming(mod):
+    """The Reconciliations of the World's other Mods whose Other drafts
+    name `mod` as one that may conflict with theirs, each the latest of its
+    Mod's, so one a revision has since reconciled away is not among them."""
+    latest = Reconciliation.objects.filter(mod=OuterRef("mod")).values("pk")[:1]
+    return (Reconciliation.objects.filter(world=mod.world, other_drafts__contains=[mod.slug])
+            .exclude(mod=mod).filter(pk=Subquery(latest)).select_related("mod", "ran_by"))
+
+
 def shown_on(world, mod):
     """What a Mod's page shows its Plot Masters of its Reconciliations: the
-    latest, and the earlier ones."""
+    latest, the earlier ones, and those of other drafts naming it."""
     latest, *earlier = list(of(mod)) or [None]
-    return {"latest": latest, "earlier": earlier}
+    return {"latest": latest, "earlier": earlier, "named_in": list(naming(mod))}

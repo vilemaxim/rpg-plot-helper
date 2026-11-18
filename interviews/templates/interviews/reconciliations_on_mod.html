@@ -1,7 +1,17 @@
-{% if may_reconcile or latest %}
+{% if may_reconcile or latest or named_in %}
   <section class="reconciliation">
     <h2>Reconciliation</h2>
     <p>The LLM checks this draft against the World's Canon and the other drafts waiting for approval. Only the plot team reads what it finds, and it is advice: nothing waits on it.</p>
+    {% if named_in %}
+      <div class="warning">
+        <p>A later draft may conflict with this one. It isn't reconciled again by itself.</p>
+        <ul>
+          {% for reconciliation in named_in %}
+            <li><a href="{% url 'reconciliation' world.pk reconciliation.mod.slug reconciliation.pk %}">{{ reconciliation.mod.name }}</a>'s Reconciliation, {% include "interviews/reconciliation_when.html" %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
     {% if latest %}
       {% include "interviews/reconciliation_report.html" with reconciliation=latest %}
     {% endif %}
