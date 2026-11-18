@@ -56,6 +56,11 @@ class Organization(models.Model):
     # would leave every World created after with a settings file it refuses.
     dry_run_structure = models.CharField(max_length=20, default=default_dry_run_structure,
                                          validators=[a_dry_run_structure])
+    # Whether each draft Mod is reconciled when it is submitted or revised,
+    # in every World that does not say otherwise (see `reconciling.py`). Off
+    # until an Organization Admin turns it on, since each run is paid for in
+    # LLM tokens. Kept in the database, not in any World's settings file.
+    reconciles_on_submission = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name

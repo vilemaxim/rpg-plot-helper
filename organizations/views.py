@@ -12,7 +12,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from accounts.models import User
 
 from . import signup, tenancy
-from .forms import DryRunStructureForm, InvitationForm, NameForm, WorldForm
+from .forms import DryRunStructureForm, InvitationForm, NameForm, ReconcilingForm, WorldForm
 from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole
 
 
@@ -128,13 +128,15 @@ def rename_world(request, world_id):
 # ── The Organization: its Worlds, its people, invitations ───────────────────
 
 def organization_page(request, *, name_form=None, world_form=None, invitation_form=None,
-                      structure_form=None, refused=None):
+                      structure_form=None, reconciling_form=None, refused=None):
     organization = request.organization
     return render(request, "organizations/organization.html", {
         "refused": refused,
         "name_form": name_form or NameForm(initial={"name": organization.name}),
         "structure_form": structure_form or DryRunStructureForm(
             initial={"structure": organization.dry_run_structure}),
+        "reconciling_form": reconciling_form or ReconcilingForm(
+            initial={"on": organization.reconciles_on_submission}),
         "worlds": World.objects.filter(organization=organization),
         "memberships": (Membership.objects.filter(organization=organization)
                         .select_related("user").order_by("user__email")),
@@ -172,6 +174,19 @@ def set_dry_run_structure(request):
         return organization_page(request, structure_form=form)
     request.organization.dry_run_structure = form.cleaned_data["structure"]
     request.organization.save(update_fields=["dry_run_structure"])
+    return redirect("organization")
+
+
+@organization_admin_only
+@require_POST
+def set_reconciling(request):
+    """Turn reconciling each draft on submission on or off for every World
+    that does not say otherwise."""
+    form = ReconcilingForm(request.POST)
+    if not form.is_valid():
+        return organization_page(request, reconciling_form=form)
+    request.organization.reconciles_on_submission = form.cleaned_data["on"]
+    request.organization.save(update_fields=["reconciles_on_submission"])
     return redirect("organization")
 
 

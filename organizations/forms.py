@@ -61,3 +61,10 @@ class DryRunStructureForm(forms.Form):
 
     structure = forms.ChoiceField(label="Dry Run structure", choices=structure_choices,
                                   widget=forms.RadioSelect)
+
+
+class ReconcilingForm(forms.Form):
+    """Whether an Organization's drafts are reconciled when they are
+    submitted."""
+
+    on = forms.BooleanField(label="Reconcile each draft when it's submitted", required=False)
