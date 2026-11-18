@@ -307,41 +307,46 @@ def walk_page(request, world_id, slug):
 @never_cache
 @require_http_methods(["GET", "POST"])
 def group_page(request, world_id, slug):
-    """Ask which Event the report is for, and, at an Event where the Mod has
-    more than one live Assignment, which Group (`groups`). Posted, it starts
-    the report Interview for them, in place of any in progress, from the
-    walk if the Mod has a Dry Run. A Mod for which no Event needs a Group
-    sends the person on to the Interview."""
+    """Ask which Group the report is for, at an Event where the Mod has more
+    than one live Assignment (`groups`), first asking which Event when the
+    Mod lists several. Posted, it starts the report Interview for them, in
+    place of any in progress, from the walk if the Mod has a Dry Run. A Mod
+    for which no Event needs a Group sends the person on to the Interview."""
     reporting = report_interview_or_404(request, world_id, slug)
     away = elsewhere(reporting)
     if away is not None:
         return away
     mod, person = reporting.mod, request.user
-    if not groups.events_needing_a_group(mod):
+    needing = groups.events_needing_a_group(mod)
+    if not needing:
         return reporting.to_start()
-    events = groups.events_of_mod(mod)
+    events = dict(groups.events_of_mod(mod))
+
+    def page(status=200, **shown):
+        return render(request, "interviews/group.html", {
+            **reporting.context(), "events": events, "one_event": len(events) == 1,
+            "longest": groups.LONGEST, **shown}, status=status)
+
     if request.method == "GET":
         reporting.in_progress(person)
-        chosen = reporting.event or groups.events_needing_a_group(mod)[0]
-        return render(request, "interviews/group.html", {
-            **reporting.context(), "events": events, "chosen": chosen})
-    event = request.POST.get("event", "")
-    if event not in dict(events):
-        return HttpResponseBadRequest("That is not one of the Mod's Events.")
+        if len(events) > 1:
+            return page(chosen=reporting.event or needing[0])
+        event = next(iter(events))
+    else:
+        event = request.POST.get("event", "")
+        if event not in events:
+            return HttpResponseBadRequest("That is not one of the Mod's Events.")
     group = ""
-    if groups.needs_a_group(mod, event):
-        if "asked" not in request.POST:
-            return render(request, "interviews/group.html", {
-                **reporting.context(), "event": event, "event_name": dict(events)[event],
-                "suggested": groups.suggested(mod, event, person),
-                "longest": groups.LONGEST})
-        group = groups.label(request.POST.get("group", ""))
-        if len(group) > groups.LONGEST or "\n" in group:
-            return render(request, "interviews/group.html", {
-                **reporting.context(), "event": event, "event_name": dict(events)[event],
-                "suggested": group[:groups.LONGEST], "longest": groups.LONGEST,
-                "refused": f"A Group's label is one line of at most {groups.LONGEST} "
-                           f"characters."}, status=400)
+    if event in needing:
+        asked = request.POST.get("asked")
+        group = groups.label(request.POST.get("group", "")) if asked else ""
+        too_long = len(group) > groups.LONGEST or "\n" in group
+        if not asked or too_long:
+            return page(400 if too_long else 200, event=event, event_name=events[event],
+                        suggested=group[:groups.LONGEST] if too_long
+                        else groups.suggested(mod, event, person),
+                        refused=f"A Group's label is one line of at most {groups.LONGEST} "
+                                f"characters." if too_long else "")
     conversation.begin_from_walk(None, reporting.world, person, reporting.kind, mod,
                                  event, group)
     return reporting.to_start()

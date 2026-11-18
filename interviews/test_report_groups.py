@@ -72,16 +72,14 @@ class AskingForAGroup(GroupTest):
                                  fetch_redirect_response=False)
         self.assertEqual(fake.asked, [])
 
-    def test_it_asks_which_event_then_which_group_suggesting_the_filers_handle(self):
+    def test_it_suggests_the_filers_name_as_a_mod_writer_for_the_group(self):
         self.assign_tom()
         self.give("rhea@example.com", "mod-writer")
         self.mira.post(f"{self.first_world}mod-writers/",
                        {"handle": "kay", "user": self.user_id("rhea@example.com")})
         with self.provider(FakeProvider()):
-            events = self.rhea.get(self.group_page())
-            group = self.rhea.post(self.group_page(), {"event": SECOND_LANTERN})
+            group = self.rhea.get(self.group_page())
 
-        self.assertContains(events, f'value="{SECOND_LANTERN}" checked')
         self.assertContains(group, 'name="group" value="kay"')
 
     def test_someone_not_assigned_is_suggested_no_label(self):
@@ -135,6 +133,56 @@ class AskingForAGroup(GroupTest):
             self.begin(NO_DRY_RUN, page)
 
         self.assertIn("give `group: rhea`", fake.asked[0][1][0].text)
+
+
+class WhichEvent(GroupTest):
+    """The bell Mod lists Second Lantern alone, unless a test gives it Storm
+    Moon too."""
+
+    def list_events(self, *events):
+        with self.in_world():
+            mod = Document.objects.get(slug=BELL)
+            mod.fields["events"] = list(events)
+            mod.save(update_fields=["fields"])
+
+    def get_group_page(self):
+        with self.provider(FakeProvider()):
+            return self.rhea.get(self.group_page())
+
+    def test_a_mod_with_one_event_is_asked_only_the_group_at_it(self):
+        self.assign_tom()
+
+        page = self.get_group_page()
+
+        self.assertContains(page, 'name="group"')
+        self.assertContains(page, f'name="event" value="{SECOND_LANTERN}"')
+        self.assertNotContains(page, 'type="radio"')
+        self.assertNotContains(page, "Another Event")
+
+    def test_where_the_events_differ_it_asks_which_event_first(self):
+        with self.in_world():
+            lantern = Document.objects.get(slug=SECOND_LANTERN)
+            lantern.fields["real_date"] = "2999-07-11"
+            lantern.save(update_fields=["fields"])
+        self.assign_tom(event=SECOND_LANTERN)
+        self.list_events(SECOND_LANTERN, "e03-storm-moon")
+
+        page = self.get_group_page()
+
+        self.assertContains(page, f'value="{SECOND_LANTERN}" checked')
+        self.assertContains(page, 'value="e03-storm-moon"')
+        self.assertNotContains(page, 'name="group"')
+
+    def test_where_every_event_needs_a_group_it_asks_which_event_for_where_play_stopped(self):
+        # Each Group's walk starts where it stopped at the Event its report
+        # is for, so the Event is still asked when there are several.
+        self.assign_tom()
+        self.list_events(SECOND_LANTERN, "e03-storm-moon")
+
+        page = self.get_group_page()
+
+        self.assertContains(page, 'value="e03-storm-moon"')
+        self.assertNotContains(page, 'name="group"')
 
 
 class FilingWithAGroup(GroupTest):

@@ -17,13 +17,13 @@
       <p>A short label, the same on every report from your Group at {{ event_name }}. Leave it empty if the players played together, or have come back together after splitting.</p>
       <button type="submit">Next</button>
     </form>
-    <p><a href="./">Another Event</a></p>
+    {% if not one_event %}<p><a href="./">Another Event</a></p>{% endif %}
   {% else %}
     <form method="post">
       {% csrf_token %}
       <fieldset>
         <legend>Which Event was this Stretch played at?</legend>
-        {% for id, name in events %}
+        {% for id, name in events.items %}
           <label><input type="radio" name="event" value="{{ id }}"{% if id == chosen %} checked{% endif %}> {{ name }}</label><br>
         {% endfor %}
       </fieldset>
