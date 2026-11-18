@@ -143,6 +143,20 @@ def is_assigned(mod, person, event=None, on=None):
     return bool(live(world, assignments, on))
 
 
+def live_at(mod, event, on=None):
+    """The Mod's live Assignments at the Event with id `event`: those for it
+    and the standing ones, as `is_assigned` reads them. A report is filed once
+    play has stopped, so for an Event that has ended they are read as they
+    stood on its last day (#67); revoked ones, and those of people who no
+    longer run Mods here, still do not count."""
+    world = mod.world
+    found = events_of(world).get(event)
+    day = last_day(found) if found is not None else None
+    today = on or timezone.localdate()
+    on = min(today, day) if day is not None else today
+    return live(world, assignments_in(world).filter(mod=mod, event__in=[event, ""]), on)
+
+
 def live_for(world, person, on=None):
     """This person's live Assignments in the World, as `Shown`, by Mod."""
     mine = assignments_in(world).filter(runner=person, revoked_at=None) \

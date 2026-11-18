@@ -32,7 +32,8 @@ class NoSuchWalk(Exception):
 class Walked:
     """A Path walked, as a report Interview keeps it (`Interview.walk`): its
     `path`, the steps plotcanon wrote for the report's `path`, and where play
-    had stopped on the Mod before it (`last_stop`)."""
+    had stopped on the Mod before it (`last_stop`): `among` several stops
+    when Groups come back together (#67)."""
 
     path: tuple
     last_stop: plotcanon.LastStop
@@ -40,7 +41,8 @@ class Walked:
     def to_json(self):
         return {"path": list(self.path),
                 "last_stop": {"passage": self.last_stop.passage,
-                              "known": self.last_stop.known}}
+                              "known": self.last_stop.known,
+                              "among": list(self.last_stop.among)}}
 
     @classmethod
     def from_json(cls, kept):
@@ -98,6 +100,8 @@ class Walk:
     def from_a_hook(self):
         """The address to start from a Hook instead, when the walk has just
         picked up at a scene; otherwise None."""
+        if not self.stop.takes_a_hook:
+            return None  # Groups coming back together go on from where one stopped
         return self.address((), HOOK) if self.starts is not None and self.at_start else None
 
     def from_the_stop(self):
@@ -108,6 +112,15 @@ class Walk:
             return self.address((), "")
         return None
 
+    def other_stops(self):
+        """Where else the walk may pick up, as names and addresses, when it
+        has just picked up where one of several Groups stopped: where each
+        other Group that had not finished stopped."""
+        if not self.at_start or self.starts is None:
+            return []
+        return [{"label": passage, "url": self.address((), passage)}
+                for passage in self.stop.among if passage != self.here.name]
+
     def walked(self):
         """The Path, for a report Interview to start from."""
         return Walked(self.steps, self.stop)
@@ -115,8 +128,9 @@ class Walk:
 
 def default_start(stop):
     """Where a walk starts unless the Mod Runner says otherwise: where the
-    last report's Path stopped, or a Hook."""
-    return stop.passage if stop.known and stop.passage else None
+    last report's Path stopped, the first of the stops of the Groups coming
+    back together, or a Hook."""
+    return stop.passages[0] if stop.known and stop.passages else None
 
 
 def walk_from(story, stop, query):

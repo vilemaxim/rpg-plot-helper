@@ -17,6 +17,8 @@ urlpatterns = [
          name="report-interview"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/walk/", reporting.walk_page,
          name="report-walk"),
+    path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/group/",
+         reporting.group_page, name="report-group"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/submit/", reporting.submit,
          name="report-interview-submit"),
     path("worlds/<uuid:world_id>/mods/<slug:slug>/report/interview/start-over/",
