@@ -12,7 +12,9 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from accounts.models import User
 
 from . import signup, tenancy
-from .forms import DryRunStructureForm, InvitationForm, NameForm, ReconcilingForm, WorldForm
+from . import reconciling
+from .forms import (DryRunStructureForm, InvitationForm, NameForm, ReconcilingForm, WorldForm,
+                    WorldReconcilingForm)
 from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole
 
 
@@ -123,6 +125,30 @@ def rename_world(request, world_id):
     else:
         form = NameForm(initial={"name": world.name})
     return render(request, "organizations/rename_world.html", {"world": world, "form": form})
+
+
+@require_http_methods(["GET", "POST"])
+def world_reconciling(request, world_id):
+    """Whether this World's drafts are reconciled when they are submitted, and
+    where that comes from. Its Plot Masters see it; only an Admin of its
+    Organization may change it. Anyone else gets "not found"."""
+    world = world_or_404(request, world_id)
+    if not is_plot_master(request, world):
+        raise Http404("No such page")
+    may_change = request.membership.is_admin
+    if request.method == "POST" and not may_change:
+        raise Http404("No such page")
+    form = None
+    if request.method == "POST":
+        form = WorldReconcilingForm(request.POST)
+        if form.is_valid():
+            reconciling.set_for_world(world, form.cleaned_data["choice"])
+            return redirect("world-reconciliation", world_id=world.pk)
+    setting = reconciling.setting_of(world)
+    if may_change and form is None:
+        form = WorldReconcilingForm(initial={"choice": setting.choice})
+    return render(request, "organizations/world_reconciliation.html",
+                  {"world": world, "setting": setting, "form": form})
 
 
 # ── The Organization: its Worlds, its people, invitations ───────────────────

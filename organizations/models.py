@@ -157,6 +157,20 @@ class WorldRole(models.Model):
         ]
 
 
+class ReconcilingOverride(models.Model):
+    """An Organization Admin's say on whether one World's drafts are
+    reconciled when they are submitted, over the Organization's setting. A
+    World with no row follows the Organization (see `reconciling.py`)."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="+")
+    # The database also requires the World to be in the same Organization as
+    # this row; see `rls.same_organization` in the migrations.
+    world = models.OneToOneField(World, on_delete=models.CASCADE,
+                                 related_name="reconciling_override")
+    reconciles = models.BooleanField()
+
+
 class InvitationQuerySet(models.QuerySet):
     def waiting(self):
         """Neither accepted nor declined yet."""
