@@ -4,7 +4,7 @@ one report for the plot team to read before approving the Mod or sending it
 back. It is advice only: nothing waits on it.
 
 `reconcile(mod, by=...)` runs one and keeps it (`Reconciliation`). The LLM
-reads the World as the plot team does (ADR-0010), whoever runs it, and is
+reads the World as the plot team does, whoever runs it (ADR-0012), and is
 given plotcanon's check findings on the draft so it does not repeat them.
 What it is told is plotcanon's (`plotcanon.reconciliation_instructions`), and
 what it writes is read by plotcanon (`plotcanon.read_reconciliation`).

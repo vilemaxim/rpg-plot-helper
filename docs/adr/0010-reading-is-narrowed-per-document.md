@@ -1,5 +1,7 @@
 # Reading is narrowed per document, and the plot team alone reads everything
 
+> Amended by [ADR-0012](./0012-a-draft-is-reconciled-by-an-llm-reading-as-the-plot-team.md): a Reconciliation's LLM reads the World as the plot team, whoever asks, not through `readable_documents`.
+
 Until now everyone with a role in a World read all of it, GM-only facts included. Now only the **plot team** (a World's Plot Masters and its Organization's Admins) reads everything. Everyone else reads every `public` and `player-known` document with its `## GM Notes` removed, plus what their part gives them in full:
 
 - a Mod Writer: their own Mods;
