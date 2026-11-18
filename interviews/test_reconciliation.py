@@ -2,7 +2,6 @@
 report. Through web requests, with a fake provider in place of the real one:
 the tests never call an LLM."""
 
-import dataclasses
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from unittest import mock
@@ -21,12 +20,12 @@ from interviews import config, reconciling
 from interviews.models import Reconciliation, TokenUsage
 from interviews.providers import ProviderError, Usage
 from interviews.providers.base import BUSY
-from interviews.test_interviews import SETTINGS, FakeProvider
+from interviews.test_interviews import FakeProvider
 from organizations import tenancy
 from organizations.models import Membership, World
 from organizations.tests import sign_in
 
-RECONCILING = dataclasses.replace(SETTINGS, kind="reconciliation")
+RECONCILING = config.ReconciliationSettings(provider="anthropic", model="fake-model")
 
 REPORT = """\
 Verdict: conflicts, do not approve yet

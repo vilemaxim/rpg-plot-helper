@@ -80,9 +80,9 @@ DECLINED = "The LLM declined to answer that. Try putting it another way."
 class Provider(ABC):
     """An LLM provider, as an Interview sees it.
 
-    Made with the deployment's key for the provider and the Interview's
-    settings from the config (`interviews.config.InterviewSettings`: model,
-    effort, max_tokens).
+    Made with the deployment's key for the provider and the settings from
+    the config (`interviews.config.InterviewSettings` or
+    `ReconciliationSettings`: model, effort, max_tokens).
     """
 
     #: The environment variable the key is read from when the config's

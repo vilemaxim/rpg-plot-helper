@@ -97,6 +97,17 @@ class InterviewSettings:
 
 
 @dataclass(frozen=True)
+class ReconciliationSettings:
+    """The `[reconciliation]` entry: which provider and model reconcile a
+    draft, and how. One report, not a conversation: no file to fix."""
+
+    provider: str
+    model: str
+    effort: str | None = None
+    max_tokens: int = DEFAULT_MAX_TOKENS
+
+
+@dataclass(frozen=True)
 class Limits:
     """What the deployment's operator allows Interviews to spend. None is no
     limit. See `interviews.spending`."""
@@ -111,15 +122,15 @@ class Config:
     interviews: dict[str, InterviewSettings] = field(default_factory=dict)
     limits: Limits = field(default_factory=Limits)
     # The `[reconciliation]` entry, or None for none: Reconciliation is off.
-    reconciliation: InterviewSettings | None = None
+    reconciliation: ReconciliationSettings | None = None
 
 
 @dataclass(frozen=True)
 class Llm:
-    """A kind of Interview that is on: its settings, and the adapter to talk
-    to its provider with."""
+    """An LLM that is on, for a kind of Interview or for Reconciliation: its
+    settings, and the adapter to talk to its provider with."""
 
-    settings: InterviewSettings
+    settings: InterviewSettings | ReconciliationSettings
     provider: Provider
 
 
@@ -233,8 +244,8 @@ def _checked(raw, where):
     if reconciliation is not None:
         if not isinstance(reconciliation, dict):
             refuse(RECONCILIATION, "must be a table, [reconciliation]")
-        reconciliation = InterviewSettings(
-            kind=RECONCILIATION, **entry(reconciliation, RECONCILIATION, RECONCILIATION_KEYS))
+        reconciliation = ReconciliationSettings(
+            **entry(reconciliation, RECONCILIATION, RECONCILIATION_KEYS))
 
     limits = raw.get("limits", {})
     if not isinstance(limits, dict):
