@@ -2,10 +2,13 @@
 Group beside it, and plotcanon's warning when two Groups that played side by
 side change the same field of the same entity."""
 
+import plotcanon
+
 from accounts.models import User
 from canon.models import CanonChange
+from canon.storing import files_of
 from canon.test_reports import VIGIL, ReportTest
-from organizations.models import Membership, Role
+from organizations.models import Membership, Role, World
 
 # The sample's first report on the vigil, played by the Group on the reef.
 REEF = VIGIL.text.replace("ran: true\n", "ran: true\ngroup: reef\n", 1)
@@ -44,7 +47,19 @@ HARBOUR_CLASHING = HARBOUR.replace("""canon_changes:
     summary: "Shot on the harbour steps with a lantern in his hand."
 """, 1)
 
-CLASH = "played alongside this one"
+# plotcanon's warning on each side of that clash, in its own words.
+REEF_WARNED = ("`canon_changes[0]` changes `status` of `harrow-dunmore`, as "
+               "`aa-storm-moon-vigil-harbour` does in the Group `harbour`, which played "
+               "alongside this one — they are decided in order of report id, so check that "
+               "they agree")
+HARBOUR_WARNED = ("`canon_changes[0]` changes `status` of `harrow-dunmore`, as "
+                  "`aa-storm-moon-vigil` does in the Group `reef`, which played alongside "
+                  "this one — they are decided in order of report id, so check that they "
+                  "agree")
+WARNED = {"aa-storm-moon-vigil": REEF_WARNED, "aa-storm-moon-vigil-harbour": HARBOUR_WARNED}
+
+# The box the warnings are shown in.
+CLASH = 'class="warning clashes"'
 
 
 class GroupTest(ReportTest):
@@ -102,17 +117,18 @@ class AReportsGroup(GroupTest):
 
 
 class TheClashWarning(GroupTest):
-    def test_both_reports_warn_the_plot_team(self):
+    def test_both_reports_show_the_plot_team_plotcanons_warning(self):
         self.file(REEF)
         self.file(HARBOUR_CLASHING)
+        with self.in_world():
+            world = World.objects.get(pk=self.first_world.rstrip("/").rsplit("/", 1)[1])
+            warnings = plotcanon.load_world(files_of(world)).warnings
 
-        for slug, other in (("aa-storm-moon-vigil", "aa-storm-moon-vigil-harbour"),
-                            ("aa-storm-moon-vigil-harbour", "aa-storm-moon-vigil")):
+        for slug, warned in WARNED.items():
             with self.subTest(slug):
-                page = self.report_page(slug)
-                self.assertContains(page, CLASH)
-                self.assertContains(page, f"`{other}`")
-                self.assertContains(page, "`harrow-dunmore`")
+                path = self.stored(slug).path
+                self.assertIn(warned, [w.message for w in warnings if w.path == path])
+                self.assertContains(self.report_page(slug), warned)
 
     def test_groups_that_change_different_things_are_not_warned_about(self):
         self.file(REEF)
