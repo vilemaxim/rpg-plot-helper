@@ -51,3 +51,41 @@ class Interview(models.Model):
     class Meta:
         indexes = [models.Index(fields=["world", "person", "kind"]),
                    models.Index(fields=["active_at"])]
+
+
+class Reconciliation(models.Model):
+    """One Reconciliation of a draft Mod (#59): the report the app's LLM
+    wrote on checking it against the World's Canon and the other drafts
+    waiting for approval, for the plot team alone (`interviews.reconciling`).
+
+    One is kept for each run, so a draft's earlier Reconciliations stay as
+    its history across revisions: `draft` is the Mod's text as it was
+    reconciled. `ran_by` is the Plot Master who pressed Reconcile, or None
+    for one run `on_submission`. `text` is what the LLM wrote, and the rest
+    is plotcanon's reading of it (`plotcanon.read_reconciliation`):
+    `sections`, each `{"heading", "text", "findings": [{"ids", "text"}]}`,
+    the `verdict`, the `problems` with its shape, and `other_drafts`, the id
+    of each other draft it says may conflict with this one.
+
+    It is never written into the World's files, so it is never exported
+    (ADR-0001)."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="+")
+    mod = models.ForeignKey("canon.Document", on_delete=models.CASCADE, related_name="+")
+    draft = models.TextField()
+    ran_at = models.DateTimeField(auto_now_add=True)
+    ran_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                               on_delete=models.SET_NULL, related_name="+")
+    on_submission = models.BooleanField(default=False)
+    # The model the deployment's config named for it, as it ran.
+    model = models.CharField(max_length=200)
+    text = models.TextField()
+    verdict = models.CharField(max_length=100, blank=True)
+    sections = models.JSONField(default=list, blank=True)
+    problems = models.JSONField(default=list, blank=True)
+    other_drafts = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-ran_at", "-pk"]
+        indexes = [models.Index(fields=["world", "mod"])]
