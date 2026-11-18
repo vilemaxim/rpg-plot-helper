@@ -43,9 +43,11 @@ def finished_in(report):
 def reconciliations(context, world, mod, draft):
     """A Mod's Reconciliations, the latest in full and the earlier ones
     listed, a note when another draft's latest Reconciliation says it may
-    conflict with this one, and the Reconcile button on a draft when
-    Reconciliation is on.
+    conflict with this one, the Reconcile button on a draft when
+    Reconciliation is on, and whether a draft its World reconciles on
+    submission is not reconciled.
     The page shows it to its World's Plot Masters only."""
     return {"csrf_token": context.get("csrf_token"), "world": world, "mod": mod,
             "may_reconcile": draft and config.reconciliation_llm() is not None,
+            "not_reconciled": reconciling.not_reconciled(world, mod) if draft else None,
             **reconciling.shown_on(world, mod)}

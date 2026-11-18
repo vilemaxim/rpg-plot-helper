@@ -1,7 +1,10 @@
-{% if may_reconcile or latest or named_in %}
+{% if may_reconcile or latest or named_in or not_reconciled is not None %}
   <section class="reconciliation">
     <h2>Reconciliation</h2>
     <p>The LLM checks this draft against the World's Canon and the other drafts waiting for approval. Only the plot team reads what it finds, and it is advice: nothing waits on it.</p>
+    {% if not_reconciled is not None %}
+      <p class="not-reconciled">This revision of the draft has not been reconciled.{% if not_reconciled %} {{ not_reconciled }}{% endif %}</p>
+    {% endif %}
     {% if named_in %}
       <div class="warning">
         <p>A later draft may conflict with this one. It isn't reconciled again by itself.</p>
