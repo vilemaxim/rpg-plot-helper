@@ -14,10 +14,18 @@ with the draft in it is checked before anything is saved.
 
 Submitting a draft raises no Flags: a Flag warns about a change to Canon, and
 a draft changes none.
+
+Once a draft is saved, new or revised, `submitted` is sent with it, outside
+the transaction that saved it. The Interviews app reconciles it there when
+its World says to (#65), so canon never imports Interview code. Nothing a
+receiver does can undo or refuse the submission.
 """
+
+import logging
 
 import plotcanon
 from django.db import transaction
+from django.dispatch import Signal
 from django.utils import timezone
 from plotcanon import editing
 
@@ -29,6 +37,11 @@ from .submitting import SLUG, Refused, mod_path, said, states, unreadable
 
 MOD = "mod"
 PROPOSED = "proposed"
+
+# Sent with `mod`, the draft's `Document`, once it is saved, new or revised.
+submitted = Signal()
+
+log = logging.getLogger(__name__)
 
 
 class ModRefused(Refused):
@@ -84,6 +97,7 @@ def submit_mod(world, text, user):
         row = new_row(world, whole.world.get(slug), whole.world,
                       submitted_by=user, submitted_at=timezone.now())
         row.save()
+    announced(row)
     return SavedMod(row, warnings)
 
 
@@ -131,7 +145,16 @@ def revise(world, mod, text, user):
     with transaction.atomic():
         mod, whole, warnings = _revision_checked(world, mod, text)
         parsed_into(mod, whole.world.get(mod.slug), whole.world).save()
+    announced(mod)
     return SavedMod(mod, warnings)
+
+
+def announced(mod):
+    """Send `submitted` for a draft just saved. A receiver that fails is
+    logged, and the draft stays saved."""
+    for receiver, outcome in submitted.send_robust(sender=Document, mod=mod):
+        if isinstance(outcome, Exception):
+            log.error("%s failed on the draft %s", receiver, mod.pk, exc_info=outcome)
 
 
 def check_revision(world, mod, text):

@@ -12,12 +12,21 @@ what it writes is read by plotcanon (`plotcanon.read_reconciliation`).
 A run is one LLM call inside the request that asks for it, with no
 background worker (ADR-0003). Its tokens count toward the Organization's
 monthly cap (ADR-0008, `spending`): at the cap it does not run.
+
+Where its World says so (`organizations.reconciling`), a draft is reconciled
+on submission: inside the request that submits or revises it, once it is
+saved (`on_submission`, sent by `canon.intake.submitted`). A run that is
+refused or fails leaves the draft saved and not reconciled, and its page
+tells the plot team so, with the Reconcile button (`not_reconciled`).
 """
+
+import logging
 
 import plotcanon
 
 from canon import access
 from canon.submitting import states
+from organizations.reconciling import reconciles_on_submission
 
 from . import config, spending
 from .models import Reconciliation
@@ -29,6 +38,8 @@ ASKED = "Reconcile the draft."
 
 OFF = "Reconciliation is not set up on this site."
 NOT_A_DRAFT = "{} is not a draft, so there is nothing to reconcile."
+
+log = logging.getLogger(__name__)
 
 
 class NotReconciled(Exception):
@@ -120,3 +131,28 @@ def shown_on(world, mod):
     latest, and the earlier ones."""
     latest, *earlier = list(of(mod)) or [None]
     return {"latest": latest, "earlier": earlier}
+
+
+def on_submission(sender, mod, **kwargs):
+    """Reconcile a draft just submitted or revised, if its World says to.
+    Connected to `canon.intake.submitted`, so it runs inside the submitting
+    request, as its World's Organization. A run that cannot be made keeps
+    nothing; the draft's page says it is not reconciled."""
+    if not reconciles_on_submission(mod.world):
+        return
+    try:
+        reconcile(mod, by=None)
+    except NotReconciled as refused:
+        log.info("The draft %s was not reconciled on submission: %s", mod.pk, refused)
+
+
+def not_reconciled(world, mod):
+    """Whether to tell the plot team that this draft, as it now stands, has
+    not been reconciled although its World reconciles drafts on submission,
+    and why if that can still be told: None if there is nothing to tell, and
+    otherwise a sentence, empty if the reason has passed (the LLM failed)."""
+    if not reconciles_on_submission(world) or of(mod).filter(draft=mod.text).exists():
+        return None
+    if config.reconciliation_llm() is None:
+        return OFF
+    return spending.tokens_refused(world.organization_id) or ""
