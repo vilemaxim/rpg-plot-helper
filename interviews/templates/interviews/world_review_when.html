@@ -1,0 +1,1 @@
+{{ review.ran_at|date:"j F Y, H:i" }}, {% if review.scheduled %}after an Event, as the Organization asks{% elif review.ran_by %}by {{ review.ran_by.email }}{% else %}by someone no longer here{% endif %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}World review — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a> › <a href="{% url 'world-reviews' world.pk %}">World reviews</a></p>
+  <h1>World review of {{ world.name }}</h1>
+  <article class="world-review">
+    <p>Reviewed {% include "interviews/world_review_when.html" %}, with {{ review.model }}.</p>
+    {% include "interviews/report_sections.html" with report=review %}
+  </article>
+{% endblock %}

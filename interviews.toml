@@ -66,6 +66,20 @@ model = "claude-opus-5-5"
 effort = "high"
 max_tokens = 32000
 
+# World review: the LLM looks across a whole World for drift, dormant Plots
+# and chances to bring NPCs and Plots back, and writes a report for the plot
+# team. It is given the whole World, so `context_tokens` says how many tokens
+# the model can read (raise it for a model that reads more): a World too
+# large for it is refused, not cut short.
+# Leave it out and there is no World review. Its tokens count toward the
+# Organization's monthly cap.
+[world-review]
+provider = "anthropic"
+model = "claude-opus-5-5"
+effort = "high"
+max_tokens = 32000
+context_tokens = 200000
+
 # What Interviews may spend, since the deployment pays for every Organization
 # on it. Either may be left out, for no limit. Days and months are UTC.
 # [limits]

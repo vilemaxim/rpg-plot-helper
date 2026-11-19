@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} in {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  {# page.* are the app's own sentences, in organizations.views, never anyone's input. #}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>{{ page.title }}</h1>
+  <p>{{ page.about|safe }}</p>
+  <p><strong>{% if setting.on %}{{ page.when_on|safe }}{% else %}{{ page.when_off|safe }}{% endif %}</strong></p>
+  <p>{% if setting.follows_organization %}This World follows the Organization's setting.{% else %}An Organization Admin has set this for this World.{% endif %}</p>
+  {% if form %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="field">
+        {{ form.choice.errors }}
+        {{ form.choice }}
+      </div>
+      <button type="submit">Save</button>
+    </form>
+    <p>The Organization's own setting is on <a href="{% url 'organization' %}#{{ page.anchor }}">the Organization page</a>.</p>
+  {% else %}
+    <p>Only an Organization Admin can change it.</p>
+  {% endif %}
+{% endblock %}

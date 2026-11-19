@@ -96,3 +96,60 @@ class Reconciliation(models.Model):
     class Meta:
         ordering = ["-ran_at", "-pk"]
         indexes = [models.Index(fields=["world", "mod"])]
+
+
+class WorldReview(models.Model):
+    """One World review (#61): the report the app's LLM wrote on looking
+    across the whole World for drift, dormant Plots and chances to bring
+    NPCs and Plots back, for the plot team alone (`interviews.world_reviewing`).
+
+    One is kept for each run, so earlier reviews stay as the World's
+    history. `ran_by` is the person who ran it, or None for one the
+    scheduled command ran (`scheduled`). `event` is the id of the latest
+    Event that had ended when it ran, or "" for none: a review after an
+    Event is one with its id. `text` is what the LLM wrote, and `sections`
+    and `problems` are plotcanon's reading of it (`plotcanon.read_world_review`),
+    as for a `Reconciliation`.
+
+    It is never written into the World's files, so it is never exported
+    (ADR-0001)."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="+")
+    ran_at = models.DateTimeField(auto_now_add=True)
+    ran_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                               on_delete=models.SET_NULL, related_name="+")
+    scheduled = models.BooleanField(default=False)
+    event = models.CharField(max_length=200, blank=True, default="")
+    # The model the deployment's config named for it, as it ran.
+    model = models.CharField(max_length=200)
+    text = models.TextField()
+    sections = models.JSONField(default=list, blank=True)
+    problems = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-ran_at", "-pk"]
+        indexes = [models.Index(fields=["world", "event"])]
+        constraints = [
+            # The scheduled command reviews a World once per Event, even if
+            # two of its runs overlap.
+            models.UniqueConstraint(fields=["world", "event"],
+                                    condition=models.Q(scheduled=True),
+                                    name="one_scheduled_world_review_an_event"),
+        ]
+
+
+class WorldReviewDismissal(models.Model):
+    """The plot team dismissed the suggestion to run a World review after
+    this Event (its id), so it is not suggested again for it."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    world = models.ForeignKey(World, on_delete=models.CASCADE, related_name="+")
+    event = models.CharField(max_length=200)
+    dismissed_at = models.DateTimeField(auto_now_add=True)
+    dismissed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["world", "event"],
+                                               name="one_dismissal_an_event")]

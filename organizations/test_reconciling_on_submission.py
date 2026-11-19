@@ -186,7 +186,7 @@ class OverridesInTheDatabase(TestCase):
     def test_another_organization_sees_none_of_them(self):
         with tenancy.acting_as(organization=self.miras_org):
             ReconcilingOverride.objects.create(organization_id=self.miras_org,
-                                               world_id=self.miras_world, reconciles=True)
+                                               world_id=self.miras_world, on=True)
 
         with tenancy.acting_as(organization=self.sams_org):
             self.assertEqual(ReconcilingOverride.objects.count(), 0)
@@ -197,4 +197,4 @@ class OverridesInTheDatabase(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             with tenancy.acting_as(organization=self.sams_org):
                 ReconcilingOverride.objects.create(organization_id=self.sams_org,
-                                                   world_id=self.miras_world, reconciles=True)
+                                                   world_id=self.miras_world, on=True)

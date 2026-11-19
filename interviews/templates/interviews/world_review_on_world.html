@@ -1,0 +1,17 @@
+{% if on %}
+  {% if suggested %}
+    <section class="warning world-review-suggested">
+      <p>{{ suggested.name }} ended on {{ suggested.on|date:"j F Y" }}. Run a World review?</p>
+      <form method="post" action="{% url 'run-world-review' world.pk %}" class="inline">
+        {% csrf_token %}
+        <button type="submit">Run</button>
+      </form>
+      <form method="post" action="{% url 'dismiss-world-review' world.pk %}" class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="event" value="{{ suggested.id }}">
+        <button type="submit">Dismiss</button>
+      </form>
+    </section>
+  {% endif %}
+  <p><a href="{% url 'world-reviews' world.pk %}">World reviews</a></p>
+{% endif %}

@@ -28,6 +28,13 @@ naming the key (ADR-0008).
     effort = "high"
     max_tokens = 32000
 
+    [world-review]                  # the LLM that reviews a whole World
+    provider = "anthropic"          # `world_review_llm`; no fix attempts
+    model = "claude-opus-5-5"
+    effort = "high"
+    max_tokens = 32000
+    context_tokens = 1000000        # the model's context window, in tokens
+
     [limits]                        # either may be left out: no limit
     turns_per_person_per_day = 40
     tokens_per_organization_per_month = 5000000
@@ -108,6 +115,20 @@ class ReconciliationSettings:
 
 
 @dataclass(frozen=True)
+class WorldReviewSettings:
+    """The `[world-review]` entry: which provider and model review a whole
+    World, and how. One report, like a Reconciliation, and given the whole
+    World: `context_tokens` is the model's context window, so a World too
+    large for it is refused before anything is spent."""
+
+    provider: str
+    model: str
+    context_tokens: int
+    effort: str | None = None
+    max_tokens: int = DEFAULT_MAX_TOKENS
+
+
+@dataclass(frozen=True)
 class Limits:
     """What the deployment's operator allows Interviews to spend. None is no
     limit. See `interviews.spending`."""
@@ -123,14 +144,17 @@ class Config:
     limits: Limits = field(default_factory=Limits)
     # The `[reconciliation]` entry, or None for none: Reconciliation is off.
     reconciliation: ReconciliationSettings | None = None
+    # The `[world-review]` entry, or None for none: World review is off.
+    world_review: WorldReviewSettings | None = None
 
 
 @dataclass(frozen=True)
 class Llm:
-    """An LLM that is on, for a kind of Interview or for Reconciliation: its
-    settings, and the adapter to talk to its provider with."""
+    """An LLM that is on, for a kind of Interview, for Reconciliation or for
+    World review: its settings, and the adapter to talk to its provider
+    with."""
 
-    settings: InterviewSettings | ReconciliationSettings
+    settings: InterviewSettings | ReconciliationSettings | WorldReviewSettings
     provider: Provider
 
 
@@ -161,9 +185,11 @@ LIMIT_KEYS = {"turns_per_person_per_day": _positive,
 # A Reconciliation is one report, not a conversation: no file to fix.
 RECONCILIATION_KEYS = {key: check for key, check in INTERVIEW_KEYS.items()
                        if key != "max_fix_attempts"}
+WORLD_REVIEW_KEYS = {**RECONCILIATION_KEYS, "context_tokens": _positive}
 REQUIRED_INTERVIEW_KEYS = ("provider", "model")
-TOP_LEVEL_KEYS = ("providers", "interviews", "reconciliation", "limits")
 RECONCILIATION = "reconciliation"
+WORLD_REVIEW = "world-review"
+TOP_LEVEL_KEYS = ("providers", "interviews", RECONCILIATION, WORLD_REVIEW, "limits")
 
 
 def load(path, *, required=True):
@@ -211,10 +237,10 @@ def _checked(raw, where):
             name, values.get("key_env", adapter.default_key_env or None), kind,
             values.get("base_url"))
 
-    def entry(table, prefix, known):
+    def entry(table, prefix, known, required=REQUIRED_INTERVIEW_KEYS):
         """An LLM entry's values, checked against the providers."""
         values = _values(table, prefix, known, refuse)
-        for key in REQUIRED_INTERVIEW_KEYS:
+        for key in required:
             if key not in values:
                 refuse(f"{prefix}.{key}", "is missing")
         provider = values["provider"]
@@ -240,18 +266,24 @@ def _checked(raw, where):
         values = entry(table, prefix, INTERVIEW_KEYS)
         interviews[Kind(kind)] = InterviewSettings(kind=Kind(kind), **values)
 
-    reconciliation = raw.get(RECONCILIATION)
-    if reconciliation is not None:
-        if not isinstance(reconciliation, dict):
-            refuse(RECONCILIATION, "must be a table, [reconciliation]")
-        reconciliation = ReconciliationSettings(
-            **entry(reconciliation, RECONCILIATION, RECONCILIATION_KEYS))
+    def report_entry(key, settings, known, required=REQUIRED_INTERVIEW_KEYS):
+        """A one-report LLM's top-level table, or None if it has none."""
+        table = raw.get(key)
+        if table is None:
+            return None
+        if not isinstance(table, dict):
+            refuse(key, f"must be a table, [{key}]")
+        return settings(**entry(table, key, known, required))
+
+    reconciliation = report_entry(RECONCILIATION, ReconciliationSettings, RECONCILIATION_KEYS)
+    world_review = report_entry(WORLD_REVIEW, WorldReviewSettings, WORLD_REVIEW_KEYS,
+                                (*REQUIRED_INTERVIEW_KEYS, "context_tokens"))
 
     limits = raw.get("limits", {})
     if not isinstance(limits, dict):
         refuse("limits", "must be a table, [limits]")
     limits = Limits(**_values(limits, "limits", LIMIT_KEYS, refuse))
-    return Config(providers, interviews, limits, reconciliation)
+    return Config(providers, interviews, limits, reconciliation, world_review)
 
 
 def _tables(raw, key, refuse):
@@ -316,6 +348,14 @@ def reconciliation_llm(loaded=None):
     `loaded` is as for `llm_for`."""
     loaded = loaded or current()
     return _llm(loaded.reconciliation, loaded)
+
+
+def world_review_llm(loaded=None):
+    """The LLM that reviews a whole World, or None if World review is off:
+    there is no `[world-review]` entry, or its provider's key is not set.
+    `loaded` is as for `llm_for`."""
+    loaded = loaded or current()
+    return _llm(loaded.world_review, loaded)
 
 
 def _llm(entry, loaded):

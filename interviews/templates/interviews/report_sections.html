@@ -1,0 +1,19 @@
+{% for section in report.sections %}
+  <h3>{{ section.heading }}</h3>
+  {% if section.findings %}
+    <ul>
+      {% for finding in section.findings %}
+        <li>{% for id in finding.ids %}<code>{{ id }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}{% if finding.ids %}: {% endif %}{{ finding.text|linebreaksbr }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>{{ section.text|default:"None."|linebreaksbr }}</p>
+  {% endif %}
+{% endfor %}
+{% if report.problems %}
+  <details>
+    <summary>The report strays from the shape asked for, so some of it may be missing above. As the LLM wrote it:</summary>
+    <ul>{% for problem in report.problems %}<li>{{ problem }}</li>{% endfor %}</ul>
+    <pre>{{ report.text }}</pre>
+  </details>
+{% endif %}

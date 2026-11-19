@@ -1,23 +1,5 @@
 <article class="reconciliation-report">
   <p>Reconciled {% include "interviews/reconciliation_when.html" %}, with {{ reconciliation.model }}{% if reconciliation.draft != mod.text %}, on an earlier revision of the draft{% endif %}.</p>
   {% if reconciliation.verdict %}<p><strong>Verdict: {{ reconciliation.verdict }}</strong></p>{% endif %}
-  {% for section in reconciliation.sections %}
-    <h3>{{ section.heading }}</h3>
-    {% if section.findings %}
-      <ul>
-        {% for finding in section.findings %}
-          <li>{% for id in finding.ids %}<code>{{ id }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}{% if finding.ids %}: {% endif %}{{ finding.text|linebreaksbr }}</li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>{{ section.text|default:"None."|linebreaksbr }}</p>
-    {% endif %}
-  {% endfor %}
-  {% if reconciliation.problems %}
-    <details>
-      <summary>The report strays from the shape asked for, so some of it may be missing above. As the LLM wrote it:</summary>
-      <ul>{% for problem in reconciliation.problems %}<li>{{ problem }}</li>{% endfor %}</ul>
-      <pre>{{ reconciliation.text }}</pre>
-    </details>
-  {% endif %}
+  {% include "interviews/report_sections.html" with report=reconciliation %}
 </article>

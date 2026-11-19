@@ -8,7 +8,7 @@ from django import template
 
 from canon.submitting import said
 
-from .. import config, reconciling
+from .. import config, reconciling, world_reviewing
 from ..config import Kind, is_on
 
 register = template.Library()
@@ -51,3 +51,13 @@ def reconciliations(context, mod, is_draft):
             "may_reconcile": is_draft and config.reconciliation_llm() is not None,
             "not_reconciled": reconciling.not_reconciled(mod) if is_draft else None,
             **reconciling.shown_on(mod)}
+
+
+@register.inclusion_tag("interviews/world_review_on_world.html", takes_context=True)
+def world_review(context, world):
+    """On the World's page, for its plot team only: the suggestion to run a
+    World review after the latest Event, and the way to its reviews, when
+    World review is on."""
+    return {"csrf_token": context.get("csrf_token"), "world": world,
+            "on": config.world_review_llm() is not None,
+            "suggested": world_reviewing.suggestion(world)}

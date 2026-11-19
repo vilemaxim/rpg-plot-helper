@@ -151,3 +151,20 @@ class OrganizationMiddleware:
             if response.status_code >= 500:
                 transaction.set_rollback(True)
             return response
+
+
+@contextmanager
+def all_organizations():
+    """Run a block, in a transaction of its own, that may read every
+    Organization's row and nothing else of theirs (organizations' migration
+    0015, ADR-0013). For a scheduled command finding the Organizations it
+    has work in; it then works in each with `acting_as`."""
+    with transaction.atomic():
+        set_context()
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT set_config('app.all_organizations', 'on', true)")
+        try:
+            yield
+        finally:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('app.all_organizations', '', true)")

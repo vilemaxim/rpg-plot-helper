@@ -61,6 +61,11 @@ class Organization(models.Model):
     # until an Organization Admin turns it on, since each run is paid for in
     # LLM tokens. Kept in the database, not in any World's settings file.
     reconciles_on_submission = models.BooleanField(default=False)
+    # Whether each World is reviewed by the app's LLM after each Event, by the
+    # scheduled `run_world_reviews` command, in every World that does not say
+    # otherwise (see `world_reviewing.py`). Off until an Organization Admin
+    # turns it on, for the same reason.
+    reviews_after_events = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -157,18 +162,37 @@ class WorldRole(models.Model):
         ]
 
 
-class ReconcilingOverride(models.Model):
-    """An Organization Admin's say on whether one World's drafts are
-    reconciled when they are submitted, over the Organization's setting. A
-    World with no row follows the Organization (see `reconciling.py`)."""
+class WorldOverride(models.Model):
+    """An Organization Admin's say on one of the settings in `llm_runs.py`
+    for one World, over the Organization's setting. A World with no row
+    follows the Organization."""
 
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
                                      related_name="+")
+    on = models.BooleanField()
+
+    class Meta:
+        abstract = True
+
+
+class ReconcilingOverride(WorldOverride):
+    """Whether one World's drafts are reconciled when they are submitted
+    (see `reconciling.py`)."""
+
     # The database also requires the World to be in the same Organization as
     # this row; see `rls.same_organization` in the migrations.
     world = models.OneToOneField(World, on_delete=models.CASCADE,
                                  related_name="reconciling_override")
-    reconciles = models.BooleanField()
+
+
+class WorldReviewOverride(WorldOverride):
+    """Whether one World is reviewed after each Event (see
+    `world_reviewing.py`)."""
+
+    # The database also requires the World to be in the same Organization as
+    # this row; see `rls.same_organization` in the migrations.
+    world = models.OneToOneField(World, on_delete=models.CASCADE,
+                                 related_name="world_review_override")
 
 
 class InvitationQuerySet(models.QuerySet):

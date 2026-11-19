@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load canon %}
+{% load canon interviews %}
 
 {% block title %}{{ world.name }} — RPG Plot Helper{% endblock %}
 
@@ -22,6 +22,8 @@
     <p><a href="{% url 'canon-mod-writers' world.pk %}">Mod Writers</a></p>
     <p><a href="{% url 'canon-dry-run-structure' world.pk %}">Dry Run structure</a></p>
     <p><a href="{% url 'world-reconciliation' world.pk %}">Reconciliation</a></p>
+    <p><a href="{% url 'world-review-setting' world.pk %}">World review after each Event</a></p>
+    {% world_review world %}
   {% endif %}
   {% world_contents world user is_plot_master may_write_mods %}
   {% my_drafts world user %}

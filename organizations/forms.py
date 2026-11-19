@@ -3,7 +3,7 @@ import unicodedata
 from django import forms
 
 from .models import dry_run_structures
-from .reconciling import Choice
+from .llm_runs import Choice
 
 # Characters that turn the text after them back to front, or embed or isolate
 # a run of it. In a name they let one thing be shown and another be meant.
@@ -64,16 +64,23 @@ class DryRunStructureForm(forms.Form):
                                   widget=forms.RadioSelect)
 
 
-class ReconcilingForm(forms.Form):
-    """Whether an Organization's drafts are reconciled when they are
-    submitted."""
+class RunsByItselfForm(forms.Form):
+    """Whether one of the settings in `llm_runs.py` is on for an
+    Organization. `label` says what it does."""
 
-    on = forms.BooleanField(label="Reconcile each draft when it's submitted", required=False)
+    on = forms.BooleanField(required=False)
+
+    def __init__(self, *args, label, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["on"].label = label
 
 
-class WorldReconcilingForm(forms.Form):
-    """Whether one World's drafts are reconciled when they are submitted, or
-    whether it follows its Organization."""
+class WorldRunsByItselfForm(forms.Form):
+    """Whether one of the settings in `llm_runs.py` is on for one World, or
+    whether it follows its Organization. `label` says what it does."""
 
-    choice = forms.ChoiceField(label="Reconcile each draft when it's submitted",
-                               choices=Choice.choices, widget=forms.RadioSelect)
+    choice = forms.ChoiceField(choices=Choice.choices, widget=forms.RadioSelect)
+
+    def __init__(self, *args, label, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["choice"].label = label

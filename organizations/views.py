@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 from functools import wraps
 
 from django.core.mail import send_mail
@@ -11,10 +12,10 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from accounts.models import User
 
-from . import signup, tenancy
-from . import reconciling
-from .forms import (DryRunStructureForm, InvitationForm, NameForm, ReconcilingForm, WorldForm,
-                    WorldReconcilingForm)
+from . import reconciling, signup, tenancy, world_reviewing
+from .forms import (DryRunStructureForm, InvitationForm, NameForm, RunsByItselfForm, WorldForm,
+                    WorldRunsByItselfForm)
+from .llm_runs import RunsByItself
 from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole
 
 
@@ -127,10 +128,55 @@ def rename_world(request, world_id):
     return render(request, "organizations/rename_world.html", {"world": world, "form": form})
 
 
+@dataclass(frozen=True)
+class RunsByItselfPage:
+    """How the pages show one of the settings in `llm_runs.py`: on the
+    Organization page, and on each World's own page for it."""
+
+    setting: RunsByItself
+    # What it is called, and the Organization page's anchor for it.
+    title: str
+    anchor: str
+    # The checkbox and radio buttons' label: what it does when it is on.
+    label: str
+    about: str
+    when_on: str
+    when_off: str
+    # The name of the World's page for it, and the Organization's form's.
+    world_url: str
+    organization_url: str
+
+
+RECONCILING = RunsByItselfPage(
+    reconciling.SETTING, "Reconciliation", "reconciliation",
+    "Reconcile each draft when it's submitted",
+    "Reconciliation checks a draft Mod against its World's Canon, and against the other "
+    "drafts waiting for approval, with the LLM, for the plot team to read. With this on, it "
+    "runs each time a draft is submitted or revised, and each run counts toward the "
+    "Organization's monthly token limit.",
+    "Drafts in this World are reconciled when they're submitted.",
+    "Drafts in this World are not reconciled when they're submitted.",
+    "world-reconciliation", "organization-reconciliation")
+
+WORLD_REVIEWING = RunsByItselfPage(
+    world_reviewing.SETTING, "World review", "world-review",
+    "Run a World review after each Event",
+    "A World review looks across a whole World for drift, dormant Plots and chances to bring "
+    "NPCs and Plots back, with the LLM, for the plot team to read. With this on, one runs "
+    "after each Event has ended, when the site's scheduled task next runs, and each run "
+    "counts toward the Organization's monthly token limit.",
+    "This World is reviewed after each Event.",
+    "This World is not reviewed after each Event. Its plot team is offered a World review "
+    "instead.",
+    "world-review-setting", "organization-world-review")
+
+RUNS_BY_ITSELF = (RECONCILING, WORLD_REVIEWING)
+
+
 @require_http_methods(["GET", "POST"])
-def world_reconciling(request, world_id):
-    """Whether this World's drafts are reconciled when they are submitted, and
-    where that comes from. Its Plot Masters see it; only an Admin of its
+def world_runs_by_itself(request, world_id, page):
+    """Whether one of the settings in `llm_runs.py` is on for this World,
+    and where that comes from. Its Plot Masters see it; only an Admin of its
     Organization may change it. Anyone else gets "not found"."""
     world = world_or_404(request, world_id)
     if not is_plot_master(request, world):
@@ -140,29 +186,39 @@ def world_reconciling(request, world_id):
         raise Http404("No such page")
     form = None
     if request.method == "POST":
-        form = WorldReconcilingForm(request.POST)
+        form = WorldRunsByItselfForm(request.POST, label=page.label)
         if form.is_valid():
-            reconciling.set_for_world(world, form.cleaned_data["choice"])
-            return redirect("world-reconciliation", world_id=world.pk)
-    setting = reconciling.setting_of(world)
+            page.setting.set_for_world(world, form.cleaned_data["choice"])
+            return redirect(page.world_url, world_id=world.pk)
+    setting = page.setting.setting_of(world)
     if may_change and form is None:
-        form = WorldReconcilingForm(initial={"choice": setting.choice})
-    return render(request, "organizations/world_reconciliation.html",
-                  {"world": world, "setting": setting, "form": form})
+        form = WorldRunsByItselfForm(initial={"choice": setting.choice}, label=page.label)
+    return render(request, "organizations/world_runs_by_itself.html",
+                  {"world": world, "page": page, "setting": setting, "form": form})
 
 
 # ── The Organization: its Worlds, its people, invitations ───────────────────
 
 def organization_page(request, *, name_form=None, world_form=None, invitation_form=None,
-                      structure_form=None, reconciling_form=None, refused=None):
+                      structure_form=None, runs_by_itself_form=None, refused=None):
     organization = request.organization
+
+    def form_for(page):
+        """The form for one of the settings in `llm_runs.py`: the one sent
+        back with errors, or one showing the Organization's setting."""
+        refused_page, form = runs_by_itself_form or (None, None)
+        if refused_page == page:
+            return form
+        return RunsByItselfForm(
+            initial={"on": getattr(organization, page.setting.organization_field)},
+            label=page.label)
+
     return render(request, "organizations/organization.html", {
         "refused": refused,
         "name_form": name_form or NameForm(initial={"name": organization.name}),
         "structure_form": structure_form or DryRunStructureForm(
             initial={"structure": organization.dry_run_structure}),
-        "reconciling_form": reconciling_form or ReconcilingForm(
-            initial={"on": organization.reconciles_on_submission}),
+        "runs_by_itself": [(page, form_for(page)) for page in RUNS_BY_ITSELF],
         "worlds": World.objects.filter(organization=organization),
         "memberships": (Membership.objects.filter(organization=organization)
                         .select_related("user").order_by("user__email")),
@@ -205,14 +261,15 @@ def set_dry_run_structure(request):
 
 @organization_admin_only
 @require_POST
-def set_reconciling(request):
-    """Turn reconciling each draft on submission on or off for every World
+def set_runs_by_itself(request, page):
+    """Turn one of the settings in `llm_runs.py` on or off for every World
     that does not say otherwise."""
-    form = ReconcilingForm(request.POST)
+    form = RunsByItselfForm(request.POST, label=page.label)
     if not form.is_valid():
-        return organization_page(request, reconciling_form=form)
-    request.organization.reconciles_on_submission = form.cleaned_data["on"]
-    request.organization.save(update_fields=["reconciles_on_submission"])
+        return organization_page(request, runs_by_itself_form=(page, form))
+    field = page.setting.organization_field
+    setattr(request.organization, field, form.cleaned_data["on"])
+    request.organization.save(update_fields=[field])
     return redirect("organization")
 
 

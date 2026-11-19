@@ -262,7 +262,7 @@ def through_link(link):
 def as_plot_team(world):
     """What the World's plot team reads: everything, in full (`Reading`),
     whoever is asking. For what the app's LLM reads on the plot team's
-    behalf, such as a Reconciliation."""
+    behalf: a Reconciliation (ADR-0012) or a World review (ADR-0013)."""
     return Reading(world, documents_in(world)
                    .annotate(in_full=Value(True, output_field=BooleanField())))
 

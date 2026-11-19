@@ -9,7 +9,11 @@ correctly is `tenancy.activate`'s job.
 
 Each request tells Postgres who is asking and for which Organization (see
 `tenancy.py`). Every protected table has a policy that shows only the rows for
-that Organization. With nothing set, a query returns no rows at all.
+that Organization. With nothing set, a query returns no rows at all. The
+few deliberate exceptions are each in their own migration, and listed in the
+README under "How Organizations are kept apart": one is the Organization
+table, which a scheduled command may read whole while it says
+`app.all_organizations` (`tenancy.all_organizations`, ADR-0013).
 
 `FORCE` matters: the app's database user owns these tables, and without it
 Postgres would not apply the policies to the owner.

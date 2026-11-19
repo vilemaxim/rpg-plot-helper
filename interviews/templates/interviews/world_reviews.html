@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}World reviews — {{ world.name }} — RPG Plot Helper{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'world' world.pk %}">{{ world.name }}</a></p>
+  <h1>World reviews</h1>
+  <p>A World review looks across the whole World for drift, dormant Plots and chances to bring NPCs and Plots back, with the LLM, for the plot team to read. It reads everything the plot team can, and each run counts toward the Organization's monthly token limit.</p>
+  {% if on %}
+    <form method="post" action="{% url 'run-world-review' world.pk %}">
+      {% csrf_token %}
+      <button type="submit">Run a World review</button>
+    </form>
+  {% else %}
+    <p>World review is not set up on this site.</p>
+  {% endif %}
+  {% if reviews %}
+    <ul>
+      {% for review in reviews %}
+        <li><a href="{% url 'world-review' world.pk review.pk %}">{% include "interviews/world_review_when.html" %}</a></li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>This World has not been reviewed yet.</p>
+  {% endif %}
+{% endblock %}

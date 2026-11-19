@@ -7,8 +7,9 @@ counts the turn if not. Every LLM call an Interview makes, the person's turns
 and fix attempts alike, reports its tokens to `record`. Days and months are
 UTC, and both counts are kept in Postgres, shared by every process.
 
-A Reconciliation spends from the same monthly tokens (`tokens_refused`
-before it runs, and `record` after), but takes no person's turn.
+A Reconciliation and a World review spend from the same monthly tokens
+(`tokens_refused` before each runs, and `record` after), but take no
+person's turn.
 """
 
 from datetime import UTC, date, datetime, time, timedelta
