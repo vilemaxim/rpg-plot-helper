@@ -14,11 +14,9 @@ Assignment in the database: the Assignments only decide whether to ask.
 from canon import assignments, submitting
 from canon.access import REPORT, documents_in
 from canon.models import WriterHandle
-from canon.presenting import group_label as label
+import plotcanon
 
-# Stopgap until plotcanon #69 gives it, as it reads a label (`label` too):
-# the longest a Group's label may be.
-LONGEST = 60
+from canon.presenting import group_label as label
 
 
 def events_of_mod(mod):
@@ -51,7 +49,7 @@ def suggested(mod, event, person):
     link = WriterHandle.objects.filter(organization_id=mod.organization_id,
                                        world_id=mod.world_id, user=person) \
         .order_by("handle").first()
-    return link.handle[:LONGEST] if link else ""
+    return link.handle[:plotcanon.MAX_GROUP_CHARACTERS] if link else ""
 
 
 def has_split(mod):
@@ -66,7 +64,6 @@ def has_split(mod):
 def agrees(report, mod, event, group):
     """Refuse a report whose `group` is not `group` (a label, or "" for
     none), or, when `event` was asked, whose `event` is not it."""
-    # Stopgap until plotcanon #69 says these to the LLM itself.
     given = report.fields.get("group")
     if group and label(given) != group:
         raise submitting.ReportRefused(

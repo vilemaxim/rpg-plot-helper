@@ -132,7 +132,7 @@ class AskingForAGroup(GroupTest):
             page = self.rhea.get(self.report_interview(NO_DRY_RUN)).content.decode()
             self.begin(NO_DRY_RUN, page)
 
-        self.assertIn("give `group: rhea`", fake.asked[0][1][0].text)
+        self.assertIn("\ngroup: rhea\n", fake.asked[0][0])
 
 
 class WhichEvent(GroupTest):
@@ -206,7 +206,10 @@ class FilingWithAGroup(GroupTest):
         page, fake = self.write(fenced(report))
         self.file(page)
 
-        self.assertIn("my Group: give `group: rhea`", fake.asked[0][1][0].text)
+        system, messages = fake.asked[0]
+        self.assertIn("\ngroup: rhea\n", system)
+        self.assertEqual(messages[0].text, plotcanon.interview_report_opener(
+            [{"hook": SISTER}, DESCENT]))
         self.assertEqual(self.stored("aa-the-bell-beneath").fields["group"], "rhea")
 
     def test_a_report_without_the_group_asked_for_goes_back_to_the_llm(self):
@@ -280,7 +283,8 @@ class ASplit(SplitTest):
         told = plotcanon.interview_instructions(
             "report", "web", world=self.files_read_by("tom@example.com"),
             mod=self.stored(BELL).text,
-            path=path, continues_from=plotcanon.LastStop(DESCENT), event=SECOND_LANTERN)
+            path=path, continues_from=plotcanon.LastStop(DESCENT), event=SECOND_LANTERN,
+            group="tom")
         with self.provider(FakeProvider(fenced(report))) as fake:
             page = self.begin(BELL, self.stop_at(BELL, [1, 0], by=self.tom), by=self.tom)
         with self.provider(FakeProvider()):
@@ -329,17 +333,7 @@ class ComingBackTogether(SplitTest):
             "report", "web", world=self.files_rhea_reads(), mod=self.stored(BELL).text,
             path=[WHO, {"contest": "stop her before the last stroke", "result": "win"},
                   "The bell is silenced"],
-            continues_from=stop, event=SECOND_LANTERN))
-        self.assertIn("leave `group` out", fake.asked[0][1][0].text)
-
-    def test_the_llm_is_told_the_players_came_back_together_after_the_split(self):
-        self.choose("")
-        with self.provider(FakeProvider(QUESTION)) as fake:
-            self.begin(BELL, self.stop_at(BELL, [1], start=WHO))
-
-        opener = fake.asked[0][1][0].text
-        self.assertIn("came back together after splitting into Groups", opener)
-        self.assertNotIn("not split", opener)
+            continues_from=stop, event=SECOND_LANTERN, group=""))
 
     def test_a_report_with_a_group_is_refused_as_come_back_together(self):
         self.choose("")

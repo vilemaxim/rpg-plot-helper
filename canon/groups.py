@@ -6,11 +6,6 @@ import plotcanon
 from .presenting import group_of
 from .storing import files_of
 
-# Words found only in plotcanon's warning that two Groups that played side
-# by side change the same field of the same entity; the tests hold them to
-# plotcanon's wording. Stopgap until plotcanon #69 marks that warning itself.
-CLASH_WORDS = "which played alongside this one"
-
 
 def clashes(world, report):
     """plotcanon's warnings, as text, that `report` and a report from another
@@ -22,4 +17,5 @@ def clashes(world, report):
     if not group_of(report):
         return []
     return [warning.message for warning in plotcanon.load_world(files_of(world)).warnings
-            if warning.path == report.path and CLASH_WORDS in warning.message]
+            if warning.path == report.path
+            and warning.code == plotcanon.PARALLEL_GROUPS_CLASH]

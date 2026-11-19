@@ -24,12 +24,9 @@ LABELS = {"mod_writer": "Mod Writer", "mod_runner": "Mod Runner", "pcs": "PCs", 
           "as_of": "As of", "canon": "In Canon", "recorded_by": "Recorded by"}
 
 
-# Stopgap until plotcanon #69 gives these: plotcanon's `group_label` and
-# `group_of`, read the same way, with "" in place of None.
 def group_label(value):
-    """A `group` as the label of a Group: its text stripped, or "" when it
-    is not text or is blank, which is no Group."""
-    return value.strip() if isinstance(value, str) else ""
+    """plotcanon's `group_label`, with "" for no Group."""
+    return plotcanon.group_label(value) or ""
 
 
 def group_of(document):

@@ -127,25 +127,13 @@ class Reporting(Interviewing):
         stop = self.walked.last_stop if self.walked else self.stop(person)
         return plotcanon.interview_instructions(
             self.kind, SURFACE, world=world, mod=self.mod.text, path=self.path,
-            continues_from=stop, event=self.event or None)
+            continues_from=stop, event=self.event or None,
+            group=self.group if self.event else None)
 
     @property
     def opener(self):
-        """plotcanon's, and, when the Group was asked, what the Mod Runner
-        said of it, so the LLM need not ask whether the players split."""
-        said = plotcanon.interview_report_opener(self.path)
-        # Stopgap until plotcanon #69 says this in its opener.
-        if self.group:
-            said += (f"\n\nThe players split into Groups at this Event, each with its own "
-                     f"Mod Runner, and this report is for my Group: give `group: "
-                     f"{self.group}`.")
-        elif self.event and groups.has_split(self.mod):
-            said += ("\n\nThe players came back together after splitting into Groups, "
-                     "and this report covers them all, so leave `group` out.")
-        elif self.event:
-            said += ("\n\nThe players were not split into Groups for this Stretch, so "
-                     "leave `group` out.")
-        return said
+        """plotcanon's."""
+        return plotcanon.interview_report_opener(self.path)
 
     def agrees(self, report):
         """Refuse a report whose `path` is not the Path walked, or that has a
@@ -326,7 +314,7 @@ def group_page(request, world_id, slug):
     def page(status=200, **shown):
         return render(request, "interviews/group.html", {
             **reporting.context(), "events": events, "one_event": len(events) == 1,
-            "longest": groups.LONGEST, **shown}, status=status)
+            "longest": plotcanon.MAX_GROUP_CHARACTERS, **shown}, status=status)
 
     if request.method == "GET":
         reporting.in_progress(person)
@@ -341,12 +329,12 @@ def group_page(request, world_id, slug):
     if event in needing:
         asked = request.POST.get("asked")
         group = groups.label(request.POST.get("group", "")) if asked else ""
-        too_long = len(group) > groups.LONGEST or "\n" in group
+        too_long = len(group) > plotcanon.MAX_GROUP_CHARACTERS or "\n" in group
         if not asked or too_long:
             return page(400 if too_long else 200, event=event, event_name=events[event],
-                        suggested=group[:groups.LONGEST] if too_long
+                        suggested=group[:plotcanon.MAX_GROUP_CHARACTERS] if too_long
                         else groups.suggested(mod, event, person),
-                        refused=f"A Group's label is one line of at most {groups.LONGEST} "
+                        refused=f"A Group's label is one line of at most {plotcanon.MAX_GROUP_CHARACTERS} "
                                 f"characters." if too_long else "")
     conversation.begin_from_walk(None, reporting.world, person, reporting.kind, mod,
                                  event, group)
