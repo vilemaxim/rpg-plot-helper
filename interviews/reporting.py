@@ -328,14 +328,14 @@ def group_page(request, world_id, slug):
     group = ""
     if event in needing:
         asked = request.POST.get("asked")
-        group = groups.label(request.POST.get("group", "")) if asked else ""
-        too_long = len(group) > plotcanon.MAX_GROUP_CHARACTERS or "\n" in group
-        if not asked or too_long:
-            return page(400 if too_long else 200, event=event, event_name=events[event],
-                        suggested=group[:plotcanon.MAX_GROUP_CHARACTERS] if too_long
+        group = groups.group_label(request.POST.get("group", "")) if asked else ""
+        # A blank label is no Group: the players played, or came back, together.
+        problem = plotcanon.group_label_problem(group) if group else None
+        if not asked or problem:
+            return page(400 if problem else 200, event=event, event_name=events[event],
+                        suggested=group[:plotcanon.MAX_GROUP_CHARACTERS] if problem
                         else groups.suggested(mod, event, person),
-                        refused=f"A Group's label is one line of at most {plotcanon.MAX_GROUP_CHARACTERS} "
-                                f"characters." if too_long else "")
+                        refused=problem or "")
     conversation.begin_from_walk(None, reporting.world, person, reporting.kind, mod,
                                  event, group)
     return reporting.to_start()

@@ -11,12 +11,12 @@ The Group is in the report's file alone. It is never linked to an
 Assignment in the database: the Assignments only decide whether to ask.
 """
 
+import plotcanon
+
 from canon import assignments, submitting
 from canon.access import REPORT, documents_in
 from canon.models import WriterHandle
-import plotcanon
-
-from canon.presenting import group_label as label
+from canon.presenting import group_label
 
 
 def events_of_mod(mod):
@@ -58,14 +58,18 @@ def has_split(mod):
     came back together. Anyone filing on the Mod reads its reports, so this
     tells them nothing new."""
     reports = documents_in(mod.world).filter(kind=REPORT, fields__mod=mod.slug)
-    return any(label(report.fields.get("group")) for report in reports)
+    return any(group_label(report.fields.get("group")) for report in reports)
 
 
 def agrees(report, mod, event, group):
     """Refuse a report whose `group` is not `group` (a label, or "" for
-    none), or, when `event` was asked, whose `event` is not it."""
+    none), or, when `event` was asked, whose `event` is not it.
+
+    These check the report against what its Mod Runner chose in the app,
+    which plotcanon is not told when it checks a file, so the app says why
+    it refuses one, as it does for a Path that was not the one walked."""
     given = report.fields.get("group")
-    if group and label(given) != group:
+    if group and group_label(given) != group:
         raise submitting.ReportRefused(
             f"That report's `group` must be `{group}`, the Group its Mod Runner said it "
             f"is for. Give `group: {group}`.")

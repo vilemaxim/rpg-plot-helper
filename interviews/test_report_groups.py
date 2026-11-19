@@ -72,6 +72,17 @@ class AskingForAGroup(GroupTest):
                                  fetch_redirect_response=False)
         self.assertEqual(fake.asked, [])
 
+    def test_a_label_that_will_not_do_is_refused_in_plotcanons_words(self):
+        self.assign_tom()
+        with self.provider(FakeProvider()):
+            response = self.rhea.post(self.group_page(BELL), {
+                "event": SECOND_LANTERN, "group": "x" * 61, "asked": "1"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, plotcanon.group_label_problem("x" * 61),
+                            status_code=400)
+        self.assertContains(response, f'value="{"x" * 60}"', status_code=400)
+
     def test_it_suggests_the_filers_name_as_a_mod_writer_for_the_group(self):
         self.assign_tom()
         self.give("rhea@example.com", "mod-writer")
@@ -334,6 +345,8 @@ class ComingBackTogether(SplitTest):
             path=[WHO, {"contest": "stop her before the last stroke", "result": "win"},
                   "The bell is silenced"],
             continues_from=stop, event=SECOND_LANTERN, group=""))
+        self.assertIn("came back together after splitting into Groups",
+                      " ".join(fake.asked[0][0].split()))
 
     def test_a_report_with_a_group_is_refused_as_come_back_together(self):
         self.choose("")
