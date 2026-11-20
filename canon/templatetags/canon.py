@@ -1,8 +1,8 @@
 from django import template
 from django.db.models import Count
 
-from ..kinds import ADDRESS_OF, KINDS
 from .. import access, assignments, grants, writers
+from ..kinds import ADDRESS_OF, KINDS
 from ..models import CanonChange, Document, Flag
 
 register = template.Library()

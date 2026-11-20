@@ -14,8 +14,13 @@ from canon import grants
 from canon.models import Assignment, Document, Grant
 from canon.test_assignments import VIGIL as VIGIL_MOD
 from canon.test_exporting import unzipped
-from canon.test_reading import (FERRYMAN, FERRYMAN_SECRET, TIDEMOTHER, VIGIL_SECRET,
-                                ReadingTest)
+from canon.test_reading import (
+    FERRYMAN,
+    FERRYMAN_SECRET,
+    TIDEMOTHER,
+    VIGIL_SECRET,
+    ReadingTest,
+)
 from organizations import tenancy
 from organizations.models import Membership, World
 from organizations.tests import sign_in

@@ -11,7 +11,6 @@ from django.db import IntegrityError, ProgrammingError, transaction
 from django.test import override_settings
 
 from accounts.models import User
-
 from canon.models import Document
 from canon.test_approving import DAUGHTER
 from canon.test_mod_submissions import NEW, SubmissionTest, a_mod

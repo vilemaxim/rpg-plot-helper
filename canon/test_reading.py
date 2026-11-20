@@ -10,8 +10,8 @@ import html
 from accounts.models import User
 from canon import access
 from canon.models import CanonChange, Document
-from canon.test_mod_submissions import a_mod
 from canon.test_assignments import AssignmentTest
+from canon.test_mod_submissions import a_mod
 from canon.test_reports import LEDGER_2, STAIR
 from canon.test_runner_links import LinkTest
 from organizations.models import Membership, World
@@ -67,7 +67,7 @@ class AModWriterWithNoModsOfTheirOwn(ReadingTest):
         self.assertIn(HIDDEN, page)
         self.assertNotIn(DROWNED_BELL, page)
         self.assertNotIn("The Drowned Bell", page)
-        self.assertIn(f"locations/the-sunken-chapel/", page)
+        self.assertIn("locations/the-sunken-chapel/", page)
 
     def test_a_link_in_a_body_to_a_document_they_may_not_read_reads_another_document(self):
         with self.in_world():

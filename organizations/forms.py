@@ -2,8 +2,8 @@ import unicodedata
 
 from django import forms
 
-from .models import dry_run_structures
 from .llm_runs import Choice
+from .models import dry_run_structures
 
 # Characters that turn the text after them back to front, or embed or isolate
 # a run of it. In a name they let one thing be shown and another be meant.

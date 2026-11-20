@@ -6,14 +6,14 @@ import re
 import zipfile
 
 import plotcanon
-from django.test import TestCase, override_settings
+from django.test import override_settings
 
 from accounts.models import User
 from canon.models import Document
 from canon.storing import files_of
 from organizations import tenancy
 from organizations.models import Membership, World
-from organizations.test_people import ORGANIZATION, PeopleTest, world_id
+from organizations.test_people import PeopleTest, world_id
 from organizations.tests import sign_in
 
 NOT_A_WORLD = "/worlds/00000000-0000-4000-8000-000000000000/"

@@ -10,12 +10,18 @@ from django.db import ProgrammingError, transaction
 from django.test import TransactionTestCase, override_settings
 
 from accounts.models import User
+from canon.test_mod_submissions import NEW, a_mod
 from interviews import config, spending
 from interviews.models import TokenUsage
 from interviews.providers import ProviderError, Usage
-from canon.test_mod_submissions import NEW, a_mod
-from interviews.test_interviews import (BROKEN, QUESTION, FakeProvider, InterviewTest, fenced,
-                                        hidden)
+from interviews.test_interviews import (
+    BROKEN,
+    QUESTION,
+    FakeProvider,
+    InterviewTest,
+    fenced,
+    hidden,
+)
 from organizations import tenancy
 from organizations.models import Membership, World
 from organizations.tests import sign_in

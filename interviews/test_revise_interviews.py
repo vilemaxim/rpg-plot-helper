@@ -6,10 +6,9 @@ import re
 from pathlib import Path
 from unittest import mock
 
+import plotcanon
 from django.conf import settings
 from django.test import SimpleTestCase
-
-import plotcanon
 
 from canon import access
 from canon.test_approving import DAUGHTER
@@ -17,8 +16,16 @@ from canon.test_mod_submissions import NEW, a_mod
 from canon.test_resolving import WARRANT
 from interviews import config
 from interviews.providers import Message, ProviderError
-from interviews.test_interviews import (FIXING, QUESTION, SETTINGS, FakeProvider,
-                                        InterviewTest, fenced, file_in, hidden)
+from interviews.test_interviews import (
+    FIXING,
+    QUESTION,
+    SETTINGS,
+    FakeProvider,
+    InterviewTest,
+    fenced,
+    file_in,
+    hidden,
+)
 
 REASON = "The smuggler is dead; rewrite around his partner."
 

@@ -6,7 +6,7 @@ import plotcanon
 
 from canon.models import Document, Flag
 from canon.test_decisions import DecisionTest
-from canon.test_reports import STAIR, VIGIL
+from canon.test_reports import STAIR
 from organizations.models import Membership
 from organizations.tests import sign_in
 

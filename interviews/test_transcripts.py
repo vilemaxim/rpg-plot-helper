@@ -10,13 +10,19 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from accounts.models import User
+from canon.test_approving import DAUGHTER
 from canon.test_exporting import unzipped
 from canon.test_mod_submissions import NEW, a_mod
+from canon.test_resolving import WARRANT
 from interviews.models import Interview
 from interviews.providers import ProviderError
-from canon.test_approving import DAUGHTER
-from canon.test_resolving import WARRANT
-from interviews.test_interviews import QUESTION, FakeProvider, InterviewTest, fenced, hidden
+from interviews.test_interviews import (
+    QUESTION,
+    FakeProvider,
+    InterviewTest,
+    fenced,
+    hidden,
+)
 from interviews.test_revise_interviews import REASON, ReviseInterviewTest
 from organizations import tenancy
 from organizations.models import Membership, World

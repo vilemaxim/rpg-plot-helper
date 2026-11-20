@@ -42,8 +42,7 @@ from organizations.views import world_or_404
 from . import config, conversation, groups, walking
 from .config import Kind
 from .conversation import Tampered
-from .views import (SURFACE, Interviewing, a_turn, started_over,
-                    submitted)
+from .views import SURFACE, Interviewing, a_turn, started_over, submitted
 
 # The values the form to file a report may give for `finished`, as YAML.
 FINISHED = {"true", "false"}

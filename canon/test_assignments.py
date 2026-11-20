@@ -16,8 +16,8 @@ from django.utils import timezone
 from accounts.models import User
 from canon import assignments
 from canon.models import Assignment, Document
-from canon.test_reports import ReportTest
 from canon.test_exporting import unzipped
+from canon.test_reports import ReportTest
 from organizations import tenancy
 from organizations.models import Membership, World
 from organizations.tests import sign_in

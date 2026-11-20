@@ -34,12 +34,18 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from canon import access, intake
 from canon.forms import ModForm
-from canon.submitting import Refused
 from canon.models import Document, Flag
 from canon.presenting import wording
 from canon.storing import one_to_a_line
-from canon.views import (documents_of, is_draft, may_revise, readable_mod_or_404,
-                         refusal_as_read, to_saved_mod)
+from canon.submitting import Refused
+from canon.views import (
+    documents_of,
+    is_draft,
+    may_revise,
+    readable_mod_or_404,
+    refusal_as_read,
+    to_saved_mod,
+)
 from organizations.models import World
 from organizations.views import may_write_mods, world_or_404
 

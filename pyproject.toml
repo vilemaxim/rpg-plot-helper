@@ -22,3 +22,15 @@ package = false
 
 [tool.uv.sources]
 plotcanon = { git = "https://github.com/vilemaxim/plotcanon", rev = "v0.16.1" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.6",
+]
+
+[tool.ruff]
+extend-exclude = [".claude"]
+
+[tool.ruff.lint]
+# Errors and import order only; the rest of ruff's defaults are not enforced here.
+select = ["E4", "E7", "E9", "F", "I"]

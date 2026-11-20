@@ -7,18 +7,24 @@ from unittest import mock
 
 import plotcanon
 import yaml
-
 from django.utils import timezone
 
 from accounts.models import User
-from canon.test_reports import VIGIL
 from canon import access
 from canon.models import Assignment
-from organizations.models import World
+from canon.test_reports import VIGIL
 from interviews import config
 from interviews.providers import ProviderError
-from interviews.test_interviews import (FIXING, QUESTION, FakeProvider, InterviewTest, fenced,
-                                        file_in, hidden)
+from interviews.test_interviews import (
+    FIXING,
+    QUESTION,
+    FakeProvider,
+    InterviewTest,
+    fenced,
+    file_in,
+    hidden,
+)
+from organizations.models import World
 
 BELL = "the-bell-beneath"          # approved, with a Dry Run and a Contest
 NO_DRY_RUN = "storm-moon-vigil"    # approved, with no Dry Run

@@ -8,20 +8,45 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.mail import send_mail
 from django.db import transaction
-from django.template.loader import render_to_string
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
-from django.utils.http import content_disposition_header, url_has_allowed_host_and_scheme
+from django.utils.http import (
+    content_disposition_header,
+    url_has_allowed_host_and_scheme,
+)
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from organizations.forms import DryRunStructureForm
 from organizations.views import is_plot_master, may_write_mods, world_or_404
 
-from . import (access, approving, assignments, deciding, dry_runs, exporting, grants, groups,
-               intake, interludes, links, resolving, submitting, world_settings, writers)
-from .forms import ChangeForm, ImportForm, InterludeForm, ModForm, RecordForm, ReportForm
+from . import (
+    access,
+    approving,
+    assignments,
+    deciding,
+    dry_runs,
+    exporting,
+    grants,
+    groups,
+    intake,
+    interludes,
+    links,
+    resolving,
+    submitting,
+    world_settings,
+    writers,
+)
+from .forms import (
+    ChangeForm,
+    ImportForm,
+    InterludeForm,
+    ModForm,
+    RecordForm,
+    ReportForm,
+)
 from .importing import ImportRefused, import_world
 from .kinds import ADDRESS_OF, KINDS, has_page
 from .models import CanonChange, Decision, Document, Flag, ModLink

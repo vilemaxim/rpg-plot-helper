@@ -9,9 +9,9 @@ from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import include, path
 
 from accounts.models import User
-from plothelper import limits
 from organizations import tenancy
 from organizations.models import Membership, Organization, World, WorldRole
+from plothelper import limits
 
 
 def sign_in(email):

@@ -388,6 +388,7 @@ class FixingWithinWhatThePersonMayRead(InterviewTest):
 
     def test_a_finding_about_a_document_the_person_may_not_read_is_left_out(self):
         from django.contrib.auth import get_user_model
+
         from organizations.models import World
 
         everything = access.readable_documents

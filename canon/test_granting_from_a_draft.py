@@ -5,12 +5,12 @@ Through web requests, with plotcanon's sample World.
 Mira is the plot team (Plot Master and Organization Admin). Sam only writes
 Mods, and Rhea and Tom only run them."""
 
+from canon.models import Document
 from canon.test_approving import DAUGHTER
 from canon.test_granting import SALT_TAX, GrantingTest
 from canon.test_mod_submissions import a_mod
 from canon.test_reading import FERRYMAN, FERRYMAN_SECRET, SISTER_ANE, TIDEMOTHER
 from canon.test_resolving import WARRANT
-from canon.models import Document
 from organizations.models import Membership
 
 LANTERN = "the-lamplighters-debt"  # the draft Sam submits

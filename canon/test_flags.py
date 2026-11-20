@@ -5,7 +5,7 @@ import plotcanon
 
 from accounts.models import User
 from canon.models import Flag
-from canon.test_reports import KEEPER, LEDGER_2, STAIR, VIGIL, VIGIL_2, ReportTest
+from canon.test_reports import LEDGER_2, STAIR, VIGIL, VIGIL_2, ReportTest
 from organizations import tenancy
 from organizations.models import Membership
 from organizations.tests import sign_in

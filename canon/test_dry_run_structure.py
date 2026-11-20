@@ -8,14 +8,13 @@ import plotcanon
 from django.core.exceptions import ValidationError
 
 from accounts.models import User
-from organizations import tenancy
-from organizations.models import Membership, World
-
 from canon.test_approving import DAUGHTER
 from canon.test_exporting import unzipped
 from canon.test_mod_submissions import NEW, SubmissionTest, a_mod
 from canon.test_reports import ReportTest
 from canon.tests import CanonTest
+from organizations import tenancy
+from organizations.models import Membership, World
 
 SETTING = "dry-run-structure/"
 

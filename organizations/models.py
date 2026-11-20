@@ -13,7 +13,6 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
-
 # A World's Dry Run structure (ADR-0007) is a setting in its settings file,
 # whose format is plotcanon's (ADR-0004): plotcanon says what it may be, what
 # each value means and which is the default, and the app keeps no list of its

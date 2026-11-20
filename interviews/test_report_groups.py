@@ -4,16 +4,23 @@ Event, and the Path walk follows that Group. Through web requests, with a
 fake provider in place of the real one."""
 
 import plotcanon
-
 from django.utils import timezone
 
 from accounts.models import User
 from canon import access
 from canon.models import Assignment, Document
-from organizations.models import World
 from interviews.test_interviews import FakeProvider, fenced, file_in, hidden
-from interviews.test_report_interviews import (BELL, DESCENT, NO_DRY_RUN, QUESTION, SISTER,
-                                               WHO, WalkingThePath, a_report)
+from interviews.test_report_interviews import (
+    BELL,
+    DESCENT,
+    NO_DRY_RUN,
+    QUESTION,
+    SISTER,
+    WHO,
+    WalkingThePath,
+    a_report,
+)
+from organizations.models import World
 
 SECOND_LANTERN = "e04-second-lantern"   # the bell Mod's only Event
 
