@@ -35,6 +35,12 @@ uv run manage.py test
 
 The tests run against the same Postgres, in a separate database that is created and removed each time, so `scripts/db.sh` must be running. They never use SQLite.
 
+Turn on the pre-commit hook once per clone. It runs ruff and Django's checks, and refuses a model change without its migration. CI runs the same checks plus the tests on every push to `main`.
+
+```sh
+git config core.hooksPath scripts/hooks
+```
+
 ### The database
 
 | Command | What it does |

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Fast checks before every commit. The tests take minutes, so CI runs those
+# (.github/workflows/check.yml). Turn this hook on once per clone:
+#
+#   git config core.hooksPath scripts/hooks
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+uv run --quiet ruff check --quiet .
+uv run --quiet manage.py check --fail-level WARNING -v0
+uv run --quiet manage.py makemigrations --check --dry-run -v0 || {
+  echo "A model changed without a migration. Run: uv run manage.py makemigrations" >&2
+  exit 1
+}

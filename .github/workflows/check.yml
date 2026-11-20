@@ -1,0 +1,35 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready --username postgres"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: postgres://plothelper:plothelper@localhost:5432/plothelper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # The app's user must not be a superuser, or Postgres skips row-level
+      # security and the tests of it prove nothing (see scripts/db.sh).
+      - name: Create the app's database user
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql --host localhost --username postgres --set ON_ERROR_STOP=1 \
+            --command "CREATE ROLE plothelper LOGIN PASSWORD 'plothelper' CREATEDB" \
+            --command "CREATE DATABASE plothelper OWNER plothelper"
+      - run: scripts/hooks/pre-commit
+      - run: uv run manage.py test --parallel auto
