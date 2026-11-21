@@ -138,7 +138,8 @@ class Role(models.TextChoices):
 
 # Who may write Mods in a World: its Mod Writers, and its Plot Masters, who
 # may do anything a Mod Writer may.
-WRITES_MODS = (Role.MOD_WRITER, Role.PLOT_MASTER)
+# Role rows only: an Admin who holds neither role is not counted. Open question.
+WRITES_MODS = (Role.MOD_WRITER, Role.PLOT_MASTER)  # noqa: TID251
 
 
 class WorldRole(models.Model):

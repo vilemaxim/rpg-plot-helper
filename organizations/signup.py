@@ -35,7 +35,7 @@ def create_first_organization(user):
     Membership.objects.create(organization=organization, user=user, is_admin=True)
     world = World.objects.create(organization=organization, name=FIRST_WORLD_NAME)
     WorldRole.objects.create(organization=organization, world=world, user=user,
-                             role=Role.PLOT_MASTER)
+                             role=Role.PLOT_MASTER)  # noqa: TID251  gives the role
     return organization
 
 

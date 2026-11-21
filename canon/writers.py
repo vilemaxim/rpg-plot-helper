@@ -15,7 +15,7 @@ None of this is written into a file: accounts never appear in files
 from django.db import transaction
 from django.utils import timezone
 
-from organizations.models import WRITES_MODS, World
+from organizations.models import WRITES_MODS, World  # noqa: TID251  see WRITES_MODS
 
 from .models import Document, WriterHandle
 from .roles import chosen, people_holding

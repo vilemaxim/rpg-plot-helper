@@ -22,7 +22,7 @@ from .forms import (
     WorldRunsByItselfForm,
 )
 from .llm_runs import RunsByItself
-from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole
+from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole  # noqa: TID251
 
 
 def worlds_open_to(request):
@@ -91,7 +91,7 @@ def is_plot_master(request, world):
     if membership is not None and membership.is_admin \
             and membership.organization_id == world.organization_id:
         return True
-    return holds_role(request, world, Role.PLOT_MASTER)
+    return holds_role(request, world, Role.PLOT_MASTER)  # noqa: TID251  after the Admins, above
 
 
 def holds_role(request, world, *roles):

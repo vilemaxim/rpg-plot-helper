@@ -19,7 +19,7 @@ def plot_team(world):
     """The people who read everything in the World, by email: its Plot
     Masters and its Organization's Admins."""
     plot_masters = WorldRole.objects.filter(world=world, role=Role.PLOT_MASTER) \
-        .values("user_id")
+        .values("user_id")  # noqa: TID251  with the Admins, below
     admins = Membership.objects.filter(organization=world.organization, is_admin=True) \
         .values("user_id")
     return get_user_model().objects.filter(Q(pk__in=plot_masters) | Q(pk__in=admins)) \
