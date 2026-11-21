@@ -22,7 +22,7 @@ from .forms import (
     WorldRunsByItselfForm,
 )
 from .llm_runs import RunsByItself
-from .models import WRITES_MODS, Invitation, Membership, Role, World, WorldRole  # noqa: TID251
+from .models import Invitation, Membership, Role, World, WorldRole
 
 
 def worlds_open_to(request):
@@ -100,7 +100,9 @@ def holds_role(request, world, *roles):
 
 
 def may_write_mods(request, world):
-    return holds_role(request, world, *WRITES_MODS)
+    """Whether the person may write Mods in this World: they are a Mod
+    Writer in it, or may do what a Plot Master does, which includes it."""
+    return is_plot_master(request, world) or holds_role(request, world, Role.MOD_WRITER)
 
 
 @require_GET
@@ -111,7 +113,7 @@ def world(request, world_id):
         "world": world,
         "roles": [role.get_role_display() for role in roles],
         "is_plot_master": is_plot_master(request, world),
-        "may_write_mods": any(role.role in WRITES_MODS for role in roles),
+        "may_write_mods": may_write_mods(request, world),
     })
 
 

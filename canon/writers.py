@@ -15,10 +15,10 @@ None of this is written into a file: accounts never appear in files
 from django.db import transaction
 from django.utils import timezone
 
-from organizations.models import WRITES_MODS, World  # noqa: TID251  see WRITES_MODS
+from organizations.models import Role, World
 
 from .models import Document, WriterHandle
-from .roles import chosen, people_holding
+from .roles import chosen, people_holding, plot_team
 from .submitting import states
 
 
@@ -65,8 +65,9 @@ def is_writer_of(mod, person, handles=None):
 
 
 def may_write_mods_in(world):
-    """The people who may be a Mod Writer in this World, by email."""
-    return people_holding(world, *WRITES_MODS)
+    """The people who may be a Mod Writer in this World, by email: its Mod
+    Writers and its plot team, since a Plot Master or an Admin may write Mods."""
+    return (people_holding(world, Role.MOD_WRITER) | plot_team(world)).order_by("email")
 
 
 def still_writes(world, person):
@@ -96,8 +97,8 @@ def eligible_writer(world, user_id):
     person = chosen(may_write_mods_in(world), user_id)
     if person is None:
         raise WriterRefused("That person cannot be the Mod Writer of a Mod here: only "
-                            "someone with the Mod Writer or Plot Master role in this World "
-                            "can.")
+                            "someone with the Mod Writer or Plot Master role in this World, "
+                            "or an Admin of its Organization, can.")
     return person
 
 

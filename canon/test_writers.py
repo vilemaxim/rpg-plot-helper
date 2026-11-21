@@ -274,3 +274,36 @@ class TheDatabaseOnItsOwn(WriterTest):
             self.assertEqual(WriterHandle.objects.count(), 0)
         with self.in_world():
             self.assertEqual(WriterHandle.objects.count(), 1)
+
+
+class AnOrganizationAdminWithNoRoleInTheWorld(WriterTest):
+    """An Admin may do everything a Plot Master does, and a Plot Master may
+    write Mods, so an Admin may too, with no role in the World."""
+
+    def setUp(self):
+        super().setUp()
+        self.ada = self.join("ada@example.com")
+        with self.in_world():
+            Membership.objects.filter(user__email="ada@example.com").update(is_admin=True)
+
+    def test_may_submit_a_mod(self):
+        self.assertContains(self.ada.get(self.first_world), self.form)
+        self.submit_mod(a_mod(), by=self.ada)
+
+        self.assertEqual(self.stored(NEW).submitted_by.email, "ada@example.com")
+
+    def test_may_be_made_a_drafts_mod_writer(self):
+        self.submit_mod(a_mod())
+        form = self.mira.get(self.mod_page(NEW)).content.decode() \
+            .split('class="reassign"', 1)[1].split("</form>", 1)[0]
+        self.assertIn(f'<option value="{self.user_id("ada@example.com")}"', form)
+
+        self.reassign(NEW, "ada@example.com")
+
+        self.assertIn("ada@example.com", self.writer_shown(NEW))
+        self.assertEqual(self.ada.get(f"{self.mod_page(NEW)}revise/").status_code, 200)
+
+    def test_may_be_linked_to_a_handle(self):
+        self.link("kay", "ada@example.com")
+
+        self.assertIn("ada@example.com", self.writer_shown(DAUGHTER))

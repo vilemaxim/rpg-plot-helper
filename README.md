@@ -186,7 +186,7 @@ A resolved Flag is no longer listed or warned about, and stays on record on the 
 
 ## Submitting and approving Mods
 
-A Mod is written in an [Interview](#writing-a-mod-in-an-interview) with the app's own LLM, when the deployment has one, or in the Mod Writer's own LLM and submitted as a file ([ADR-0008](./docs/adr/0008-mods-are-written-in-an-interview-with-an-llm-the-deployment-configures.md)). A World's Mod Writers and Plot Masters do either from the World's page, once the World has Canon: "Write a Mod" opens an Interview, and "Submit a Mod", or "paste or upload one" beside an Interview, takes a file pasted or chosen. Both end in the same intake:
+A Mod is written in an [Interview](#writing-a-mod-in-an-interview) with the app's own LLM, when the deployment has one, or in the Mod Writer's own LLM and submitted as a file ([ADR-0008](./docs/adr/0008-mods-are-written-in-an-interview-with-an-llm-the-deployment-configures.md)). A World's Mod Writers, its Plot Masters and its Organization's Admins do either from the World's page, once the World has Canon: "Write a Mod" opens an Interview, and "Submit a Mod", or "paste or upload one" beside an Interview, takes a file pasted or chosen. Both end in the same intake:
 
 - **It arrives as a draft.** It is kept in the World's inbox, says `state: draft` and `canon: proposed` whatever the file claimed, and is not Canon. A draft cannot be run or reported on, and submitting one raises no Flags.
 - **It is checked first.** plotcanon checks it against the World as stored. If anything is wrong, nothing is saved and the errors are shown as text to paste back into the LLM, with what was pasted kept in the form. A draft may name people, places and factions the World does not have yet; plotcanon allows that in the inbox.
